@@ -4,16 +4,16 @@ export const styles = StyleSheet.create({
     container: {
         flex: 1,
         alignItems: 'center',
-        paddingTop: 25
+        paddingTop: 24
     },
     logo: {
-        width: 120,
-        height: 120, 
+        width: 160,
+        height: 160, 
         resizeMode: 'contain',
     },
     logoContainer: {
         alignItems: 'center',
-        marginTop: 25,
-        marginBottom: 125
+        marginTop: 24,
+        marginBottom: 24
     }
 });

@@ -8,20 +8,35 @@ export default function LogInScreen() {
         flex: 1,
         padding: 24,
         justifyContent: "center",
+        backgroundColor: '#0D1321'
       }}
     >
       <Text
         style={{
-          fontSize: 28,
+          fontSize: 34.56,
           fontWeight: "700",
           textAlign: "center",
-          marginBottom: 32,
+          marginBottom: 10,
+          color: '#ECC8AF',
         }}
       >
-        Sign In
+        SayItSimply
       </Text>
 
       <DisplayLogoWithStyle />
+
+      <Text
+        style={{
+          fontSize: 16,
+          fontWeight: "600",
+          fontStyle: 'italic',
+          textAlign: "center",
+          marginBottom: 10,
+          color: '#ECC8AF',
+        }}
+      >
+        Read, Translate, Simplify
+      </Text>
 
       <TextInput
         placeholder="Email Address"
@@ -32,6 +47,7 @@ export default function LogInScreen() {
           borderWidth: 1,
           borderRadius: 8,
           padding: 12,
+          marginTop: 32,
           marginBottom: 16,
           backgroundColor: '#F8F4F9'
         }}
@@ -53,15 +69,16 @@ export default function LogInScreen() {
       <Pressable
         style={{
           backgroundColor: "#809BCE",
-          padding: 14,
+          padding: 12,
           borderRadius: 8,
         }}
       >
         <Text
           style={{
             color: "white",
-            fontWeight: "600",
+            fontWeight: "700",
             textAlign: "center",
+            fontSize: 14
           }}
         >
           Log In

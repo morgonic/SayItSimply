@@ -1,3 +1,4 @@
+import DisplayLogoWithStyle from "@/components/ui/DisplayLogoWithStyle";
 import { Pressable, Text, TextInput, View } from "react-native";
 
 export default function LogInScreen() {
@@ -19,6 +20,8 @@ export default function LogInScreen() {
       >
         Sign In
       </Text>
+
+      <DisplayLogoWithStyle />
 
       <TextInput
         placeholder="Email Address"

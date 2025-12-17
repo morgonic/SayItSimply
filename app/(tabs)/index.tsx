@@ -1,6 +1,6 @@
 import { Pressable, Text, TextInput, View } from "react-native";
 
-export default function SignInScreen() {
+export default function LogInScreen() {
   return (
     <View
       style={{
@@ -21,7 +21,8 @@ export default function SignInScreen() {
       </Text>
 
       <TextInput
-        placeholder="Email"
+        placeholder="Email Address"
+        placeholderTextColor='#7F7F7F'
         autoCapitalize="none"
         keyboardType="email-address"
         style={{
@@ -29,23 +30,26 @@ export default function SignInScreen() {
           borderRadius: 8,
           padding: 12,
           marginBottom: 16,
+          backgroundColor: '#F8F4F9'
         }}
       />
 
       <TextInput
         placeholder="Password"
+        placeholderTextColor='#7F7F7F'
         secureTextEntry
         style={{
           borderWidth: 1,
           borderRadius: 8,
           padding: 12,
           marginBottom: 24,
+          backgroundColor: '#F8F4F9'
         }}
       />
 
       <Pressable
         style={{
-          backgroundColor: "#007AFF",
+          backgroundColor: "#809BCE",
           padding: 14,
           borderRadius: 8,
         }}
@@ -57,7 +61,7 @@ export default function SignInScreen() {
             textAlign: "center",
           }}
         >
-          Sign In
+          Log In
         </Text>
       </Pressable>
     </View>

@@ -1,5 +1,6 @@
 import DisplayLogoWithStyle from "@/components/ui/DisplayLogoWithStyle";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { styles } from "@/constants/styles";
+import { Pressable, Text, TextInput, View, Image } from "react-native";
 
 export default function LogInScreen() {
   return (
@@ -61,7 +62,7 @@ export default function LogInScreen() {
           borderWidth: 1,
           borderRadius: 8,
           padding: 12,
-          marginBottom: 24,
+          marginBottom: 16,
           backgroundColor: '#F8F4F9'
         }}
       />
@@ -84,6 +85,72 @@ export default function LogInScreen() {
           Log In
         </Text>
       </Pressable>
+
+      <View style={styles.separatorContainer}>
+        <View style={styles.separatorLine} />
+        <Text style={styles.separatorText}>or</Text>
+        <View style={styles.separatorLine} />
+      </View>
+
+      <Pressable
+        style={{
+          backgroundColor: '#F8F4F9',
+          padding: 8,
+          borderRadius: 8,
+          marginBottom: 12
+        }}
+      >
+        <View style={{flexDirection: 'row', justifyContent: 'center', alignItems: 'center'}}>
+          <Image
+          source={require('../../assets/images/google-logo.png')}
+          style={{
+            width: 27,
+            height: 27,
+            marginRight: 8
+          }}
+          />
+          <Text
+            style={{
+              color: "#000000",
+              fontWeight: "600",
+              textAlign: "center",
+              fontSize: 14
+            }}
+          >
+            Continue with Google
+          </Text>
+        </View>
+      </Pressable>
+
+      <Pressable
+        style={{
+          backgroundColor: "#809BCE",
+          padding: 12,
+          borderRadius: 8,
+        }}
+      >
+        <Text
+          style={{
+            color: "white",
+            fontWeight: "700",
+            textAlign: "center",
+            fontSize: 14
+          }}
+        >
+          Sign Up with Email
+        </Text>
+      </Pressable>
+
+      <Text
+        style={{
+          color: '#F8F4F9',
+          fontSize: 12,
+          textAlign: 'center',
+          marginTop: 24
+        }}
+      >
+        By logging in, you agree to our <Text style={{color: '#7F7F7F'}}>Terms of Service</Text> and <Text style={{color: '#7F7F7F'}}>Privacy Policy</Text>
+      </Text>
     </View>
   );
 }

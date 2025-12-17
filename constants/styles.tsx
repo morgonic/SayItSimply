@@ -15,5 +15,20 @@ export const styles = StyleSheet.create({
         alignItems: 'center',
         marginTop: 24,
         marginBottom: 24
+    },
+    separatorContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: 40
+    },
+    separatorLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: '#E6E6E6'
+    },
+    separatorText: {
+        marginHorizontal: 8,
+        color: '#828282',
+        fontSize: 14
     }
 });

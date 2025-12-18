@@ -43,3 +43,7 @@ app.include_router(
 @app.get("/authenticated-route")
 async def authenticated_route(user: User = Depends(current_active_user)):
     return {"message": f"Hello {user.email}!"}
+
+@app.get("/")
+async def read_root():
+    return {"message": "SayItSimply backend is running! Woohoo!"}

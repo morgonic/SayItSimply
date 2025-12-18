@@ -1,0 +1,7 @@
+# API + database
+fastapi[standard]
+fastapi-users[sqlalchemy]
+uvicorn[standard]
+sqlalchemy
+aiosqlite
+sqlmodel

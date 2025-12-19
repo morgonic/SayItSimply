@@ -123,7 +123,7 @@ export default function SignUpScreen() {
           borderWidth: 1,
           borderRadius: 8,
           padding: 12,
-          marginTop: 32,
+          marginTop: 24,
           marginBottom: 16,
           backgroundColor: '#F8F4F9'
         }}
@@ -176,6 +176,24 @@ export default function SignUpScreen() {
           }}
         >
           Sign Up
+        </Text>
+      </Pressable>
+
+      <Pressable
+        onPress={() => router.replace('/log-in')}
+        style={{
+          marginTop: 12
+        }}
+      >
+        <Text
+          style={{
+            color: "white",
+            fontWeight: "600",
+            textAlign: "center",
+            fontSize: 14
+          }}
+        >
+          Already have an account? Log In
         </Text>
       </Pressable>
 

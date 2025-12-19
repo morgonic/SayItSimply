@@ -1,9 +1,13 @@
 import DisplayLogoWithStyle from "@/components/ui/DisplayLogoWithStyle";
 import { styles } from "@/constants/styles";
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import { Pressable, Text, TextInput, View, Image } from "react-native";
 
 export default function SignUpScreen() {
+
+  const router = useRouter();
+
+
   return (
     <View
       style={{
@@ -93,7 +97,7 @@ export default function SignUpScreen() {
       />
 
       <Pressable
-        onPress={() => router.push('/(tabs)')}
+        onPress={() => router.replace('/log-in')}
         style={{
           backgroundColor: "#809BCE",
           padding: 12,

@@ -15,55 +15,48 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   async function createAccount() {
-    try {
-      const response = await fetch(`${api_url}/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email: email.trim(), password: password})
-      });
+    if (doPasswordsMatch() === true) {  
+      try {
+        const response = await fetch(`${api_url}/auth/register`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email: email.trim(), password: password})
+        });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      };
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        };
 
-      const body = new URLSearchParams({ username: email.trim(), password: password});
+        const body = new URLSearchParams({ username: email.trim(), password: password});
 
-      const loginResponse = await fetch(`${api_url}/auth/jwt/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: body.toString()
-      });
+        const loginResponse = await fetch(`${api_url}/auth/jwt/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: body.toString()
+        });
 
-      if (!loginResponse.ok) { 
-        throw new Error(`HTTP ${loginResponse.status}`)
-      };
+        if (!loginResponse.ok) { 
+          throw new Error(`HTTP ${loginResponse.status}`)
+        };
 
-      const json = await loginResponse.json();
+        const json = await loginResponse.json();
 
-      await storage.setItem("access_token", json.access_token);
+        await storage.setItem("access_token", json.access_token);
 
-      router.replace('/(tabs)');
+        router.replace('/(tabs)');
 
-      console.log(`Account created for ${email}`);
-    }
-    catch (e: any) {
-      Alert.alert(`Failed to create account: ${e.message}`);
-    }
-  }
-
-  function testTextInputs() {
-    router.replace('/log-in');
-    console.log(`Email: ${email}, Password: ${password}`);
-    const match = doPasswordsMatch();
-    if (match === false) {
-      console.log("Passwords do not match.");
+        console.log(`Account created for ${email}`);
+      }
+      catch (e: any) {
+        Alert.alert(`Failed to create account: ${e.message}`);
+      }
     }
     else {
-      console.log("Passwords match.");
+      Alert.alert("Passwords do not match. Please try again.");
     }
   }
 

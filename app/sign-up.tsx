@@ -1,17 +1,59 @@
 import DisplayLogoWithStyle from "@/components/ui/DisplayLogoWithStyle";
 import { styles } from "@/constants/styles";
 import { useRouter } from "expo-router";
-import { Pressable, Text, TextInput, View, Image } from "react-native";
+import { Pressable, Text, TextInput, View, Image, Alert } from "react-native";
 import { useState } from "react";
+import storage from "./storage";
+
+const api_url = 'http://127.0.0.1:8000';
 
 export default function SignUpScreen() {
-
-  
 
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  async function createAccount() {
+    try {
+      const response = await fetch(`${api_url}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email: email.trim(), password: password})
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      };
+
+      const body = new URLSearchParams({ username: email.trim(), password: password});
+
+      const loginResponse = await fetch(`${api_url}/auth/jwt/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: body.toString()
+      });
+
+      if (!loginResponse.ok) { 
+        throw new Error(`HTTP ${loginResponse.status}`)
+      };
+
+      const json = await loginResponse.json();
+
+      await storage.setItem("access_token", json.access_token);
+
+      router.replace('/(tabs)');
+
+      console.log(`Account created for ${email}`);
+    }
+    catch (e: any) {
+      Alert.alert(`Failed to create account: ${e.message}`);
+    }
+  }
 
   function testTextInputs() {
     router.replace('/log-in');
@@ -125,7 +167,7 @@ export default function SignUpScreen() {
       />
 
       <Pressable
-        onPress={() => testTextInputs()}
+        onPress={createAccount}
         style={{
           backgroundColor: "#809BCE",
           padding: 12,

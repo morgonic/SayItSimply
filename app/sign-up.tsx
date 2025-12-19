@@ -2,10 +2,32 @@ import DisplayLogoWithStyle from "@/components/ui/DisplayLogoWithStyle";
 import { styles } from "@/constants/styles";
 import { useRouter } from "expo-router";
 import { Pressable, Text, TextInput, View, Image } from "react-native";
+import { useState } from "react";
 
 export default function SignUpScreen() {
 
+  
+
   const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  function testTextInputs() {
+    router.replace('/log-in');
+    console.log(`Email: ${email}, Password: ${password}`);
+    const match = doPasswordsMatch();
+    if (match === false) {
+      console.log("Passwords do not match.");
+    }
+    else {
+      console.log("Passwords match.");
+    }
+  }
+
+  function doPasswordsMatch() {
+    return password === confirmPassword;
+  }
 
 
   return (
@@ -60,6 +82,8 @@ export default function SignUpScreen() {
         placeholderTextColor='#7F7F7F'
         autoCapitalize="none"
         keyboardType="email-address"
+        value={email}
+        onChangeText={setEmail}
         style={{
           borderWidth: 1,
           borderRadius: 8,
@@ -74,6 +98,8 @@ export default function SignUpScreen() {
         placeholder="Password"
         placeholderTextColor='#7F7F7F'
         secureTextEntry
+        value={password}
+        onChangeText={setPassword}
         style={{
           borderWidth: 1,
           borderRadius: 8,
@@ -87,6 +113,8 @@ export default function SignUpScreen() {
         placeholder="Confirm Password"
         placeholderTextColor='#7F7F7F'
         secureTextEntry
+        value={confirmPassword}
+        onChangeText={setConfirmPassword}
         style={{
           borderWidth: 1,
           borderRadius: 8,
@@ -97,7 +125,7 @@ export default function SignUpScreen() {
       />
 
       <Pressable
-        onPress={() => router.replace('/log-in')}
+        onPress={() => testTextInputs()}
         style={{
           backgroundColor: "#809BCE",
           padding: 12,

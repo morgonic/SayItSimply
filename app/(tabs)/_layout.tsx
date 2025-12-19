@@ -2,7 +2,6 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
@@ -27,10 +26,24 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="documemts"
+        options={{
+          title: 'Documents',
+          tabBarIcon: ({ color }) => <Entypo size={28} name="documents" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="camera"
         options={{
           title: 'Camera',
           tabBarIcon: ({ color }) => <FontAwesome size={28} name="camera" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="todo-list"
+        options={{
+          title: 'To-Do List',
+          tabBarIcon: ({ color }) => <FontAwesome size={28} name="list" color={color} />,
         }}
       />
     </Tabs>

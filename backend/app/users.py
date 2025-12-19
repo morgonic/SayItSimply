@@ -1,3 +1,4 @@
+import os
 import uuid
 
 from fastapi import Depends, Request
@@ -8,12 +9,16 @@ from fastapi_users.authentication import (
     JWTStrategy
 )
 from fastapi_users.db import SQLAlchemyUserDatabase
+from httpx_oauth.clients.google import GoogleOAuth2
 
 from .db import User, get_user_db
 
 SECRET = "SECRET"
 
-
+google_oauth_client = GoogleOAuth2(
+    os.getenv("GOOGLE_OAUTH_CLIENT_ID", ""),
+    os.getenv("GOOGLE_OAUTH_CLIENT_SECRET","")
+)
 
 
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):

@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import User, create_db_and_tables, engine
 from app.schemas import UserCreate, UserRead, UserUpdate
-from app.users import auth_backend, current_active_user, fastapi_users
+from app.users import auth_backend, current_active_user, fastapi_users, google_oauth_client, SECRET
 
 
 @asynccontextmanager
@@ -48,6 +48,22 @@ app.include_router(
     fastapi_users.get_users_router(UserRead, UserUpdate),
     prefix="/users",
     tags=["users"]
+)
+app.include_router(
+    fastapi_users.get_oauth_router(
+        google_oauth_client, 
+        auth_backend, 
+        SECRET,
+        associate_by_email=True,
+        is_verified_by_default=True
+    ),
+    prefix="/auth/google",
+    tags=["auth"]
+)
+app.include_router(
+    fastapi_users.get_oauth_associate_router(google_oauth_client, UserRead, SECRET),
+    prefix="/auth/associate/google",
+    tags=["auth"]
 )
 
 @app.get("/authenticated-route")

@@ -5,7 +5,11 @@ import { Pressable, Text, TextInput, View, Image, Alert } from "react-native";
 import { useState } from "react";
 import storage from "./storage";
 
-const api_url = 'http://127.0.0.1:8000';
+const api_url = process.env.EXPO_PUBLIC_API_URL;
+
+if (!api_url) {
+  throw new Error("Missing EXPO_PUBLIC_API_URL. Add it to your .env file.");
+}
 
 export default function SignUpScreen() {
 
@@ -49,6 +53,7 @@ export default function SignUpScreen() {
 
         router.replace('/(tabs)');
 
+        console.log("API URL:", process.env.EXPO_PUBLIC_API_URL);
         console.log(`Account created for ${email}`);
       }
       catch (e: any) {

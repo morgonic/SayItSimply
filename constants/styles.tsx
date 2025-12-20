@@ -19,7 +19,7 @@ export const styles = StyleSheet.create({
     separatorContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginVertical: 40
+        marginVertical: 30
     },
     separatorLine: {
         flex: 1,

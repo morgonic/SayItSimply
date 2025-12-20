@@ -26,10 +26,17 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="documemts"
+        name="documents"
         options={{
           title: 'Documents',
           tabBarIcon: ({ color }) => <Entypo size={28} name="documents" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="reader"
+        options={{
+          title: 'Reader',
+          tabBarIcon: ({ color }) => <FontAwesome size={28} name="plus" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -44,6 +51,13 @@ export default function TabLayout() {
         options={{
           title: 'To-Do List',
           tabBarIcon: ({ color }) => <FontAwesome size={28} name="list" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color }) => <FontAwesome size={28} name="user" color={color} />,
         }}
       />
     </Tabs>

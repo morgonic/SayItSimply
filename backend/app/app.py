@@ -36,6 +36,9 @@ class OAuthMobileRedirectMiddleware(BaseHTTPMiddleware):
         # read mobile redirect link for after oauth completes
         mobile_redirect = os.getenv("MOBILE_REDIRECT_URL")
 
+        if request.url.path not in ("/auth/google/callback", "/auth/associate/google/callback"):
+            return response
+
         # if mobile redirect is not configured, do nothing and return the response
         if not mobile_redirect:
             return response

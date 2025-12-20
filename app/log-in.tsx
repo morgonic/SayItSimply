@@ -1,11 +1,102 @@
 import DisplayLogoWithStyle from "@/components/ui/DisplayLogoWithStyle";
 import { styles } from "@/constants/styles";
-import { Pressable, Text, TextInput, View, Image } from "react-native";
+import { Pressable, Text, TextInput, View, Image, Alert } from "react-native";
 import { useRouter } from "expo-router";
+import { useState } from "react";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
+import storage from './storage';
+
+WebBrowser.maybeCompleteAuthSession()
+
+const api_url = process.env.EXPO_PUBLIC_API_URL;
 
 export default function LogInScreen() {
   
   const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  
+  async function logIn() {
+    try {
+      const body = new URLSearchParams({
+        username: email.trim(),
+        password: password
+      });
+
+      const response = await fetch(`${api_url}/auth/jwt/login`, {
+        method: 'POST',
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        },
+        body: body.toString()
+      });
+
+      if (!response.ok) {
+        throw new Error(`Login failed: HTTP ${response.status}`);
+      }
+
+      const json = await response.json();
+
+      await storage.setItem("access_token", json.access_token);
+      await storage.setItem("token_type", json.token_type ?? "bearer");
+
+      router.replace("/(tabs)");
+    }
+    catch (e: any) {
+      Alert.alert(`Login failed: ${e.message}`);
+    }
+  }
+
+  async function continueWithGoogle() {
+    try {
+      // link back to app
+      const redirectUrl = Linking.createURL("oauth");
+      console.log("Expo redirectUrl:", redirectUrl)
+
+      // get google authorization url from backend
+      const response = await fetch(`${api_url}/auth/google/authorize`);
+      if (!response.ok) {
+        throw new Error(`Authorize failed: HTTP ${response.status}`);
+      }
+      const { authorization_url } = await response.json();
+      if (!authorization_url) {
+        throw new Error("No authorization_url returned from backend");
+      }
+
+      // open google login and wait to return to redirect url
+      const result = await WebBrowser.openAuthSessionAsync(authorization_url, redirectUrl);
+
+      // if login didn't complete or was cancelled, exit
+      if (result.type !== "success" || !result.url) {
+        return;
+      }
+
+      // get oauth tokens url fragment after #
+      const fragment = result.url.split("#")[1] ?? "";
+      // parse fragment into key/value pairs
+      const params = new URLSearchParams(fragment);
+
+      // get jwt access token
+      const access_token = params.get("access_token");
+      // get token type
+      const token_type = params.get("token_type") ?? "bearer";
+
+      if (!access_token) {
+        throw new Error("Google login succeeded but no access token was returned.");
+      }
+
+      // persist token and type for future calls
+      await storage.setItem("access_token", access_token);
+      await storage.setItem("token_type", token_type);
+
+      // navigate to main app
+      router.replace('/(tabs)');
+    }
+    catch (e: any) {
+      Alert.alert("Google sign in failed", e.message);
+    }
+  }
 
 
   return (
@@ -49,6 +140,8 @@ export default function LogInScreen() {
         placeholderTextColor='#7F7F7F'
         autoCapitalize="none"
         keyboardType="email-address"
+        value={email}
+        onChangeText={setEmail}
         style={{
           borderWidth: 1,
           borderRadius: 8,
@@ -63,6 +156,8 @@ export default function LogInScreen() {
         placeholder="Password"
         placeholderTextColor='#7F7F7F'
         secureTextEntry
+        value={password}
+        onChangeText={setPassword}
         style={{
           borderWidth: 1,
           borderRadius: 8,
@@ -73,6 +168,7 @@ export default function LogInScreen() {
       />
 
       <Pressable
+        onPress={logIn}
         style={{
           backgroundColor: "#809BCE",
           padding: 12,
@@ -98,6 +194,7 @@ export default function LogInScreen() {
       </View>
 
       <Pressable
+        onPress={continueWithGoogle}
         style={{
           backgroundColor: '#F8F4F9',
           padding: 8,

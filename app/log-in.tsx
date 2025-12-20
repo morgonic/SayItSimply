@@ -187,6 +187,24 @@ export default function LogInScreen() {
         </Text>
       </Pressable>
 
+      <Pressable
+        onPress={() => Alert.alert("Password reset functionality is not yet implemented.")}
+        style={{
+          marginTop: 12
+        }}
+      >
+        <Text
+          style={{
+            color: "white",
+            fontWeight: "600",
+            textAlign: "right",
+            fontSize: 14
+          }}
+        >
+          Forgot Password?
+        </Text>
+      </Pressable>
+
       <View style={styles.separatorContainer}>
         <View style={styles.separatorLine} />
         <Text style={styles.separatorText}>or</Text>

@@ -1,9 +1,13 @@
 import DisplayLogoWithStyle from "@/components/ui/DisplayLogoWithStyle";
 import { styles } from "@/constants/styles";
 import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
+import * as Linking from "expo-linking";
 import { Pressable, Text, TextInput, View, Image, Alert } from "react-native";
 import { useState } from "react";
 import storage from "./storage";
+
+WebBrowser.maybeCompleteAuthSession()
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
@@ -62,6 +66,56 @@ export default function SignUpScreen() {
     }
     else {
       Alert.alert("Passwords do not match. Please try again.");
+    }
+  }
+
+  async function continueWithGoogle() {
+    try {
+      // link back to app
+      const redirectUrl = Linking.createURL("oauth");
+      console.log("Expo redirectUrl:", redirectUrl)
+
+      // get google authorization url from backend
+      const response = await fetch(`${api_url}/auth/google/authorize`);
+      if (!response.ok) {
+        throw new Error(`Authorize failed: HTTP ${response.status}`);
+      }
+      const { authorization_url } = await response.json();
+      if (!authorization_url) {
+        throw new Error("No authorization_url returned from backend");
+      }
+
+      // open google login and wait to return to redirect url
+      const result = await WebBrowser.openAuthSessionAsync(authorization_url, redirectUrl);
+
+      // if login didn't complete or was cancelled, exit
+      if (result.type !== "success" || !result.url) {
+        return;
+      }
+
+      // get oauth tokens url fragment after #
+      const fragment = result.url.split("#")[1] ?? "";
+      // parse fragment into key/value pairs
+      const params = new URLSearchParams(fragment);
+
+      // get jwt access token
+      const access_token = params.get("access_token");
+      // get token type
+      const token_type = params.get("token_type") ?? "bearer";
+
+      if (!access_token) {
+        throw new Error("Google login succeeded but no access token was returned.");
+      }
+
+      // persist token and type for future calls
+      await storage.setItem("access_token", access_token);
+      await storage.setItem("token_type", token_type);
+
+      // navigate to main app
+      router.replace('/(tabs)');
+    }
+    catch (e: any) {
+      Alert.alert("Google sign in failed", e.message);
     }
   }
 
@@ -209,6 +263,7 @@ export default function SignUpScreen() {
       </View>
 
       <Pressable
+        onPress={continueWithGoogle}
         style={{
           backgroundColor: '#F8F4F9',
           padding: 8,

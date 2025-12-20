@@ -13,12 +13,19 @@ from httpx_oauth.clients.google import GoogleOAuth2
 
 from .db import User, get_user_db
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 SECRET = "SECRET"
 
-google_oauth_client = GoogleOAuth2(
-    os.getenv("GOOGLE_OAUTH_CLIENT_ID", ""),
-    os.getenv("GOOGLE_OAUTH_CLIENT_SECRET","")
-)
+CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+
+if not CLIENT_ID or not CLIENT_SECRET:
+    raise RuntimeError("Missing GOOGLE_OAUTH_CLIENT_ID/GOOGLE_OAUTH_CLIENT_SECRET in backend env")
+
+google_oauth_client = GoogleOAuth2(CLIENT_ID, CLIENT_SECRET)
 
 
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):

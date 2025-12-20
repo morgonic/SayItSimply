@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator
 from fastapi import Depends
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase, SQLAlchemyBaseOAuthAccountTableUUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.orm import DeclarativeBase, Mapped, relationship
 
 # SQLite database URL
 DATABASE_URL = "sqlite+aiosqlite:///./sayitsimply.db"
@@ -18,7 +18,9 @@ class OAuthAccount(SQLAlchemyBaseOAuthAccountTableUUID, Base):
 
 # Define the User model
 class User(SQLAlchemyBaseUserTableUUID, Base):
-    pass
+    oauth_accounts: Mapped[list[OAuthAccount]] = relationship(
+        "OAuthAccount", lazy="joined"
+    )
 
 # Create async engine and session maker
 engine = create_async_engine(DATABASE_URL)
@@ -36,4 +38,4 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
 
 # Define user database dependency
 async def get_user_db(session: AsyncSession = Depends(get_async_session)):
-    yield SQLAlchemyUserDatabase(session, User)
+    yield SQLAlchemyUserDatabase(session, User, OAuthAccount)

@@ -8,7 +8,6 @@ from fastapi_users.authentication import (
     BearerTransport,
     JWTStrategy
 )
-from fastapi_users.db import SQLAlchemyUserDatabase
 from httpx_oauth.clients.google import GoogleOAuth2
 
 from .db import User, get_user_db

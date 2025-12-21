@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 print("GOOGLE_OAUTH_CLIENT_ID loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_ID")))
-print("GOOGLE_OAUTH_CLINT_SECRET loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")))
+print("GOOGLE_OAUTH_CLIENT_SECRET loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")))
 print("GOOGLE_REDIRECT_URL:", os.getenv("GOOGLE_REDIRECT_URL"))
 print("MOBILE_REDIRECT_URL", os.getenv("MOBILE_REDIRECT_URL"))
 

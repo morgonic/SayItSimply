@@ -17,6 +17,7 @@ export default function RootLayout() {
   useEffect(() => {
     const url = Linking.createURL("oauth");
     console.log("MOBILE_REDIRECT_URL:", url);
+    console.log("EXPO_PUBLIC_API_URL:", process.env.EXPO_PUBLIC_API_URL);
   }, []);
 
   return (

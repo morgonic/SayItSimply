@@ -43,6 +43,8 @@ export default function TabLayout() {
         headerShown: false,
         tabBarButton: HapticTab,
 
+        tabBarShowLabel: false,
+
         tabBarStyle: {
           backgroundColor: TAB_BG,
           borderTopWidth: 0,

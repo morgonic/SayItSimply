@@ -1,15 +1,21 @@
 import React, { useMemo, useState } from "react";
 import { Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 
 const MODES = ["Sign", "Document", "Book", "Board"] as const;
 type Mode = (typeof MODES)[number];
+
+
 
 export default function CameraScreen() {
   const [mode, setMode] = useState<Mode>("Document");
 
   const screen = Dimensions.get("window");
   const previewHeight = useMemo(() => Math.min(screen.height * 0.56, 520), [screen.height]);
+
+   const router = useRouter();
+
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.container}>
@@ -60,7 +66,9 @@ export default function CameraScreen() {
               <Text style={styles.smallBtnIcon}>🖼️</Text>
             </Pressable>
 
-            <Pressable style={styles.shutterBtn} onPress={() => {}}>
+ 
+
+            <Pressable style={styles.shutterBtn} onPress={() => router.navigate('/reader')}>
               <View style={styles.shutterOuter}>
                 <View style={styles.shutterInner} />
               </View>

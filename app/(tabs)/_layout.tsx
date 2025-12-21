@@ -33,13 +33,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="reader"
-        options={{
-          title: 'Reader',
-          tabBarIcon: ({ color }) => <FontAwesome size={28} name="plus" color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="camera"
         options={{
           title: 'Camera',

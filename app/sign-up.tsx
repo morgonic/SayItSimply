@@ -76,7 +76,12 @@ export default function SignUpScreen() {
       console.log("Expo redirectUrl:", redirectUrl)
 
       // get google authorization url from backend
-      const response = await fetch(`${api_url}/auth/google/authorize`);
+      const response = await fetch(`${api_url}/auth/google/authorize?ts=${Date.now()}`, {
+        headers: {
+          "Cache-Control": "no-store",
+          "ngrok-skip-browser-warning": "1"
+        }
+      });
       if (!response.ok) {
         throw new Error(`Authorize failed: HTTP ${response.status}`);
       }

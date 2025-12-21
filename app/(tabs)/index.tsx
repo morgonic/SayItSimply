@@ -6,7 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 export default function LogInScreen() {
   return (
      <SafeAreaView style={styles.dashSafe}>
-      <View style={styles.container}>
+      <View style={styles.dashContainer}>
         {/* Header */}
         <View style={styles.dashHeader}>
           <Pressable style={styles.dashHeaderIconBtn} onPress={() => {}}>
@@ -41,7 +41,7 @@ export default function LogInScreen() {
             <View style={styles.dashContinueCard}>
               <Text style={styles.dashContinueTitle}>Phone Bill - Dec 2025</Text>
 
-              <Pressable style={styles.dashContinueBtn} onPress={() => {}}>
+              <Pressable style={styles.dashContinueBtn} onPress={() => router.push("/(tabs)/reader")}>
                 <Text style={styles.dashContinueBtnText}>Continue Reading</Text>
                 <Text style={styles.dashContinueBtnArrow}>›</Text>
               </Pressable>
@@ -64,7 +64,7 @@ export default function LogInScreen() {
                   <Text style={styles.dashBullet}>• Call Dr. Smith</Text>
                 </View>
 
-                <Pressable style={styles.dashViewAllBtn} onPress={() => {}}>
+                <Pressable style={styles.dashViewAllBtn} onPress={() => router.push("/(tabs)/todo-list")}>
                   <Text style={styles.dashViewAllText}>View All</Text>
                   <Text style={styles.dashViewAllArrow}>›</Text>
                 </Pressable>
@@ -83,7 +83,7 @@ export default function LogInScreen() {
                   </Text>
                 </View>
 
-                <Pressable style={styles.dashViewAllBtn} onPress={() => {}}>
+                <Pressable style={styles.dashViewAllBtn} onPress={() => router.push("/(tabs)/documents")}>
                   <Text style={styles.dashViewAllText}>View All</Text>
                   <Text style={styles.dashViewAllArrow}>›</Text>
                 </Pressable>
@@ -92,7 +92,7 @@ export default function LogInScreen() {
           </View>
         </View>
 
-        {/* Keep your dev button (just above tabs/nav area) */}
+        {/* login button (maybe temporary?) */}
         <View style={styles.dashLoginWrap}>
           <Pressable
             onPress={() => router.push("/log-in")}

@@ -1,4 +1,5 @@
 import { styles } from "@/constants/styles";
+import { FontAwesome } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -26,12 +27,12 @@ export default function LogInScreen() {
           <Text style={styles.dashSectionTitle}>Scan New Text</Text>
 
           <View style={styles.dashScanRow}>
-            <Pressable style={styles.dashScanBtn} onPress={() => {}}>
-              <Text style={styles.dashScanIcon}>From pic</Text>
+            <Pressable style={styles.dashScanBtn} onPress={() => router.push("/camera")}>
+              <FontAwesome name="camera" size={28} color="#000000"/>
             </Pressable>
 
             <Pressable style={styles.dashScanBtn} onPress={() => {}}>
-              <Text style={styles.dashScanIcon}>upload from files</Text>
+              <FontAwesome name="upload" size={28} color="#000000"/>
             </Pressable>
           </View>
 

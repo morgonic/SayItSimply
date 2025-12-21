@@ -7,10 +7,10 @@ import { HapticTab } from '@/components/haptic-tab';
 import Entypo from '@expo/vector-icons/Entypo';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
-const TAB_BG = "#f2a679ff";        // navbar background color
+const TAB_BG = "#ECC8AF";        // navbar background color
 const ICON_INACTIVE = "#000000"; // iconcolor
 const ICON_ACTIVE = "#FFFFFF";   // selected icon color
-const BOOKMARK = "#8c311cff";   // bookmark color
+const BOOKMARK = "#8C311C";   // bookmark color
 const BMSIZE = 60;
 
 function TabIcon({

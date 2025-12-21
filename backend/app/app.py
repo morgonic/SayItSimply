@@ -69,11 +69,16 @@ class OAuthMobileRedirectMiddleware(BaseHTTPMiddleware):
             token_type = data.get("token_type", "bearer")
             # if token exists
             if token:
-                # redirect back to the app using url fragment
-                return RedirectResponse(
+                # return variable, redirect response for mobile redirect
+                redirect = RedirectResponse(
                     url=f"{mobile_redirect}#access_token={token}&token_type={token_type}",
                     status_code=303
                 )
+                # prevent stale cookies
+                for cookie in response.headers.getlist("set-cookie"):
+                    redirect.headers.append("set-cookie", cookie)
+                # redirect back to the app using url fragment
+                return redirect
         except Exception:
             pass
 
@@ -85,6 +90,49 @@ class OAuthMobileRedirectMiddleware(BaseHTTPMiddleware):
             media_type=content_type
         )
 
+# Starlette/FastAPI middleware class, inherits from BaseHTTPMiddleware
+# turns JSON authorization_url response into HTTP redirect
+# browser session receives CSRF + state cookies not fetch request
+class OAuthAuthorizeRedirectMiddleware(BaseHTTPMiddleware):
+    # called for every request/response
+    async def dispatch(self, request, call_next):
+        # only intercept google oauth endpoints
+        if request.url.path not in ("/auth/google/authorize", "/auth/associate/google/authorize"):
+            return await call_next(request)
+        # run normal route handler
+        response = await call_next(request)
+        # only use json responses
+        content_type = response.headers.get("content-type", "")
+        if not content_type.startswith("application/json"):
+            return response
+        # stream response body and collect bytes
+        body_bytes = b""
+        async for chunk in response.body_iterator:
+            body_bytes += chunk
+        # try to parse json body and extract authorization url
+        try:
+            data = json.loads(body_bytes.decode("utf-8"))
+            auth_url = data.get("authorization_url")
+        except Exception:
+            auth_url = None
+        # if fail rebuild and return original response
+        if not auth_url:
+            return Response(
+                content=body_bytes,
+                status_code=response.status_code,
+                headers=dict(response.headers),
+                media_type=content_type
+            )
+        # redirect brwoser to google 
+        redirect = RedirectResponse(url=auth_url, status_code=303)
+        # set oauth cookies
+        for cookie in response.headers.getlist("set-cookie"):
+            redirect.headers.append("set-cookie", cookie)
+        # don't cache redirect
+        redirect.headers["Cache-Control"] = "no-store"
+        # return redirect response to browser
+        return redirect
+
 
 app = FastAPI(lifespan=lifespan)
 
@@ -95,6 +143,7 @@ app.add_middleware(
     allow_headers=["*"]
 )
 app.add_middleware(OAuthMobileRedirectMiddleware)
+app.add_middleware(OAuthAuthorizeRedirectMiddleware)
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 API_URL = os.getenv("EXPO_PUBLIC_API_URL", "")

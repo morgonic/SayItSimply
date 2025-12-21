@@ -86,6 +86,7 @@ export default function SignUpScreen() {
         throw new Error(`Authorize failed: HTTP ${response.status}`);
       }
       const { authorization_url } = await response.json();
+      console.log("Authorization URL:", authorization_url)
       if (!authorization_url) {
         throw new Error("No authorization_url returned from backend");
       }

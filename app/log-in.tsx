@@ -11,6 +11,8 @@ WebBrowser.maybeCompleteAuthSession()
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
+console.log("API URL:", api_url);
+
 export default function LogInScreen() {
   
   const router = useRouter();

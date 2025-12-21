@@ -11,6 +11,8 @@ WebBrowser.maybeCompleteAuthSession()
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
+console.log("API URL:", api_url)
+
 if (!api_url) {
   throw new Error("Missing EXPO_PUBLIC_API_URL. Add it to your .env file.");
 }

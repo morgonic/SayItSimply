@@ -1,5 +1,4 @@
 import { styles } from "@/constants/styles";
-import { FontAwesome } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -27,12 +26,12 @@ export default function LogInScreen() {
           <Text style={styles.dashSectionTitle}>Scan New Text</Text>
 
           <View style={styles.dashScanRow}>
-            <Pressable style={styles.dashScanBtn} onPress={() => router.push("/camera")}>
-              <FontAwesome name="camera" size={28} color="#000000"/>
+            <Pressable style={styles.dashScanBtn} onPress={() => {}}>
+              <Text style={styles.dashScanIcon}>From pic</Text>
             </Pressable>
 
             <Pressable style={styles.dashScanBtn} onPress={() => {}}>
-              <FontAwesome name="upload" size={28} color="#000000"/>
+              <Text style={styles.dashScanIcon}>upload from files</Text>
             </Pressable>
           </View>
 
@@ -42,7 +41,7 @@ export default function LogInScreen() {
             <View style={styles.dashContinueCard}>
               <Text style={styles.dashContinueTitle}>Phone Bill - Dec 2025</Text>
 
-              <Pressable style={styles.dashContinueBtn} onPress={() => router.push("/reader")}>
+              <Pressable style={styles.dashContinueBtn} onPress={() => router.push("./reader")}>
                 <Text style={styles.dashContinueBtnText}>Continue Reading</Text>
                 <Text style={styles.dashContinueBtnArrow}>›</Text>
               </Pressable>

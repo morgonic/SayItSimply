@@ -11,6 +11,8 @@ WebBrowser.maybeCompleteAuthSession()
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
+console.log("API URL:", api_url);
+
 export default function LogInScreen() {
   
   const router = useRouter();
@@ -50,22 +52,14 @@ export default function LogInScreen() {
 
   async function continueWithGoogle() {
     try {
-      // link back to app
+      // deep link redirect URL for browser to return to after oauth
       const redirectUrl = Linking.createURL("oauth");
-      console.log("Expo redirectUrl:", redirectUrl)
+      // start oauth with authorize endpoint in browser
+      const startUrl = `${api_url}/auth/google/authorize?ts=${Date.now()}`;
 
-      // get google authorization url from backend
-      const response = await fetch(`${api_url}/auth/google/authorize`);
-      if (!response.ok) {
-        throw new Error(`Authorize failed: HTTP ${response.status}`);
-      }
-      const { authorization_url } = await response.json();
-      if (!authorization_url) {
-        throw new Error("No authorization_url returned from backend");
-      }
-
-      // open google login and wait to return to redirect url
-      const result = await WebBrowser.openAuthSessionAsync(authorization_url, redirectUrl);
+      // launch expo web browser auth session
+      // wait to return to redirect url
+      const result = await WebBrowser.openAuthSessionAsync(startUrl, redirectUrl)
 
       // if login didn't complete or was cancelled, exit
       if (result.type !== "success" || !result.url) {

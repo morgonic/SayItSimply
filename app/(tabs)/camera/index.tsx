@@ -68,7 +68,7 @@ export default function CameraScreen() {
 
  
 
-            <Pressable style={styles.shutterBtn} onPress={() => router.navigate('/reader')}>
+            <Pressable style={styles.shutterBtn} onPress={() => router.navigate("/camera/reader")}>
               <View style={styles.shutterOuter}>
                 <View style={styles.shutterInner} />
               </View>

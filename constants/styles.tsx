@@ -203,4 +203,15 @@ export const styles = StyleSheet.create({
       alignItems: "center",
     },
     dashLoginText: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
+    radioButtonContainer: {
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+      marginBottom: 12,
+      padding: 12,
+      borderRadius: 10,
+      borderColor: '#6C6767',
+      borderWidth: 2,
+      backgroundColor: '#D9D9D9',
+      width: '60%'
+    }
 });

@@ -1,12 +1,16 @@
-import { View, Image, Text } from "react-native";
+import { View, Image, Text, Dimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import RadioGroup, { RadioButtonProps } from 'react-native-radio-buttons-group';
 import { styles } from '@/constants/styles';
+import * as Progress from 'react-native-progress';
 
 export default function OnboardingScreen() {
   
   const router = useRouter();
+
+  const screenWidth = Dimensions.get('window').width;
+  const screenHeight = Dimensions.get('window').height;
 
   const languageButtons: RadioButtonProps[] = useMemo(() => ([
     {
@@ -91,6 +95,37 @@ export default function OnboardingScreen() {
                 resizeMode: 'contain'
             }}
         />
+
+        <Text
+            style={{
+                fontSize: 18,
+                fontWeight: '600',
+                textAlign: 'center',
+                marginBottom: 12,
+                color: '#ffffff'
+            }}
+        >
+            Step 1 of 2
+        </Text>
+
+        <View
+            style={{
+                flexDirection: 'row',
+                justifyContent: 'center',
+                marginBottom: 24
+            }}
+        >
+            <Progress.Bar 
+                progress={0.5} 
+                width={screenWidth * 0.7} 
+                height={18}
+                borderRadius={10}
+                color={'#8C311C'}
+                unfilledColor={'#D9D9D9'}
+                borderWidth={0}
+            />
+        </View>
+        
 
         <Text
             style={{

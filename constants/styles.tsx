@@ -216,5 +216,19 @@ export const styles = StyleSheet.create({
       borderWidth: 2,
       backgroundColor: '#D9D9D9',
       width: screenWidth * 0.7
+    },
+    onboardNextButton: {
+      backgroundColor: '#809BCE',
+      width: screenWidth * 0.3,
+      padding: 12,
+      borderRadius: 8,
+      alignItems: 'center'
+    },
+    onboardPrevButton: {
+      backgroundColor: '#809BCE',
+      width: screenWidth * 0.3,
+      padding: 12,
+      borderRadius: 8,
+      alignItems: 'center'
     }
 });

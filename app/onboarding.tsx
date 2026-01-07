@@ -214,6 +214,7 @@ export default function OnboardingScreen() {
                 <Pressable
                     onPress={() => setProgress(1)}
                     style={[styles.onboardPrevButton, {backgroundColor: progress === 1 ? '#6C6767' : '#809BCE'}]}
+                    disabled={progress === 1}
                 >
                     <Text
                         style={{

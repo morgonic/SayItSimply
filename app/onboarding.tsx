@@ -293,7 +293,7 @@ export default function OnboardingScreen() {
                         onPress={() => setModalVisible(true)}
                         accessibilityRole="button"
                         accessibilityLabel="What are simplification levels?"
-                        style={{
+                        style={({pressed}) => [{
                             height: 30,
                             width: 30,
                             marginBottom: 12,
@@ -303,7 +303,7 @@ export default function OnboardingScreen() {
                             borderColor: "#6C6767",
                             alignItems: 'center',
                             justifyContent: 'center'
-                        }}
+                        }, pressed && { transform: [{scale: 0.9}]}]}
                     >
                         <Text style={{color: "black", fontWeight: '800', fontSize: 24}}>?</Text>
                     </Pressable>
@@ -325,7 +325,11 @@ export default function OnboardingScreen() {
                 >
                     <Pressable
                         onPress={() => setProgress(1)}
-                        style={[styles.onboardPrevButton, { backgroundColor: progress === 1 ? '#6C6767' : '#809BCE' }]}
+                        style={({pressed}) => [
+                            styles.onboardPrevButton, 
+                            { backgroundColor: progress === 1 ? '#6C6767' : '#809BCE' },
+                            pressed && { transform: [{scale: 0.9}]}
+                        ]}
                         disabled={progress === 1}
                     >
                         <Text
@@ -341,7 +345,10 @@ export default function OnboardingScreen() {
 
                     <Pressable
                         onPress={() => setProgress(2)}
-                        style={styles.onboardNextButton}
+                        style={({pressed}) => [
+                            styles.onboardNextButton,
+                            pressed && {transform: [{scale: 0.9}]}
+                        ]}
                     >
                         <Text
                             style={{
@@ -447,7 +454,11 @@ export default function OnboardingScreen() {
                 >
                     <Pressable
                         onPress={() => setProgress(1)}
-                        style={[styles.onboardPrevButton, { backgroundColor: '#809BCE' }]}
+                        style={({pressed}) => [
+                            styles.onboardPrevButton, 
+                            { backgroundColor: '#809BCE' },
+                            pressed && {transform: [{scale: 0.9}]
+                        }]}
                     >
                         <Text
                             style={{
@@ -462,7 +473,10 @@ export default function OnboardingScreen() {
 
                     <Pressable
                         onPress={completeOnboarding}
-                        style={styles.onboardNextButton}
+                        style={({pressed}) => [
+                            styles.onboardNextButton,
+                            pressed && {transform: [{scale: 0.9}]}
+                        ]}
                     >
                         <Text
                             style={{

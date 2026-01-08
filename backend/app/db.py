@@ -23,6 +23,7 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     )
     language: Mapped[str] = mapped_column(default="en")
     reading_level: Mapped[int] = mapped_column(default=6)
+    onboarding_done: Mapped[bool] = mapped_column(default=False)
 
 # Create async engine and session maker
 engine = create_async_engine(DATABASE_URL)

@@ -57,7 +57,7 @@ export default function SignUpScreen() {
 
         await storage.setItem("access_token", json.access_token);
 
-        router.replace('/(tabs)');
+        router.replace('/onboarding');
 
         console.log("API URL:", process.env.EXPO_PUBLIC_API_URL);
         console.log(`Account created for ${email}`);
@@ -106,7 +106,7 @@ export default function SignUpScreen() {
       await storage.setItem("token_type", token_type);
 
       // navigate to main app
-      router.replace('/(tabs)');
+      router.replace('/onboarding');
     }
     catch (e: any) {
       Alert.alert("Google sign in failed", e.message);

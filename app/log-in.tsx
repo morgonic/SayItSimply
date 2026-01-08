@@ -43,7 +43,7 @@ export default function LogInScreen() {
       await storage.setItem("access_token", json.access_token);
       await storage.setItem("token_type", json.token_type ?? "bearer");
 
-      router.replace("./onboarding");
+      router.replace("/onboarding");
     }
     catch (e: any) {
       Alert.alert(`Login failed: ${e.message}`);

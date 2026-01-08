@@ -1,6 +1,6 @@
 import { View, Image, Text, Dimensions, Pressable } from "react-native";
 import { useRouter } from "expo-router";
-import { useMemo, useState, version } from "react";
+import { useMemo, useState } from "react";
 import RadioGroup, { RadioButtonProps } from 'react-native-radio-buttons-group';
 import { styles } from '@/constants/styles';
 import * as Progress from 'react-native-progress';

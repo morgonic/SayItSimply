@@ -18,6 +18,28 @@ export default function LogInScreen() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  // route to dashboard or onboarding after checking user onboarding_done flag
+  async function routeAfterLogin(accessToken: string) {
+    await storage.setItem("access_token", accessToken);
+    await storage.setItem("token_type", "bearer");
+
+    const response = await fetch(`${api_url}/users/me`, {
+      headers: { Authorization: `Bearer ${accessToken}`}
+    });
+
+    if (!response.ok) {
+      await storage.deleteItem("access_token");
+      router.replace('/log-in');
+      return;
+    }
+
+    const user = await response.json();
+
+    const onboarded = (user.onboarding_done === true);
+
+    router.replace(onboarded ? '/(tabs)' : '/onboarding');
+  }
   
   async function logIn() {
     try {
@@ -43,7 +65,7 @@ export default function LogInScreen() {
       await storage.setItem("access_token", json.access_token);
       await storage.setItem("token_type", json.token_type ?? "bearer");
 
-      router.replace("/onboarding");
+      await routeAfterLogin(json.access_token);
     }
     catch (e: any) {
       Alert.alert(`Login failed: ${e.message}`);
@@ -84,8 +106,8 @@ export default function LogInScreen() {
       await storage.setItem("access_token", access_token);
       await storage.setItem("token_type", token_type);
 
-      // navigate to main app
-      router.replace('/(tabs)');
+      // navigate to main app or onboarding
+      await routeAfterLogin(access_token);
     }
     catch (e: any) {
       Alert.alert("Google sign in failed", e.message);

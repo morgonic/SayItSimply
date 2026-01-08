@@ -24,6 +24,28 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // route to dashboard or onboarding after checking user onboarding_done flag
+  async function routeAfterLogin(accessToken: string) {
+    await storage.setItem("access_token", accessToken);
+    await storage.setItem("token_type", "bearer");
+
+    const response = await fetch(`${api_url}/users/me`, {
+      headers: { Authorization: `Bearer ${accessToken}`}
+    });
+
+    if (!response.ok) {
+      await storage.deleteItem("access_token");
+      router.replace('/log-in');
+      return;
+    }
+
+    const user = await response.json();
+
+    const onboarded = (user.onboarding_done === true);
+
+    router.replace(onboarded ? '/(tabs)' : '/onboarding');
+  }
+
   async function createAccount() {
     if (doPasswordsMatch() === true) {  
       try {
@@ -57,7 +79,7 @@ export default function SignUpScreen() {
 
         await storage.setItem("access_token", json.access_token);
 
-        router.replace('/onboarding');
+        await routeAfterLogin(json.access_token);
 
         console.log("API URL:", process.env.EXPO_PUBLIC_API_URL);
         console.log(`Account created for ${email}`);
@@ -105,8 +127,8 @@ export default function SignUpScreen() {
       await storage.setItem("access_token", access_token);
       await storage.setItem("token_type", token_type);
 
-      // navigate to main app
-      router.replace('/onboarding');
+      // navigate to main app or onboarding
+      await routeAfterLogin(access_token);
     }
     catch (e: any) {
       Alert.alert("Google sign in failed", e.message);

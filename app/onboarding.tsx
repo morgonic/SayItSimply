@@ -293,7 +293,7 @@ export default function OnboardingScreen() {
                         onPress={() => setModalVisible(true)}
                         accessibilityRole="button"
                         accessibilityLabel="What are simplification levels?"
-                        style={({pressed}) => [{
+                        style={({ pressed }) => [{
                             height: 30,
                             width: 30,
                             marginBottom: 12,
@@ -303,9 +303,9 @@ export default function OnboardingScreen() {
                             borderColor: "#6C6767",
                             alignItems: 'center',
                             justifyContent: 'center'
-                        }, pressed && { transform: [{scale: 0.9}]}]}
+                        }, pressed && { transform: [{ scale: 0.9 }] }]}
                     >
-                        <Text style={{color: "black", fontWeight: '800', fontSize: 24}}>?</Text>
+                        <Text style={{ color: "black", fontWeight: '800', fontSize: 24 }}>?</Text>
                     </Pressable>
                 </View>
 
@@ -325,10 +325,10 @@ export default function OnboardingScreen() {
                 >
                     <Pressable
                         onPress={() => setProgress(1)}
-                        style={({pressed}) => [
-                            styles.onboardPrevButton, 
+                        style={({ pressed }) => [
+                            styles.onboardPrevButton,
                             { backgroundColor: progress === 1 ? '#6C6767' : '#809BCE' },
-                            pressed && { transform: [{scale: 0.9}]}
+                            pressed && { transform: [{ scale: 0.9 }] }
                         ]}
                         disabled={progress === 1}
                     >
@@ -345,9 +345,9 @@ export default function OnboardingScreen() {
 
                     <Pressable
                         onPress={() => setProgress(2)}
-                        style={({pressed}) => [
+                        style={({ pressed }) => [
                             styles.onboardNextButton,
-                            pressed && {transform: [{scale: 0.9}]}
+                            pressed && { transform: [{ scale: 0.9 }] }
                         ]}
                     >
                         <Text
@@ -362,9 +362,9 @@ export default function OnboardingScreen() {
                     </Pressable>
 
                     {getSelectedValue(languageButtons, selectedLang) === "es" ? (
-                        <SimplificationLevelModalSpanish visible={modalVisible} onClose={() => setModalVisible(false)}/>
+                        <SimplificationLevelModalSpanish visible={modalVisible} onClose={() => setModalVisible(false)} />
                     ) : (
-                        <SimplificationLevelModal visible={modalVisible} onClose={() => setModalVisible(false)}/>
+                        <SimplificationLevelModal visible={modalVisible} onClose={() => setModalVisible(false)} />
                     )}
 
                 </View>
@@ -454,11 +454,12 @@ export default function OnboardingScreen() {
                 >
                     <Pressable
                         onPress={() => setProgress(1)}
-                        style={({pressed}) => [
-                            styles.onboardPrevButton, 
+                        style={({ pressed }) => [
+                            styles.onboardPrevButton,
                             { backgroundColor: '#809BCE' },
-                            pressed && {transform: [{scale: 0.9}]
-                        }]}
+                            pressed && {
+                                transform: [{ scale: 0.9 }]
+                            }]}
                     >
                         <Text
                             style={{
@@ -473,9 +474,9 @@ export default function OnboardingScreen() {
 
                     <Pressable
                         onPress={completeOnboarding}
-                        style={({pressed}) => [
+                        style={({ pressed }) => [
                             styles.onboardNextButton,
-                            pressed && {transform: [{scale: 0.9}]}
+                            pressed && { transform: [{ scale: 0.9 }] }
                         ]}
                     >
                         <Text

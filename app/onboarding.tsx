@@ -6,6 +6,7 @@ import { styles } from '@/constants/styles';
 import * as Progress from 'react-native-progress';
 import storage from "./storage";
 import SimplificationLevelModal from "@/components/SimplificationLevelModal";
+import SimplificationLevelModalSpanish from "@/components/SimplificationLevelModalSpanish";
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
@@ -353,10 +354,12 @@ export default function OnboardingScreen() {
                         </Text>
                     </Pressable>
 
-                    <SimplificationLevelModal
-                        visible={modalVisible}
-                        onClose={() => setModalVisible(false)}
-                    />
+                    {getSelectedValue(languageButtons, selectedLang) === "es" ? (
+                        <SimplificationLevelModalSpanish visible={modalVisible} onClose={() => setModalVisible(false)}/>
+                    ) : (
+                        <SimplificationLevelModal visible={modalVisible} onClose={() => setModalVisible(false)}/>
+                    )}
+
                 </View>
 
             </View>

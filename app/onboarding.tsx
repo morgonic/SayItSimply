@@ -5,8 +5,10 @@ import RadioGroup, { RadioButtonProps } from 'react-native-radio-buttons-group';
 import { styles } from '@/constants/styles';
 import * as Progress from 'react-native-progress';
 import storage from "./storage";
+import SimplificationLevelModal from "@/components/SimplificationLevelModal";
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
+
 
 export default function OnboardingScreen() {
     // router for navigation
@@ -17,6 +19,8 @@ export default function OnboardingScreen() {
     const screenHeight = Dimensions.get('window').height;
     // onboarding progress state
     const [progress, setProgress] = useState(1);
+    // simplification level modal visibility state
+    const [modalVisible, setModalVisible] = useState(false);
 
     // factory for making level buttons based on simplification level
     function levelButtonFactory(simpLevel?: '1' | '2' | '3'): RadioButtonProps[] {
@@ -26,22 +30,22 @@ export default function OnboardingScreen() {
         const options =
             // standard
             level === '1' ? [
-                { readingLevel: 9, label: "Capture text by photographing it or uploading a document. The application automatically rewrites the text using simpler language while preserving the original meaning."},
-                { readingLevel: 8, label: "Capture text by taking a photo or uploading a document. The application rewrites the content in simpler language while maintaining the original meaning."},
-                { readingLevel: 7, label: "Scan text by taking a photo or uploading a document. The app rewrites the content using simpler words while keeping the original meaning."}
+                { readingLevel: 9, label: "Capture text by photographing it or uploading a document. The application automatically rewrites the text using simpler language while preserving the original meaning." },
+                { readingLevel: 8, label: "Capture text by taking a photo or uploading a document. The application rewrites the content in simpler language while maintaining the original meaning." },
+                { readingLevel: 7, label: "Scan text by taking a photo or uploading a document. The app rewrites the content using simpler words while keeping the original meaning." }
             ]
-            // simple
-            : level === '2' ? [
-                { readingLevel: 6, label: "Scan text by taking a photo or uploading a document. The app rewrites it using simpler words while keeping the same meaning."},
-                { readingLevel: 5, label: "Take a photo of text or upload a document. The app will rewrite it using easier words but keep the same meaning."},
-                { readingLevel: 4, label: "Take a photo of text or upload a file. The app changes it to easier words. It keeps the same meaning."}
-            ]
-            // super simple
-            : [
-                { readingLevel: 3, label: "Take a photo of words or add a file. The app changes the words to easier ones. It means the same thing."},
-                { readingLevel: 2, label: "Take a photo of words. The app makes the words easier. It means the same thing."},
-                { readingLevel: 1, label: "Take a photo of words. The app makes them easy to read."}
-            ];
+                // simple
+                : level === '2' ? [
+                    { readingLevel: 6, label: "Scan text by taking a photo or uploading a document. The app rewrites it using simpler words while keeping the same meaning." },
+                    { readingLevel: 5, label: "Take a photo of text or upload a document. The app will rewrite it using easier words but keep the same meaning." },
+                    { readingLevel: 4, label: "Take a photo of text or upload a file. The app changes it to easier words. It keeps the same meaning." }
+                ]
+                    // super simple
+                    : [
+                        { readingLevel: 3, label: "Take a photo of words or add a file. The app changes the words to easier ones. It means the same thing." },
+                        { readingLevel: 2, label: "Take a photo of words. The app makes the words easier. It means the same thing." },
+                        { readingLevel: 1, label: "Take a photo of words. The app makes them easy to read." }
+                    ];
         // return options as radio button props
         return options.map((option, index) => ({
             id: String(index + 1),
@@ -51,7 +55,7 @@ export default function OnboardingScreen() {
             color: '#277A8C',
             containerStyle: styles.radioButtonContainer,
             size: 30,
-            labelStyle: { fontWeight: '600', padding: 24}
+            labelStyle: { fontWeight: '600', padding: 24 }
         }));
     }
     // native language buttons
@@ -149,7 +153,7 @@ export default function OnboardingScreen() {
             Alert.alert("Close but no cigar!", "Please make a selection for all options.");
             return;
         }
-        
+
         const language = getSelectedValue(languageButtons, selectedLang) ?? "en";
         const reading_level = Number(getSelectedValue(levelButtons, selectedLevel) ?? 6);
         // onboarding object for storage
@@ -160,7 +164,7 @@ export default function OnboardingScreen() {
         // access token
         const token = await getAccessToken();
         // check if token exists
-        if (!token) { 
+        if (!token) {
             // no token, store locally and go to main app
             await storage.setItem("onboarding", JSON.stringify(onboarding));
             router.replace("/(tabs)");
@@ -211,6 +215,7 @@ export default function OnboardingScreen() {
                         width: '100%',
                         height: 100,
                         marginBottom: 30,
+                        marginTop: 30,
                         resizeMode: 'contain'
                     }}
                 />
@@ -264,19 +269,45 @@ export default function OnboardingScreen() {
                     selectedId={selectedLang}
                 />
 
+                {/*spacer*/}
                 <View style={{ height: 32 }} />
 
-                <Text
-                    style={{
-                        fontSize: 18,
-                        fontWeight: '600',
-                        textAlign: 'center',
-                        marginBottom: 12,
-                        color: '#ffffff'
-                    }}
-                >
-                    Simplification Level
-                </Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
+                    <Text
+                        style={{
+                            fontSize: 18,
+                            fontWeight: '600',
+                            textAlign: 'center',
+                            marginBottom: 12,
+                            color: '#ffffff'
+                        }}
+                    >
+                        Simplification Level
+                    </Text>
+
+                    {/*spacer*/}
+                    <View style={{ width: 12 }} />
+
+                    <Pressable
+                        onPress={() => setModalVisible(true)}
+                        accessibilityRole="button"
+                        accessibilityLabel="What are simplification levels?"
+                        style={{
+                            height: 30,
+                            width: 30,
+                            marginBottom: 12,
+                            backgroundColor: "#D9D9D9",
+                            borderRadius: 15,
+                            borderWidth: 1,
+                            borderColor: "#6C6767",
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                    >
+                        <Text style={{color: "black", fontWeight: '800', fontSize: 24}}>?</Text>
+                    </Pressable>
+                </View>
+
 
                 <RadioGroup
                     radioButtons={simpButtons}
@@ -321,6 +352,11 @@ export default function OnboardingScreen() {
                             Next
                         </Text>
                     </Pressable>
+
+                    <SimplificationLevelModal
+                        visible={modalVisible}
+                        onClose={() => setModalVisible(false)}
+                    />
                 </View>
 
             </View>
@@ -344,6 +380,7 @@ export default function OnboardingScreen() {
                         width: '100%',
                         height: 100,
                         marginBottom: 30,
+                        marginTop: 30,
                         resizeMode: 'contain'
                     }}
                 />

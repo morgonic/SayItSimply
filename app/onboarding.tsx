@@ -160,7 +160,8 @@ export default function OnboardingScreen() {
         // onboarding object for storage
         const onboarding = {
             language,
-            reading_level
+            reading_level,
+            onboarding_done: true
         };
         // access token
         const token = await getAccessToken();

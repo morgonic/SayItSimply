@@ -1,4 +1,7 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Dimensions } from 'react-native';
+
+const screenWidth = Dimensions.get('window').width;
+const screenHeight = Dimensions.get('window').height;
 
 export const styles = StyleSheet.create({
     container: {
@@ -203,4 +206,29 @@ export const styles = StyleSheet.create({
       alignItems: "center",
     },
     dashLoginText: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
+    radioButtonContainer: {
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+      marginBottom: 12,
+      padding: 12,
+      borderRadius: 10,
+      borderColor: '#6C6767',
+      borderWidth: 2,
+      backgroundColor: '#D9D9D9',
+      width: screenWidth * 0.7
+    },
+    onboardNextButton: {
+      backgroundColor: '#809BCE',
+      width: screenWidth * 0.3,
+      padding: 12,
+      borderRadius: 8,
+      alignItems: 'center'
+    },
+    onboardPrevButton: {
+      backgroundColor: '#809BCE',
+      width: screenWidth * 0.3,
+      padding: 12,
+      borderRadius: 8,
+      alignItems: 'center'
+    }
 });

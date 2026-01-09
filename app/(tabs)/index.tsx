@@ -42,7 +42,7 @@ export default function LogInScreen() {
             <View style={styles.dashContinueCard}>
               <Text style={styles.dashContinueTitle}>Phone Bill - Dec 2025</Text>
 
-              <Pressable style={styles.dashContinueBtn} onPress={() => router.push("/reader")}>
+              <Pressable style={styles.dashContinueBtn} onPress={() => router.push("/camera/reader")}>
                 <Text style={styles.dashContinueBtnText}>Continue Reading</Text>
                 <Text style={styles.dashContinueBtnArrow}>›</Text>
               </Pressable>

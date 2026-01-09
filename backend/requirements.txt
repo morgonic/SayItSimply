@@ -20,9 +20,14 @@ fastapi-cloud-cli==0.7.0
 fastapi-users==15.0.1
 fastapi-users-db-sqlalchemy==7.0.0
 fastar==0.8.0
+google-api-core==2.29.0
 google-auth==2.47.0
+google-cloud-vision==3.11.0
 google-genai==1.57.0
+googleapis-common-protos==1.72.0
 greenlet==3.3.0
+grpcio==1.76.0
+grpcio-status==1.76.0
 h11==0.16.0
 httpcore==1.0.9
 httptools==0.7.1
@@ -34,6 +39,8 @@ makefun==1.16.0
 markdown-it-py==4.0.0
 MarkupSafe==3.0.3
 mdurl==0.1.2
+proto-plus==1.27.0
+protobuf==6.33.2
 pwdlib==0.2.1
 pyasn1==0.6.1
 pyasn1_modules==0.4.2

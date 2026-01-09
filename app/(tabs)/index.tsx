@@ -1,10 +1,41 @@
 import { styles } from "@/constants/styles";
 import { FontAwesome } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import storage from '../storage';
 
-export default function LogInScreen() {
+const api_url = process.env.EXPO_PUBLIC_API_URL;
+
+export default function DashboardScreen() {
+
+  const router = useRouter();
+
+  async function handleLogout() {
+    const token = await storage.getItem("access_token");
+    const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+
+    if (token && api_url) {
+      try {
+        const response = await fetch(`${api_url}/auth/jwt/logout`, {
+          method: 'POST',
+          headers: { Authorization: `${tokenType} ${token}`}
+        });
+      }
+      catch (e) {
+        console.warn("Logout request failed:", e);
+      }
+    }
+
+    await storage.deleteItem("access_token");
+    await storage.deleteItem("token_type");
+
+    await storage.deleteItem("onboarding");
+
+    router.replace('/log-in');
+    
+  }
+
   return (
      <SafeAreaView style={styles.dashSafe}>
       <View style={styles.dashContainer}>
@@ -27,7 +58,7 @@ export default function LogInScreen() {
           <Text style={styles.dashSectionTitle}>Scan New Text</Text>
 
           <View style={styles.dashScanRow}>
-            <Pressable style={styles.dashScanBtn} onPress={() => router.push("/camera")}>
+            <Pressable style={styles.dashScanBtn} onPress={() => router.replace("/camera")}>
               <FontAwesome name="camera" size={28} color="#000000"/>
             </Pressable>
 
@@ -42,7 +73,7 @@ export default function LogInScreen() {
             <View style={styles.dashContinueCard}>
               <Text style={styles.dashContinueTitle}>Phone Bill - Dec 2025</Text>
 
-              <Pressable style={styles.dashContinueBtn} onPress={() => router.push("/reader")}>
+              <Pressable style={styles.dashContinueBtn} onPress={() => router.replace("/(tabs)/camera/reader")}>
                 <Text style={styles.dashContinueBtnText}>Continue Reading</Text>
                 <Text style={styles.dashContinueBtnArrow}>›</Text>
               </Pressable>
@@ -65,7 +96,7 @@ export default function LogInScreen() {
                   <Text style={styles.dashBullet}>• Call Dr. Smith</Text>
                 </View>
 
-                <Pressable style={styles.dashViewAllBtn} onPress={() => router.push("/(tabs)/todo-list")}>
+                <Pressable style={styles.dashViewAllBtn} onPress={() => router.replace("/(tabs)/todo-list")}>
                   <Text style={styles.dashViewAllText}>View All</Text>
                   <Text style={styles.dashViewAllArrow}>›</Text>
                 </Pressable>
@@ -96,10 +127,10 @@ export default function LogInScreen() {
         {/* login button (maybe temporary?) */}
         <View style={styles.dashLoginWrap}>
           <Pressable
-            onPress={() => router.push("/log-in")}
+            onPress={handleLogout}
             style={styles.dashLoginBtn}
           >
-            <Text style={styles.dashLoginText}>Go to Log In</Text>
+            <Text style={styles.dashLoginText}>Log Out</Text>
           </Pressable>
         </View>
       </View>

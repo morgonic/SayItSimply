@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from "react";
 import {
-    Dimensions,
-    Pressable,
-    StyleSheet,
-    Text,
-    View
+  Dimensions,
+  Pressable,
+  StyleSheet,
+  Text,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 

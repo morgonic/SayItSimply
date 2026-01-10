@@ -1,4 +1,4 @@
-import { View, Image, Text, Dimensions, Pressable, Alert } from "react-native";
+import { View, Image, Text, Dimensions, Pressable, Alert, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import RadioGroup, { RadioButtonProps } from 'react-native-radio-buttons-group';
@@ -7,6 +7,7 @@ import * as Progress from 'react-native-progress';
 import storage from "./storage";
 import SimplificationLevelModal from "@/components/SimplificationLevelModal";
 import SimplificationLevelModalSpanish from "@/components/SimplificationLevelModalSpanish";
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
@@ -376,7 +377,7 @@ export default function OnboardingScreen() {
     // onboarding step 2
     else if (progress === 2) {
         return (
-            <View
+            <SafeAreaView
                 style={{
                     flex: 1,
                     padding: 24,
@@ -384,115 +385,124 @@ export default function OnboardingScreen() {
                     backgroundColor: '#0D1321'
                 }}
             >
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{
 
-                <Image
-                    source={require('../assets/images/sayitsimply-welcome-ribbon.png')}
-                    style={{
-                        width: '100%',
-                        height: 100,
-                        marginBottom: 30,
-                        marginTop: 30,
-                        resizeMode: 'contain'
                     }}
-                />
-
-                <Text
-                    style={{
-                        fontSize: 18,
-                        fontWeight: '600',
-                        textAlign: 'center',
-                        marginBottom: 12,
-                        color: '#ffffff'
-                    }}
+                    showsVerticalScrollIndicator
+                    indicatorStyle='white'
                 >
-                    Step 2 of 2
-                </Text>
-
-                <View
-                    style={{
-                        flexDirection: 'row',
-                        justifyContent: 'center',
-                        marginBottom: 24
-                    }}
-                >
-                    <Progress.Bar
-                        progress={1}
-                        width={screenWidth * 0.7}
-                        height={18}
-                        borderRadius={10}
-                        color={'#8C311C'}
-                        unfilledColor={'#D9D9D9'}
-                        borderWidth={0}
+                    <Image
+                        source={require('../assets/images/sayitsimply-welcome-ribbon.png')}
+                        style={{
+                            width: '100%',
+                            height: 100,
+                            marginBottom: 30,
+                            marginTop: 30,
+                            resizeMode: 'contain'
+                        }}
                     />
-                </View>
 
-
-                <Text
-                    style={{
-                        fontSize: 18,
-                        fontWeight: '600',
-                        textAlign: 'center',
-                        marginBottom: 12,
-                        color: '#ffffff'
-                    }}
-                >
-                    Choose Your Preferred Version
-                </Text>
-
-                <RadioGroup
-                    radioButtons={levelButtons}
-                    onPress={setSelectedLevel}
-                    selectedId={selectedLevel}
-                />
-
-                <View style={{ height: 12 }} />
-
-                <View
-                    style={{
-                        flexDirection: 'row',
-                        justifyContent: 'space-evenly'
-                    }}
-                >
-                    <Pressable
-                        onPress={() => setProgress(1)}
-                        style={({ pressed }) => [
-                            styles.onboardPrevButton,
-                            { backgroundColor: '#809BCE' },
-                            pressed && {
-                                transform: [{ scale: 0.9 }]
-                            }]}
+                    <Text
+                        style={{
+                            fontSize: 18,
+                            fontWeight: '600',
+                            textAlign: 'center',
+                            marginBottom: 12,
+                            color: '#ffffff'
+                        }}
                     >
-                        <Text
-                            style={{
-                                fontSize: 16,
-                                fontWeight: '700',
-                                color: 'white',
-                            }}
-                        >
-                            Prev
-                        </Text>
-                    </Pressable>
+                        Step 2 of 2
+                    </Text>
 
-                    <Pressable
-                        onPress={completeOnboarding}
-                        style={({ pressed }) => [
-                            styles.onboardNextButton,
-                            pressed && { transform: [{ scale: 0.9 }] }
-                        ]}
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            justifyContent: 'center',
+                            marginBottom: 24
+                        }}
                     >
-                        <Text
-                            style={{
-                                fontSize: 16,
-                                fontWeight: '700',
-                                color: 'white',
-                            }}
-                        >
-                            Next
-                        </Text>
-                    </Pressable>
-                </View>
+                        <Progress.Bar
+                            progress={1}
+                            width={screenWidth * 0.7}
+                            height={18}
+                            borderRadius={10}
+                            color={'#8C311C'}
+                            unfilledColor={'#D9D9D9'}
+                            borderWidth={0}
+                        />
+                    </View>
 
-            </View>
+
+                    <Text
+                        style={{
+                            fontSize: 18,
+                            fontWeight: '600',
+                            textAlign: 'center',
+                            marginBottom: 12,
+                            color: '#ffffff'
+                        }}
+                    >
+                        Choose Your Preferred Version
+                    </Text>
+
+                    <RadioGroup
+                        radioButtons={levelButtons}
+                        onPress={setSelectedLevel}
+                        selectedId={selectedLevel}
+                    />
+
+                    <View style={{ height: 12 }} />
+
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            justifyContent: 'space-evenly'
+                        }}
+                    >
+                        <Pressable
+                            onPress={() => setProgress(1)}
+                            style={({ pressed }) => [
+                                styles.onboardPrevButton,
+                                { backgroundColor: '#809BCE' },
+                                pressed && {
+                                    transform: [{ scale: 0.9 }]
+                                }]}
+                        >
+                            <Text
+                                style={{
+                                    fontSize: 16,
+                                    fontWeight: '700',
+                                    color: 'white',
+                                }}
+                            >
+                                Prev
+                            </Text>
+                        </Pressable>
+
+                        <Pressable
+                            onPress={completeOnboarding}
+                            style={({ pressed }) => [
+                                styles.onboardNextButton,
+                                pressed && { transform: [{ scale: 0.9 }] }
+                            ]}
+                        >
+                            <Text
+                                style={{
+                                    fontSize: 16,
+                                    fontWeight: '700',
+                                    color: 'white',
+                                }}
+                            >
+                                Next
+                            </Text>
+                        </Pressable>
+                    </View>
+                </ScrollView>
+
+
+            </SafeAreaView>
         );
     }
 }

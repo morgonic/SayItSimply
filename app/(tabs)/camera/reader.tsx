@@ -1,35 +1,161 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Dimensions,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useLocalSearchParams } from "expo-router";
 
 type ReaderTab = "Overview" | "Easy Read" | "Translate";
+
+const api_url = process.env.EXPO_PUBLIC_API_URL;
+
+// convert image file uri to base64
+async function uriToBase64(uri: string): Promise<string> {
+  // fetch local image file uri
+  const response = await fetch(uri);
+  // if fail to read file, throw error
+  if (!response.ok) {
+    throw new Error("Failed to read image file.");
+  }
+  // convert response into blob for filereader to process
+  const blob = await response.blob();
+
+  return await new Promise<string>((resolve, reject) => {
+    // create filereader instance to convert blob into base64 url
+    const reader = new FileReader();
+    // if filereader fails, reject promise with error
+    reader.onerror = () => reject(reader.error);
+    // runs when read completes
+    reader.onloadend = () => {
+      // data url string for image
+      const result = reader.result as string;
+      // strip off prefixes and keep base64
+      const base64 = result.split(",")[1] ?? "";
+      // reject if something goes wrong
+      if (!base64) {
+        reject(new Error("Failed to convert image to base64."));
+      }
+      // otherwise return base64 string to caller
+      else {
+        resolve(base64);
+      }
+    };
+    // read blob, create base64 data url in reader.result
+    reader.readAsDataURL(blob);
+  })
+}
+
 
 export default function ReaderScreen() {
   const [tab, setTab] = useState<ReaderTab>("Overview");
 
-  // Placeholder content per tab (swap later)
+  // read route params passed in from camerascreen
+  // imageuri - local image file uri; mode - selected scan mode
+  const { imageUri, mode } = useLocalSearchParams<{
+    imageUri?: string;
+    mode?: string;
+  }>();
+
+  // ocr request states
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [ocrText, setOcrText] = useState<string>("");
+
+
+  useEffect(() => {
+    // prevent mounting issues
+    let cancelled = false;
+
+    // call backend ocr endpoint using captured image
+    async function runOcr() {
+      // no image uri, do nothing
+      if (!imageUri) {
+        return;
+      }
+
+      try {
+        // reset UI states
+        setOcrLoading(true);
+        setOcrError(null);
+        setOcrText("");
+        // no api url, error
+        if (!api_url) {
+          throw new Error("Missing EXPO_PUBLIC_API_URL");
+        }
+        // convert image file to base64 string payload
+        const base64 = await uriToBase64(imageUri);
+        // call backend ocr endpoint
+        const response = await fetch(`${api_url}/ocr`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          // send base64 image data + selected mode
+          body: JSON.stringify({
+            image_base64: base64,
+            mode: mode ?? "Document" // default document if none provided
+          })
+        });
+
+        // bad response, throw readable error
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || `OCR failed (HTTP ${response.status})`);
+        }
+
+        // parse json response
+        const data = await response.json();
+        // store ocr text if still mounted
+        if (!cancelled) {
+          setOcrText(data.text ?? "");
+        }
+      }
+      catch (e: any) {
+        // store error message if still mounted
+        if (!cancelled) {
+          setOcrError(e?.message ?? "OCR failed");
+        }
+      }
+      finally {
+        // stop showing loading state if still mounted
+        if (!cancelled) {
+          setOcrLoading(false);
+        }
+      }
+    }
+    // run ocr pipeline
+    runOcr();
+
+    return () => {
+      // mark cancelled after unmount
+      cancelled = true;
+    };
+  }, [imageUri, mode]); // run ocr pipeline when imageUri/mode changes
+
+  // compute text to show inside reader card
   const content = useMemo(() => {
+    // while loading, show nothing
+    if (ocrLoading) return "";
+    // if failure, show error message in content area
+    if (ocrError) return `OCR error:\n${ocrError}`;
+
+    // otherwise show content based on selected tab
     switch (tab) {
       case "Overview":
-        return (
-          "You owe $52.50 to AT&T for your monthly phone service.\n\n" +
-          "The company wants you to pay by December 20. If you do not pay by that date, they might turn off your service.\n\n" +
-          "You can pay online, by phone, or in person.\nIf you have a question, you can call customer service at 555-555-1234."
-        );
+        // show raw ocr text as overview
+        return ocrText || "No OCR text yet.";
       case "Easy Read":
+        // placeholder until gemini pipeline implemented
         return (
-          "You need to pay $52.50.\n\n" +
-          "Pay by Dec 20.\n\n" +
-          "If you don’t pay, your phone service could stop.\n\n" +
-          "Pay online, by phone, or in person.\nCall 555-555-1234 for help."
+          "Easy Read will appear here.\n\n" +
+          "Later: send OCR text to Gemini and show simplified text."
         );
       case "Translate":
+        // placeholder until translation implemented
         return (
           "Translation will appear here.\n\n" +
           "Later: select a language and show translated text."
@@ -37,7 +163,7 @@ export default function ReaderScreen() {
       default:
         return "";
     }
-  }, [tab]);
+  }, [tab, ocrLoading, ocrError, ocrText]); //recompute when tab or ocr state changes
 
   const screen = Dimensions.get("window");
   const cardHeight = Math.min(screen.height * 0.62, 560);
@@ -47,13 +173,13 @@ export default function ReaderScreen() {
       <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
-          <Pressable style={styles.headerIconBtn} onPress={() => {}}>
+          <Pressable style={styles.headerIconBtn} onPress={() => { }}>
             <Text style={styles.headerIcon}>☰</Text>
           </Pressable>
 
           <Text style={styles.headerTitle}>SayItSimply</Text>
 
-          <Pressable style={styles.avatarBtn} onPress={() => {}}>
+          <Pressable style={styles.avatarBtn} onPress={() => { }}>
             <View style={styles.avatarPlaceholder} />
           </Pressable>
         </View>
@@ -75,15 +201,51 @@ export default function ReaderScreen() {
           {/* Inner "paper" */}
           <View style={styles.innerPaper}>
             {/* little menu icon */}
-            <Pressable style={styles.paperMenuBtn} onPress={() => {}}>
+            <Pressable style={styles.paperMenuBtn} onPress={() => { }}>
               <Text style={styles.paperMenuIcon}>≡</Text>
             </Pressable>
 
+            {/* Loading state + activity indicator */}
+            {ocrLoading && (
+              <View style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                marginBottom: 10,
+                marginTop: 48
+              }}
+              >
+                <ActivityIndicator
+                  size={28}
+                  color={'black'}
+                />
+                <Text style={{
+                  fontWeight: '600',
+                  fontSize: 24,
+                  textAlign: 'center',
+                  justifyContent: 'center'
+                }}
+                >
+                  Extracting text from image...
+                </Text>
+              </View>
+            )}
+
             {/* Body text */}
-            <Text style={styles.bodyText}>{content}</Text>
+            <ScrollView
+              style={styles.bodyScroll}
+              contentContainerStyle={styles.bodyScrollContent}
+              showsVerticalScrollIndicator
+              keyboardShouldPersistTaps='handled'
+              indicatorStyle='black'
+            >
+              <Text style={styles.bodyText}>{content}</Text>
+            </ScrollView>
+
 
             {/* Bottom CTA */}
-            <Pressable style={styles.ctaBtn} onPress={() => {}}>
+            <Pressable style={styles.ctaBtn} onPress={() => { }}>
               <Text style={styles.ctaText}>Simplify More</Text>
             </Pressable>
           </View>
@@ -218,10 +380,16 @@ const styles = StyleSheet.create({
   },
   paperMenuIcon: { color: "#222", fontSize: 20, fontWeight: "900" },
 
+  bodyScroll: {
+    flex: 1
+  },
+  bodyScrollContent: {
+    padding: 24
+  },
   bodyText: {
     color: "#1B1B1B",
-    fontSize: 15,
-    lineHeight: 20,
+    fontSize: 16.67,
+    lineHeight: 24,
     fontWeight: "600",
     flex: 1,
   },

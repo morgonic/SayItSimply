@@ -3,14 +3,15 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Dimensions, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { addCapture } from "../../doc-storage";
 
-const MODES = ["Sign", "Menu", "Form", "Label", "Receipt", "Document",  "Medical", "Instructions", "Article", "Book", "Board"] as const;
+const MODES = ["Auto-detect", "Sign", "Menu", "Form", "Label", "Receipt", "Document",  "Medical", "Instructions", "Article", "Book", "Board"] as const;
 type Mode = (typeof MODES)[number];
 
 
 
 export default function CameraScreen() {
-  const [mode, setMode] = useState<Mode>("Document");
+  const [mode, setMode] = useState<Mode>("Auto-detect");
 
   const screen = Dimensions.get("window");
   const previewHeight = useMemo(() => Math.min(screen.height * 0.56, 520), [screen.height]);
@@ -47,10 +48,15 @@ export default function CameraScreen() {
         quality: 0.9, skipProcessing: false,
       });
       if (!pic?.uri) throw new Error("Photo path not returned");
-      setLastCaptureUri(pic.uri)
+
+      const saved = await addCapture({
+        tempUri: pic.uri, mode, source: "camera",
+      });
+
+      setLastCaptureUri(saved.uri)
 
       router.push({
-        pathname: "/camera/reader", params: { imageUri: pic.uri, mode },
+        pathname: "/camera/reader", params: { imageUri: saved.uri, mode },
       });
     } catch (e: any) {
       console.error(e);
@@ -136,11 +142,8 @@ export default function CameraScreen() {
 
           {/* Shutter Row */}
           <View style={styles.shutterRow}>
-            <Pressable style={styles.thumbBtn} onPress={() => {
-              if (lastCaptureUri) {
-                router.push({ pathname: "/(tabs)/documents", params: { imageUri: lastCaptureUri, mode },
-                });
-              }}} disabled={isCapturing}>
+            <Pressable style={styles.thumbBtn} onPress={() => router.push("/(tabs)/documents")}
+              disabled={isCapturing}>
               <Image source={ lastCaptureUri ? { uri: lastCaptureUri } : require("../../../assets/images/logo.png")}
                 style={styles.thumbImage} resizeMode={lastCaptureUri ? "cover" : "contain"} />
             </Pressable>

@@ -1,8 +1,11 @@
 import { styles } from "@/constants/styles";
 import { FontAwesome } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import { Pressable, Text, View } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
+import { Alert, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { addCapture, CaptureItem, getCaptures } from "../doc-storage";
 import storage from '../storage';
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
@@ -10,6 +13,25 @@ const api_url = process.env.EXPO_PUBLIC_API_URL;
 export default function DashboardScreen() {
 
   const router = useRouter();
+  const [latest, setLatest] = useState<CaptureItem | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const loadLatest = useCallback(async () => {
+    const list = await getCaptures();
+    setLatest(list[0] ?? null);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadLatest();
+    }, [loadLatest])
+  );
+
+  function formatDate(iso: string) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "Unknown date";
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  }
 
   async function handleLogout() {
     const token = await storage.getItem("access_token");
@@ -35,6 +57,47 @@ export default function DashboardScreen() {
     router.replace('/log-in');
     
   }
+
+  const handleUploadPress = async () => {
+    try {
+      if (isUploading) return;
+      setIsUploading(true);
+
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert("Permission required", "Allow access to upload images");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 1,
+        selectionLimit: 1,
+      });
+      if (result.canceled) return;
+
+      const uri = result.assets?.[0]?.uri;
+      if (!uri) throw new Error("No image selected");
+
+      const saved = await addCapture({
+        tempUri: uri,
+        mode: "Document",
+        source: "gallery",
+      });
+
+      await loadLatest();
+
+      router.push({
+        pathname: "/camera/reader",
+        params: { imageUri: saved.uri, mode: saved.mode },
+      });
+    } catch (e: any) {
+      console.error(e);
+      Alert.alert("Upload failed", e?.message ?? "Could not upload image");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   return (
      <SafeAreaView style={styles.dashSafe}>
@@ -62,7 +125,7 @@ export default function DashboardScreen() {
               <FontAwesome name="camera" size={28} color="#000000"/>
             </Pressable>
 
-            <Pressable style={styles.dashScanBtn} onPress={() => {}}>
+            <Pressable style={[styles.dashScanBtn, isUploading && { opacity: 0.6 }]} onPress={handleUploadPress} disabled={isUploading}>
               <FontAwesome name="upload" size={28} color="#000000"/>
             </Pressable>
           </View>

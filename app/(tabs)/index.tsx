@@ -41,7 +41,7 @@ export default function DashboardScreen() {
       try {
         const response = await fetch(`${api_url}/auth/jwt/logout`, {
           method: 'POST',
-          headers: { Authorization: `${tokenType} ${token}`}
+          headers: { Authorization: `${tokenType} ${token}` }
         });
       }
       catch (e) {
@@ -55,7 +55,7 @@ export default function DashboardScreen() {
     await storage.deleteItem("onboarding");
 
     router.replace('/log-in');
-    
+
   }
 
   const handleUploadPress = async () => {
@@ -100,29 +100,29 @@ export default function DashboardScreen() {
   };
 
   return (
-     <SafeAreaView style={styles.dashSafe}>
+    <SafeAreaView style={styles.dashSafe}>
       <View style={styles.dashContainer}>
         {/* Header */}
         <View style={styles.dashHeader}>
-          <Pressable style={styles.dashHeaderIconBtn} onPress={() => {}}>
+          <Pressable style={styles.dashHeaderIconBtn} onPress={() => { }}>
             <Text style={styles.dashHeaderIcon}>☰</Text>
           </Pressable>
 
           <Text style={styles.dashHeaderTitle}>SayItSimply</Text>
 
-          <Pressable style={styles.dashAvatarBtn} onPress={() => {}}>
+          <Pressable style={styles.dashAvatarBtn} onPress={() => { }}>
             <View style={styles.dashAvatarPlaceholder} />
           </Pressable>
         </View>
 
         {/* Content */}
         <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{
+          style={{ flex: 1 }}
+          contentContainerStyle={{
 
-            }}
-            showsVerticalScrollIndicator
-            indicatorStyle='white'
+          }}
+          showsVerticalScrollIndicator
+          indicatorStyle='white'
         >
           <View style={styles.dashContent}>
             {/* Scan New Text */}
@@ -130,17 +130,19 @@ export default function DashboardScreen() {
 
             <View style={styles.dashScanRow}>
               <Pressable style={styles.dashScanBtn} onPress={() => router.replace("/camera")}>
-                <FontAwesome name="camera" size={36} color="#000000"/>
+                <FontAwesome name="camera" size={36} color="#000000" />
               </Pressable>
 
               <Pressable style={[styles.dashScanBtn, isUploading && { opacity: 0.6 }]} onPress={handleUploadPress} disabled={isUploading}>
-                <FontAwesome name="upload" size={36} color="#000000"/>
+                <FontAwesome name="upload" size={36} color="#000000" />
               </Pressable>
             </View>
 
             {/* Continue Reading */}
             <View style={styles.dashContinueCardWrap}>
-              <View style={styles.dashBookmark} />
+              <View style={styles.dashBookmark}>
+                <View style={styles.dashBookmarkNotch} />
+              </View>
               <View style={styles.dashContinueCard}>
                 <Text style={styles.dashContinueTitle}>Phone Bill - Dec 2025</Text>
 
@@ -199,7 +201,7 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          <View style={{height: 36}}/>
+          <View style={{ height: 36 }} />
 
           {/* login button (maybe temporary?) */}
           <View style={styles.dashLoginWrap}>

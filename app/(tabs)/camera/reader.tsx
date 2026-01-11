@@ -184,72 +184,79 @@ export default function ReaderScreen() {
           </Pressable>
         </View>
 
-        {/* Top Tabs */}
-        <View style={styles.tabRow}>
-          <TopTab label="Overview" active={tab === "Overview"} onPress={() => setTab("Overview")} />
-          <TopTab label="Easy Read" active={tab === "Easy Read"} onPress={() => setTab("Easy Read")} />
-          <TopTab label="Translate" active={tab === "Translate"} onPress={() => setTab("Translate")} />
-        </View>
+        <ScrollView
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator
+            indicatorStyle='white'
+        >
 
-        {/* Card Area */}
-        <View style={[styles.outerCard, { height: cardHeight }]}>
-          {/* Badge */}
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>Bill{"\n"}1/1</Text>
+          {/* Top Tabs */}
+          <View style={styles.tabRow}>
+            <TopTab label="Overview" active={tab === "Overview"} onPress={() => setTab("Overview")} />
+            <TopTab label="Easy Read" active={tab === "Easy Read"} onPress={() => setTab("Easy Read")} />
+            <TopTab label="Translate" active={tab === "Translate"} onPress={() => setTab("Translate")} />
           </View>
 
-          {/* Inner "paper" */}
-          <View style={styles.innerPaper}>
-            {/* little menu icon */}
-            <Pressable style={styles.paperMenuBtn} onPress={() => { }}>
-              <Text style={styles.paperMenuIcon}>≡</Text>
-            </Pressable>
+          {/* Card Area */}
+          <View style={[styles.outerCard, { height: cardHeight }]}>
+            {/* Badge */}
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>Bill{"\n"}1/1</Text>
+            </View>
 
-            {/* Loading state + activity indicator */}
-            {ocrLoading && (
-              <View style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 10,
-                marginBottom: 10,
-                marginTop: 48
-              }}
-              >
-                <ActivityIndicator
-                  size={28}
-                  color={'black'}
-                />
-                <Text style={{
-                  fontWeight: '600',
-                  fontSize: 24,
-                  textAlign: 'center',
-                  justifyContent: 'center'
+            {/* Inner "paper" */}
+            <View style={styles.innerPaper}>
+              {/* little menu icon */}
+              <Pressable style={styles.paperMenuBtn} onPress={() => { }}>
+                <Text style={styles.paperMenuIcon}>≡</Text>
+              </Pressable>
+
+              {/* Loading state + activity indicator */}
+              {ocrLoading && (
+                <View style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 10,
+                  marginBottom: 10,
+                  marginTop: 48
                 }}
                 >
-                  Extracting text from image...
-                </Text>
-              </View>
-            )}
+                  <ActivityIndicator
+                    size={28}
+                    color={'black'}
+                  />
+                  <Text style={{
+                    fontWeight: '600',
+                    fontSize: 24,
+                    textAlign: 'center',
+                    justifyContent: 'center'
+                  }}
+                  >
+                    Extracting text from image...
+                  </Text>
+                </View>
+              )}
 
-            {/* Body text */}
-            <ScrollView
-              style={styles.bodyScroll}
-              contentContainerStyle={styles.bodyScrollContent}
-              showsVerticalScrollIndicator
-              keyboardShouldPersistTaps='handled'
-              indicatorStyle='black'
-            >
-              <Text style={styles.bodyText}>{content}</Text>
-            </ScrollView>
+              {/* Body text */}
+              <ScrollView
+                style={styles.bodyScroll}
+                contentContainerStyle={styles.bodyScrollContent}
+                showsVerticalScrollIndicator
+                keyboardShouldPersistTaps='handled'
+                indicatorStyle='black'
+              >
+                <Text style={styles.bodyText}>{content}</Text>
+              </ScrollView>
 
 
-            {/* Bottom CTA */}
-            <Pressable style={styles.ctaBtn} onPress={() => { }}>
-              <Text style={styles.ctaText}>Simplify More</Text>
-            </Pressable>
+              {/* Bottom CTA */}
+              <Pressable style={styles.ctaBtn} onPress={() => { }}>
+                <Text style={styles.ctaText}>Simplify More</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
+        </ScrollView>
       </View>
     </SafeAreaView>
   );
@@ -287,8 +294,15 @@ const BADGE = "#B65A43";
 const CTA = "#2C9AA4";
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: BG },
-  container: { flex: 1, backgroundColor: BG, paddingHorizontal: 16 },
+  safe: { 
+    flex: 1, 
+    backgroundColor: BG
+  },
+  container: { 
+    flex: 1, 
+    backgroundColor: BG, 
+    paddingHorizontal: 16
+  },
 
   header: {
     height: 56,
@@ -296,8 +310,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  headerIconBtn: { width: 44, height: 44, justifyContent: "center" },
-  headerIcon: { color: "white", fontSize: 22 },
+  headerIconBtn: { width: 44, height: 44, justifyContent: "center", marginRight: 8 },
+  headerIcon: { color: "white", fontSize: 36, marginTop: 8, marginLeft: 8 },
   headerTitle: { color: ACCENT, fontSize: 26, fontWeight: "700" },
   avatarBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "flex-end" },
   avatarPlaceholder: {
@@ -308,11 +322,11 @@ const styles = StyleSheet.create({
   },
 
   tabRow: {
-    marginTop: 4,
+    marginTop: Dimensions.get('window').height * 0.034,
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 10,
-    paddingHorizontal: 6,
+    paddingHorizontal: 6
   },
   topTab: {
     flex: 1,
@@ -328,10 +342,11 @@ const styles = StyleSheet.create({
   topTabTextInactive: { color: "#1B1B1B" },
 
   outerCard: {
-    marginTop: 14,
-    borderRadius: 18,
-    borderWidth: 4,
-    borderColor: CARD_BORDER,
+    marginTop: 28,
+    borderRadius: 24,
+    borderWidth: 12,
+    borderColor: TAB_INACTIVE,
+    backgroundColor: CARD_BORDER,
     padding: 12,
     position: "relative",
   },

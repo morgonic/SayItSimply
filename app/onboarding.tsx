@@ -387,9 +387,6 @@ export default function OnboardingScreen() {
             >
                 <ScrollView
                     style={{ flex: 1 }}
-                    contentContainerStyle={{
-
-                    }}
                     showsVerticalScrollIndicator
                     indicatorStyle='white'
                 >

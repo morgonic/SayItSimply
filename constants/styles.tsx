@@ -90,7 +90,7 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     gap: 18,
-    marginBottom: 28,
+    marginBottom: 36,
   },
   dashScanBtn: {
     width: 98,

@@ -68,7 +68,11 @@ export const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.35)",
   },
 
-  dashContent: { flex: 1, paddingHorizontal: 18 },
+  dashContent: { 
+    flex: 1, 
+    paddingHorizontal: 36,
+    marginTop: 36
+   },
 
   dashSectionTitle: {
     color: "white",
@@ -87,7 +91,7 @@ export const styles = StyleSheet.create({
   },
   dashScanBtn: {
     width: 98,
-    height: 76,
+    height: 98,
     borderRadius: 14,
     backgroundColor: "#2E8B9C",
     alignItems: "center",
@@ -150,7 +154,7 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 12,
-    marginTop: 10,
+    marginTop: 10
   },
   dashShortcutCardOuter: {
     flex: 1,
@@ -158,13 +162,14 @@ export const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "rgba(233,198,166,0.9)",
     padding: 2,
+    height: 185
   },
   dashShortcutCard: {
     flex: 1,
     backgroundColor: "rgba(255,255,255,0.95)",
     borderRadius: 12,
     padding: 12,
-    minHeight: 150,
+    minHeight: 175,
   },
   dashShortcutTitle: {
     color: "#1B1B1B",

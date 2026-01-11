@@ -162,25 +162,28 @@ export const styles = StyleSheet.create({
   dashShortcutCardOuter: {
     flex: 1,
     borderRadius: 14,
-    borderWidth: 3,
-    borderColor: "rgba(233,198,166,0.9)",
-    padding: 2,
-    height: 190
+    //borderWidth: 3,
+    backgroundColor: "rgba(233,198,166,0.9)",
+    padding: 6,
+    height: 190,
+    justifyContent: 'center'
   },
   dashShortcutCardInnerOuter: {
     flex: 1,
     borderRadius: 14,
-    borderWidth: 3,
-    borderColor: "#277A8C",
-    padding: 2,
-    height: 200
+    //borderWidth: 3,
+    backgroundColor: "#277A8C",
+    padding: 6,
+    height: 180,
+    justifyContent: 'center'
   },
   dashShortcutCard: {
     flex: 1,
     backgroundColor: "#fffffff2",
     borderRadius: 14,
     padding: 12,
-    minHeight: 170,
+    height: 170,
+    justifyContent: 'center'
   },
   dashShortcutTitle: {
     color: "#1B1B1B",

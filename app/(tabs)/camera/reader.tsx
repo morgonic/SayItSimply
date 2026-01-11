@@ -355,7 +355,7 @@ const styles = StyleSheet.create({
   badge: {
     position: "absolute",
     right: 14,
-    top: -10,
+    top: -20,
     width: 80,
     height: 100,
     borderRadius: 8,
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
   },
   badgeNotch: {
     position: 'absolute',
-    bottom: -1,
+    bottom: 0,
     left: '50%',
     transform: [{ translateX: -40 }],
     width: 0,

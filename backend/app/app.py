@@ -1,8 +1,14 @@
+import base64
 import os, json
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+
+from google.cloud import vision
+
+from pydantic import BaseModel
 
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
@@ -16,6 +22,11 @@ from app.users import auth_backend, current_active_user, fastapi_users, google_o
 from dotenv import load_dotenv
 
 load_dotenv()
+
+print("GOOGLE_OAUTH_CLIENT_ID loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_ID")))
+print("GOOGLE_OAUTH_CLIENT_SECRET loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")))
+print("GOOGLE_REDIRECT_URL:", os.getenv("GOOGLE_REDIRECT_URL"))
+print("MOBILE_REDIRECT_URL", os.getenv("MOBILE_REDIRECT_URL"))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -64,11 +75,16 @@ class OAuthMobileRedirectMiddleware(BaseHTTPMiddleware):
             token_type = data.get("token_type", "bearer")
             # if token exists
             if token:
-                # redirect back to the app using url fragment
-                return RedirectResponse(
+                # return variable, redirect response for mobile redirect
+                redirect = RedirectResponse(
                     url=f"{mobile_redirect}#access_token={token}&token_type={token_type}",
                     status_code=303
                 )
+                # prevent stale cookies
+                for cookie in response.headers.getlist("set-cookie"):
+                    redirect.headers.append("set-cookie", cookie)
+                # redirect back to the app using url fragment
+                return redirect
         except Exception:
             pass
 
@@ -80,6 +96,49 @@ class OAuthMobileRedirectMiddleware(BaseHTTPMiddleware):
             media_type=content_type
         )
 
+# Starlette/FastAPI middleware class, inherits from BaseHTTPMiddleware
+# turns JSON authorization_url response into HTTP redirect
+# browser session receives CSRF + state cookies not fetch request
+class OAuthAuthorizeRedirectMiddleware(BaseHTTPMiddleware):
+    # called for every request/response
+    async def dispatch(self, request, call_next):
+        # only intercept google oauth endpoints
+        if request.url.path not in ("/auth/google/authorize", "/auth/associate/google/authorize"):
+            return await call_next(request)
+        # run normal route handler
+        response = await call_next(request)
+        # only use json responses
+        content_type = response.headers.get("content-type", "")
+        if not content_type.startswith("application/json"):
+            return response
+        # stream response body and collect bytes
+        body_bytes = b""
+        async for chunk in response.body_iterator:
+            body_bytes += chunk
+        # try to parse json body and extract authorization url
+        try:
+            data = json.loads(body_bytes.decode("utf-8"))
+            auth_url = data.get("authorization_url")
+        except Exception:
+            auth_url = None
+        # if fail rebuild and return original response
+        if not auth_url:
+            return Response(
+                content=body_bytes,
+                status_code=response.status_code,
+                headers=dict(response.headers),
+                media_type=content_type
+            )
+        # redirect brwoser to google 
+        redirect = RedirectResponse(url=auth_url, status_code=303)
+        # set oauth cookies
+        for cookie in response.headers.getlist("set-cookie"):
+            redirect.headers.append("set-cookie", cookie)
+        # don't cache redirect
+        redirect.headers["Cache-Control"] = "no-store"
+        # return redirect response to browser
+        return redirect
+
 
 app = FastAPI(lifespan=lifespan)
 
@@ -90,6 +149,7 @@ app.add_middleware(
     allow_headers=["*"]
 )
 app.add_middleware(OAuthMobileRedirectMiddleware)
+app.add_middleware(OAuthAuthorizeRedirectMiddleware)
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 API_URL = os.getenv("EXPO_PUBLIC_API_URL", "")
@@ -135,6 +195,74 @@ app.include_router(
     prefix="/auth/associate/google",
     tags=["auth"]
 )
+
+### OCR ###
+
+# request payload model for /ocr endpoint
+class OCRRequest(BaseModel):
+    image_base64: str # base64 encoded image data
+    mode: str | None = None # optional hint about content/document type
+    language: list[str] | None = None # optional list of language codes to help accuracy
+
+# response model for /ocr endpoint
+class OCRResponse(BaseModel):
+    text: str # extracted ocr text
+
+# ocr endpoint, accepts base64 image, runs google cloud vision ocr, returns extracted text
+@app.post("/ocr", response_model=OCRResponse, tags=["ocr"])
+async def ocr_text(payload: OCRRequest):
+    try:
+        # extract raw base64 string from request body
+        raw = payload.image_base64
+        # decode base64 into bytes for vision api
+        content = base64.b64decode(raw)
+
+        # instantiate vision client
+        vision_client = vision.ImageAnnotatorClient()
+        # build vision image object from bytes
+        image = vision.Image(content=content)
+
+        # language hints to improve ocr results
+        image_context = None
+        if payload.language:
+            image_context = vision.ImageContext(language_hints=payload.language)
+
+        # normalize mode string and compare against set of document-like modes
+        doc_modes = {"document", "receipt", "form", "instructions", "article", "book", "medical"}
+        use_document = (payload.mode or "").strip().lower() in doc_modes
+
+        if use_document:
+            # document_text_detection butter for full-page documents
+            # run_in_threadpool to prevent blocking event loop
+            response = await run_in_threadpool(
+                vision_client.document_text_detection,
+                image=image,
+                image_context=image_context
+            )
+            # full_text_annotation has complete extracted text for document ocr
+            text = (response.full_text_annotation.text or "").strip()
+        else:
+            # text_detection for shorter text/signs/labels
+            response = await run_in_threadpool(
+                vision_client.text_detection,
+                image=image,
+                image_context=image_context
+            )
+            # text_annoations[0] contains full text concatenated
+            text = (
+                response.text_annotations[0].description 
+                if response.text_annotations 
+                else ""
+            ).strip()
+        # if vision api returns error, return 500 with error message
+        if response.error.message:
+            raise HTTPException(status_code=500, detail=response.error.message)
+        # return response to client
+        return OCRResponse(text=text)
+    
+    except Exception as e:
+        # 500 with error message
+        raise HTTPException(status_code=500, detail=f"OCR failed: {e}")
 
 @app.get("/authenticated-route")
 async def authenticated_route(user: User = Depends(current_active_user)):

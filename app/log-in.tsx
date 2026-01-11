@@ -11,11 +11,35 @@ WebBrowser.maybeCompleteAuthSession()
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
+console.log("API URL:", api_url);
+
 export default function LogInScreen() {
   
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  // route to dashboard or onboarding after checking user onboarding_done flag
+  async function routeAfterLogin(accessToken: string) {
+    await storage.setItem("access_token", accessToken);
+    await storage.setItem("token_type", "bearer");
+
+    const response = await fetch(`${api_url}/users/me`, {
+      headers: { Authorization: `Bearer ${accessToken}`}
+    });
+
+    if (!response.ok) {
+      await storage.deleteItem("access_token");
+      router.replace('/log-in');
+      return;
+    }
+
+    const user = await response.json();
+
+    const onboarded = (user.onboarding_done === true);
+
+    router.replace(onboarded ? '/(tabs)' : '/onboarding');
+  }
   
   async function logIn() {
     try {
@@ -41,7 +65,7 @@ export default function LogInScreen() {
       await storage.setItem("access_token", json.access_token);
       await storage.setItem("token_type", json.token_type ?? "bearer");
 
-      router.replace("/(tabs)");
+      await routeAfterLogin(json.access_token);
     }
     catch (e: any) {
       Alert.alert(`Login failed: ${e.message}`);
@@ -50,22 +74,14 @@ export default function LogInScreen() {
 
   async function continueWithGoogle() {
     try {
-      // link back to app
+      // deep link redirect URL for browser to return to after oauth
       const redirectUrl = Linking.createURL("oauth");
-      console.log("Expo redirectUrl:", redirectUrl)
+      // start oauth with authorize endpoint in browser
+      const startUrl = `${api_url}/auth/google/authorize?ts=${Date.now()}`;
 
-      // get google authorization url from backend
-      const response = await fetch(`${api_url}/auth/google/authorize`);
-      if (!response.ok) {
-        throw new Error(`Authorize failed: HTTP ${response.status}`);
-      }
-      const { authorization_url } = await response.json();
-      if (!authorization_url) {
-        throw new Error("No authorization_url returned from backend");
-      }
-
-      // open google login and wait to return to redirect url
-      const result = await WebBrowser.openAuthSessionAsync(authorization_url, redirectUrl);
+      // launch expo web browser auth session
+      // wait to return to redirect url
+      const result = await WebBrowser.openAuthSessionAsync(startUrl, redirectUrl)
 
       // if login didn't complete or was cancelled, exit
       if (result.type !== "success" || !result.url) {
@@ -90,8 +106,8 @@ export default function LogInScreen() {
       await storage.setItem("access_token", access_token);
       await storage.setItem("token_type", token_type);
 
-      // navigate to main app
-      router.replace('/(tabs)');
+      // navigate to main app or onboarding
+      await routeAfterLogin(access_token);
     }
     catch (e: any) {
       Alert.alert("Google sign in failed", e.message);

@@ -74,7 +74,7 @@ export const styles = StyleSheet.create({
   dashContent: {
     flex: 1,
     paddingHorizontal: 36,
-    marginTop: 36
+    marginTop: screenHeight * 0.05
   },
 
   dashSectionTitle: {
@@ -162,17 +162,25 @@ export const styles = StyleSheet.create({
   dashShortcutCardOuter: {
     flex: 1,
     borderRadius: 14,
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: "rgba(233,198,166,0.9)",
     padding: 2,
-    height: 185
+    height: 190
+  },
+  dashShortcutCardInnerOuter: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 3,
+    borderColor: "#277A8C",
+    padding: 2,
+    height: 200
   },
   dashShortcutCard: {
     flex: 1,
-    backgroundColor: "rgba(255,255,255,0.95)",
-    borderRadius: 12,
+    backgroundColor: "#fffffff2",
+    borderRadius: 14,
     padding: 12,
-    minHeight: 175,
+    minHeight: 170,
   },
   dashShortcutTitle: {
     color: "#1B1B1B",
@@ -187,14 +195,14 @@ export const styles = StyleSheet.create({
   dashViewAllBtn: {
     marginTop: "auto",
     alignSelf: "center",
-    backgroundColor: "rgba(255,255,255,0.95)",
+    backgroundColor: "#fffffff2",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.08)",
+    borderColor: "#00000014",
     width: "95%",
     justifyContent: "center",
   },

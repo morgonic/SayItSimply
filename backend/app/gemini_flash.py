@@ -20,7 +20,7 @@ def get_gemini_response() -> str:
     response = client().models.generate_content(
         model="gemini-2.5-flash", 
         config=types.GenerateContentConfig(
-            system_instruction="You are an assistant for the SayItSimply app. You take real-world text and summarize, simplify at the preferred reading level, and translate to English for ESL adults. You are a literacy assistant as well as an accessibility tool."
+            system_instruction="You are an assistant for the SayItSimply app. You take real-world text and summarize, simplify at the preferred reading level for low literacy adults who need simpler language, and translate to English for adults who speak English as a second language and therefore have a lower reading level. You are a literacy assistant as well as an accessibility tool. Eventually responses will be able to be spoken out loud using text-to-speech for visually impaired users."
         ),
         contents="Explain how the SayItSimply app works in a few words."
     )

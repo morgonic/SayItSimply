@@ -10,8 +10,17 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
+import storage from '@/app/storage';
 
 type ReaderTab = "Overview" | "Easy Read" | "Translate";
+
+type GeminiResponse = {
+  summary: string;
+  simplified_explanation: string;
+  action_items: string[];
+  translation?: string | null;
+  mode: string;
+}
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
@@ -70,36 +79,42 @@ export default function ReaderScreen() {
   // gemini request states
   const [geminiLoading, setGeminiLoading] = useState(false);
   const [geminiError, setGeminiError] = useState<string | null>(null);
-  const [geminiText, setGeminiText] = useState<string>("");
+  const [geminiData, setGeminiData] = useState<GeminiResponse | null>(null);
 
   useEffect(() => {
     // prevent mounting issues
     let cancelled = false;
 
     // call backend ocr endpoint using captured image
-    async function runOcr() {
+    async function runOcrGeminiPipeline() {
       // no image uri, do nothing
       if (!imageUri) {
         return;
       }
+      if (!api_url) {
+        if (!cancelled) {
+          setGeminiError("Missing EXPO_PUBLIC_API_URL");
+          setOcrError("Missing EXPO_PUBLIC_API_URL");
+        }
+        return;
+      }
 
       try {
-        setGeminiLoading(true);
-        setGeminiError(null);
-        setGeminiText("");
-        // // reset UI states
-        // setOcrLoading(true);
-        // setOcrError(null);
-        // setOcrText("");
+        // reset UI states
+        setOcrLoading(true);
+        setOcrError(null);
+        setOcrText("");
 
-        // no api url, error
-        if (!api_url) {
-          throw new Error("Missing EXPO_PUBLIC_API_URL");
-        }
+        setGeminiLoading(false);
+        setGeminiError(null);
+        setGeminiData(null);
+        
+        // OCR
+
         // convert image file to base64 string payload
         const base64 = await uriToBase64(imageUri);
         // call backend ocr endpoint
-        const response = await fetch(`${api_url}/gemini`, {
+        const response = await fetch(`${api_url}/ocr`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           // send base64 image data + selected mode
@@ -119,62 +134,113 @@ export default function ReaderScreen() {
         const data = await response.json();
         // store ocr text if still mounted
         if (!cancelled) {
-          setGeminiText(data.text ?? "");
+          setOcrText(data.text ?? "");
+          setOcrLoading(false);
+        }
+
+        const token = await storage.getItem("access_token");
+        const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+
+        // Gemini
+
+        setGeminiLoading(true);
+        // call gemini endpoint, pass in text and mode
+        const geminiResponse = await fetch(`${api_url}/gemini`, {
+          method: 'POST',
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `${tokenType} ${token}`} : {})
+          },
+          body: JSON.stringify({text: data.text ?? "", mode: badgeMode ?? "Document"})
+        });
+        // check response, handle error
+        if (!geminiResponse.ok) {
+          const text = await geminiResponse.text();
+          throw new Error(text || `Gemini response failed (HTTP ${geminiResponse.status})`);
+        }
+        // grab and set json data
+        const geminiJson: GeminiResponse = await geminiResponse.json();
+        if (!cancelled) {
+          setGeminiData(geminiJson)
         }
       }
       catch (e: any) {
         // store error message if still mounted
         if (!cancelled) {
-          setGeminiError(e?.message ?? "OCR failed");
+          setOcrError(e?.message ?? "OCR failed")
+          setGeminiError(e?.message ?? "Request failed");
         }
       }
       finally {
         // stop showing loading state if still mounted
         if (!cancelled) {
+          setOcrLoading(false);
           setGeminiLoading(false);
         }
       }
     }
-    // run ocr pipeline
-    runOcr();
+
+    // run ocr and prompt gemini using extracted text
+    runOcrGeminiPipeline();
 
     return () => {
-      // mark cancelled after unmount
       cancelled = true;
     };
-  }, [imageUri, mode]); // run ocr pipeline when imageUri/mode changes
+
+  }, [imageUri, mode]);
+
+  // update bookmark/badge doc mode label
+  const badgeMode = useMemo(() => {
+    // if doc mode is not auto-detect, return manually set mode
+    if (mode && mode !== "Auto-detect") {
+      return mode;
+    }
+    // if loading states, show 'detecting...'
+    if (ocrLoading || geminiLoading) {
+      return "Detecting...";
+    }
+    // return the mode or auto-detect
+    return geminiData?.mode ?? "Auto-detect";
+  }, [mode, ocrLoading, geminiLoading, geminiData]); // when mode, loading states, or data changes
 
   // compute text to show inside reader card
   const content = useMemo(() => {
     // while loading, show nothing
+    if (ocrLoading) return "";
     if (geminiLoading) return "";
+    
     // if failure, show error message in content area
-    if (geminiError) return `OCR error:\n${ocrError}`;
+    if (ocrError) return `OCR error:\n\n${ocrError}`;
+    if (geminiError) return `Gemini error:\n\n${geminiError}`;
+
+    if (!geminiData) {
+      return ocrText ? ocrText : "No Gemini response yet.";
+    }
+    
+    const items = Array.isArray(geminiData.action_items) ? geminiData.action_items : [];
 
     // otherwise show content based on selected tab
     switch (tab) {
       case "Overview":
-        return geminiText || "No Gemini text available. Try the request again.";
-        // // show raw ocr text as overview
-        // return ocrText || "No OCR text yet.";
+        // for now, format action items with summary as numbered list, n/a if no items
+        return (
+          `${geminiData.summary}\n\n` +
+          `Action items:\n\n${items.map((x, i) => `${i+1}) ${x}`).join("\n\n") || "N/A"}`
+        );
       case "Easy Read":
-        // placeholder until gemini pipeline implemented
-        return (
-          "Easy Read will appear here.\n\n" +
-          "Later: send OCR text to Gemini and show simplified text."
-        );
+        // simplified explanation for easy read tab
+        return geminiData.simplified_explanation;
       case "Translate":
-        // placeholder until translation implemented
-        return (
-          "Translation will appear here.\n\n" +
-          "Later: select a language and show translated text."
-        );
+        // translation for translate tab, tell user when no translation was provided
+        return geminiData.translation ?? "No translation available. Please change your language settings.";
       default:
         return "";
     }
-  }, [tab, geminiLoading, geminiError, geminiText]); //recompute when tab or ocr state changes
+  }, [tab, ocrLoading, ocrError, ocrText, geminiLoading, geminiError, geminiData]); //recompute when tab, data, or loading/error states changes
 
+  // screen dimensions
   const screen = Dimensions.get("window");
+  // reader card height
   const cardHeight = Math.min(screen.height * 0.62, 560);
 
   return (
@@ -210,7 +276,7 @@ export default function ReaderScreen() {
           <View style={[styles.outerCard, { height: cardHeight }]}>
             {/* Badge */}
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>Bill{"\n"}1/1</Text>
+              <Text style={styles.badgeText}>{badgeMode}{"\n"}1/1</Text>
             </View>
 
             {/* Inner "paper" */}
@@ -221,7 +287,7 @@ export default function ReaderScreen() {
               </Pressable>
 
               {/* Loading state + activity indicator */}
-              {geminiLoading && (//ocrLoading && (
+              {(ocrLoading || geminiLoading) && (
                 <View style={{
                   flexDirection: 'row',
                   alignItems: 'center',
@@ -242,8 +308,8 @@ export default function ReaderScreen() {
                     justifyContent: 'center'
                   }}
                   >
-                    Fetching Gemini response...
-                    {/*Extracting text from image...*/}
+                    {ocrLoading ? "Extracting text from image..."
+                    : "Fetching Gemini response..."}
                   </Text>
                 </View>
               )}

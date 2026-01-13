@@ -18,7 +18,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse, Response
 
 from app.db import User, create_db_and_tables, engine
-from app.schemas import UserCreate, UserRead, UserUpdate
+from app.schemas import UserCreate, UserRead, UserUpdate, GeminiRequest, GeminiResponse, OCRRequest, OCRResponse
 from app.users import auth_backend, current_active_user, fastapi_users, google_oauth_client, SECRET
 
 from dotenv import load_dotenv
@@ -202,25 +202,29 @@ app.include_router(
 
 ### Gemini ###
 
-class GeminiRequest(BaseModel):
-    pass
-
+# gemini endpoint for main structured output
 @app.post("/gemini")
-def gemini(request: GeminiRequest):
-    response = get_gemini_response()
-    return {"text": response}
+def gemini(request: GeminiRequest, user: User = Depends(current_active_user)):
+
+    # check if text is valid, error if not
+    text = (request.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Text is required")
+    
+    # default english if no user language found
+    language = user.language or "en"
+    # default 6 grade level if none found
+    reading_level = user.reading_level or 6
+    # return gemini response using 
+    # OCR text, user language, user reading level, selected/detected doc type/mode
+    return get_gemini_response(
+        input=request.text, 
+        language=language, 
+        reading_level=reading_level,
+        mode=request.mode
+    )
 
 ### OCR ###
-
-# request payload model for /ocr endpoint
-class OCRRequest(BaseModel):
-    image_base64: str # base64 encoded image data
-    mode: str | None = None # optional hint about content/document type
-    language: list[str] | None = None # optional list of language codes to help accuracy
-
-# response model for /ocr endpoint
-class OCRResponse(BaseModel):
-    text: str # extracted ocr text
 
 # ocr endpoint, accepts base64 image, runs google cloud vision ocr, returns extracted text
 @app.post("/ocr", response_model=OCRResponse, tags=["ocr"])

@@ -67,6 +67,10 @@ export default function ReaderScreen() {
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [ocrText, setOcrText] = useState<string>("");
 
+  // gemini request states
+  const [geminiLoading, setGeminiLoading] = useState(false);
+  const [geminiError, setGeminiError] = useState<string | null>(null);
+  const [geminiText, setGeminiText] = useState<string>("");
 
   useEffect(() => {
     // prevent mounting issues
@@ -80,10 +84,14 @@ export default function ReaderScreen() {
       }
 
       try {
-        // reset UI states
-        setOcrLoading(true);
-        setOcrError(null);
-        setOcrText("");
+        setGeminiLoading(true);
+        setGeminiError(null);
+        setGeminiText("");
+        // // reset UI states
+        // setOcrLoading(true);
+        // setOcrError(null);
+        // setOcrText("");
+
         // no api url, error
         if (!api_url) {
           throw new Error("Missing EXPO_PUBLIC_API_URL");
@@ -91,7 +99,7 @@ export default function ReaderScreen() {
         // convert image file to base64 string payload
         const base64 = await uriToBase64(imageUri);
         // call backend ocr endpoint
-        const response = await fetch(`${api_url}/ocr`, {
+        const response = await fetch(`${api_url}/gemini`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           // send base64 image data + selected mode
@@ -111,19 +119,19 @@ export default function ReaderScreen() {
         const data = await response.json();
         // store ocr text if still mounted
         if (!cancelled) {
-          setOcrText(data.text ?? "");
+          setGeminiText(data.text ?? "");
         }
       }
       catch (e: any) {
         // store error message if still mounted
         if (!cancelled) {
-          setOcrError(e?.message ?? "OCR failed");
+          setGeminiError(e?.message ?? "OCR failed");
         }
       }
       finally {
         // stop showing loading state if still mounted
         if (!cancelled) {
-          setOcrLoading(false);
+          setGeminiLoading(false);
         }
       }
     }
@@ -139,15 +147,16 @@ export default function ReaderScreen() {
   // compute text to show inside reader card
   const content = useMemo(() => {
     // while loading, show nothing
-    if (ocrLoading) return "";
+    if (geminiLoading) return "";
     // if failure, show error message in content area
-    if (ocrError) return `OCR error:\n${ocrError}`;
+    if (geminiError) return `OCR error:\n${ocrError}`;
 
     // otherwise show content based on selected tab
     switch (tab) {
       case "Overview":
-        // show raw ocr text as overview
-        return ocrText || "No OCR text yet.";
+        return geminiText || "No Gemini text available. Try the request again.";
+        // // show raw ocr text as overview
+        // return ocrText || "No OCR text yet.";
       case "Easy Read":
         // placeholder until gemini pipeline implemented
         return (
@@ -163,7 +172,7 @@ export default function ReaderScreen() {
       default:
         return "";
     }
-  }, [tab, ocrLoading, ocrError, ocrText]); //recompute when tab or ocr state changes
+  }, [tab, geminiLoading, geminiError, geminiText]); //recompute when tab or ocr state changes
 
   const screen = Dimensions.get("window");
   const cardHeight = Math.min(screen.height * 0.62, 560);
@@ -212,7 +221,7 @@ export default function ReaderScreen() {
               </Pressable>
 
               {/* Loading state + activity indicator */}
-              {ocrLoading && (
+              {geminiLoading && (//ocrLoading && (
                 <View style={{
                   flexDirection: 'row',
                   alignItems: 'center',
@@ -233,7 +242,8 @@ export default function ReaderScreen() {
                     justifyContent: 'center'
                   }}
                   >
-                    Extracting text from image...
+                    Fetching Gemini response...
+                    {/*Extracting text from image...*/}
                   </Text>
                 </View>
               )}

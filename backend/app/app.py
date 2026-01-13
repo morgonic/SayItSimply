@@ -6,6 +6,8 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
+
+
 from google.cloud import vision
 
 from pydantic import BaseModel
@@ -20,11 +22,13 @@ from app.schemas import UserCreate, UserRead, UserUpdate
 from app.users import auth_backend, current_active_user, fastapi_users, google_oauth_client, SECRET
 
 from dotenv import load_dotenv
-
 load_dotenv()
+
+from app.gemini_flash import get_gemini_response
 
 print("GOOGLE_OAUTH_CLIENT_ID loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_ID")))
 print("GOOGLE_OAUTH_CLIENT_SECRET loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")))
+print("GEMINI_API_KEY loaded:", bool(os.getenv("GEMINI_API_KEY")))
 print("GOOGLE_REDIRECT_URL:", os.getenv("GOOGLE_REDIRECT_URL"))
 print("MOBILE_REDIRECT_URL", os.getenv("MOBILE_REDIRECT_URL"))
 
@@ -195,6 +199,16 @@ app.include_router(
     prefix="/auth/associate/google",
     tags=["auth"]
 )
+
+### Gemini ###
+
+class GeminiRequest(BaseModel):
+    pass
+
+@app.post("/gemini")
+def gemini(request: GeminiRequest):
+    response = get_gemini_response()
+    return {"text": response}
 
 ### OCR ###
 

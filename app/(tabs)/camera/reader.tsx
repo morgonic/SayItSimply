@@ -277,6 +277,7 @@ export default function ReaderScreen() {
             {/* Badge */}
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{badgeMode}{"\n"}1/1</Text>
+              <View style={styles.badgeNotch}/>
             </View>
 
             {/* Inner "paper" */}
@@ -308,8 +309,8 @@ export default function ReaderScreen() {
                     justifyContent: 'center'
                   }}
                   >
-                    {ocrLoading ? "Extracting text from image..."
-                    : "Fetching Gemini response..."}
+                    {ocrLoading ? "Reading your text..."
+                    : "Rewriting your text..."}
                   </Text>
                 </View>
               )}

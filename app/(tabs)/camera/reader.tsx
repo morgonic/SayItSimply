@@ -365,7 +365,7 @@ const ACCENT = "#E9C6A6";
 const TAB_ACTIVE = "#C97E6F";
 const TAB_INACTIVE = "#E9C6A6";
 const CARD_BORDER = "#2C9AA4";
-const PAPER = "#F2F2F2";
+const PAPER = "#FFFFF2";
 const BADGE = "#B65A43";
 const CTA = "#2C9AA4";
 
@@ -430,17 +430,14 @@ const styles = StyleSheet.create({
   badge: {
     position: "absolute",
     right: 14,
-    top: -10,
-    width: 52,
-    height: 60,
-    borderRadius: 10,
+    top: -20,
+    width: 80,
+    height: 100,
+    borderRadius: 8,
     backgroundColor: BADGE,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 5,
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 6 },
     elevation: 3,
   },
   badgeText: {
@@ -448,7 +445,22 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     fontSize: 12,
     textAlign: "center",
+    marginBottom: 24,
     lineHeight: 14,
+  },
+  badgeNotch: {
+    position: 'absolute',
+    bottom: 0,
+    left: '50%',
+    transform: [{ translateX: -40 }],
+    width: 0,
+    height: 0,
+    borderLeftWidth: 40,
+    borderRightWidth: 40,
+    borderBottomWidth: 36,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#FFFFF2',
   },
 
   innerPaper: {

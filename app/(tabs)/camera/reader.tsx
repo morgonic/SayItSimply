@@ -63,6 +63,7 @@ async function uriToBase64(uri: string): Promise<string> {
 
 export default function ReaderScreen() {
   const [tab, setTab] = useState<ReaderTab>("Overview");
+  const [showOriginal, setShowOriginal] = useState(false);
 
   // read route params passed in from camerascreen
   // imageuri - local image file uri; mode - selected scan mode
@@ -213,10 +214,16 @@ export default function ReaderScreen() {
     if (ocrError) return `OCR error:\n\n${ocrError}`;
     if (geminiError) return `Gemini error:\n\n${geminiError}`;
 
+    // if user wants original text, show ocr text
+    if (showOriginal) {
+      return ocrText || "No OCR text available.";
+    }
+
     if (!geminiData) {
       return ocrText ? ocrText : "No Gemini response yet.";
     }
     
+    // grab returned action items if action items is an array, otherwise default to empty array
     const items = Array.isArray(geminiData.action_items) ? geminiData.action_items : [];
 
     // otherwise show content based on selected tab
@@ -236,7 +243,7 @@ export default function ReaderScreen() {
       default:
         return "";
     }
-  }, [tab, ocrLoading, ocrError, ocrText, geminiLoading, geminiError, geminiData]); //recompute when tab, data, or loading/error states changes
+  }, [tab, ocrLoading, ocrError, ocrText, geminiLoading, geminiError, geminiData, showOriginal]); //recompute when tab, data, or loading/error states changes
 
   // screen dimensions
   const screen = Dimensions.get("window");
@@ -328,8 +335,13 @@ export default function ReaderScreen() {
 
 
               {/* Bottom CTA */}
-              <Pressable style={styles.ctaBtn} onPress={() => { }}>
-                <Text style={styles.ctaText}>Simplify More</Text>
+              <Pressable style={styles.ctaBtn} onPress={() => setShowOriginal(!showOriginal)}>
+                <Text style={styles.ctaText}>
+                  {(tab === "Overview" && !showOriginal) ? "See Original Text" 
+                  : (tab === "Overview" && showOriginal) ? "See Simplified Text"
+                  : (!showOriginal) ? "Simplify More"
+                  : "Simplify More"}
+                </Text>
               </Pressable>
             </View>
           </View>

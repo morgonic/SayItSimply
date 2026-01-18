@@ -110,3 +110,5 @@ export async function clearCaptures(): Promise<void> {
     }
   }
 }
+
+export default storage;

@@ -58,7 +58,7 @@ def get_gemini_response(input: str, reading_level: int, language: str, mode: str
         "- simplified_explanation: rewrite in English at provided reading_level_grade.\n"
         "- Preserve critical details like amounts of money, names, phone numbers, addresses, deadlines, URLS.\n\n"
         "Simplified explanation rules:\n"
-        "- simplified_explanation MUST be a rewrite of the original text, NOT an explanation of it.\n"
+        "- simplified_explanation MUST be a rewrite of the original text.\n"
         "- Do not refer to 'the text', 'this document', 'this message', or 'this means.'\n"
         "- Do not add introductions or framing ('In other words', 'Basically', et cetera)\n"
         "- Keep the original point of view and voice:\n"
@@ -67,9 +67,12 @@ def get_gemini_response(input: str, reading_level: int, language: str, mode: str
         "- Preserve structure where possible: line breaks, headings, bullets, lists.\n"
         "- Do NOT add advice, opinions, or extra information that is not included in the input_text.\n\n"
         "Action items rules:\n"
-        "- ONLY extract tasks that are concrete instructions required by the input text.\n"
+        "- 'Action items' means real-world tasks that the reader is explicitly instructed to do.\n"
+        "- ONLY include tasks that are directly stated in the input_text as instructions or requirements for the reader.\n"
+        "- If you are not highly confident an item is a real-world task meant for the reader, do not include it.\n"
         "- Do NOT add suggested tasks unless the input explicitly says so.\n"
         "- Each action item should be short and begin with a verb.\n"
+        "- Each action item must be formatted as a checklist item. Example: Do X by Y-date, call X at Y number.\n"
         "- Action items should include relevant details like dates, amounts, names, phone numbers, et cetera.\n\n"
         "Translation rules:\n"
         "- If target_language == 'en', translation MUST be null.\n"
@@ -83,14 +86,17 @@ def get_gemini_response(input: str, reading_level: int, language: str, mode: str
         "- Convert relative dates (like tomorrow, next Friday, in 2 weeks, et cetera) into ISO format YYYY-MM-DD.\n"
         "- If dates are ambiguous, keep original phrasing instead of guessing exact dates.\n"
         "</rules>\n\n"
+
         "<self_check>\n"
         "Before outputting JSON:\n"
         "- Make sure summary, simplified_explanation, and action_items are English.\n"
         "- Make sure translation is the ONLY field in target_language when target_language != 'en'.\n"
         "- Make sure output is valid JSON compliant with schema.\n"
+        "</self_check>"
     )
 
-    print(system_instructions)
+    print("System instructions:\n", system_instructions)
+    print("Prompted at reading level:", reading_level)
 
     # gemini prompt using XML tags and output prefix
     prompt = (

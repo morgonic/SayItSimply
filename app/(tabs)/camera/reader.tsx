@@ -82,6 +82,16 @@ export default function ReaderScreen() {
   const [geminiError, setGeminiError] = useState<string | null>(null);
   const [geminiData, setGeminiData] = useState<GeminiResponse | null>(null);
 
+  // simplify more states
+  const [simplifyMoreText, setSimplifyMoreText] = useState<string | null>(null);
+  const [simplifyMoreCount, setSimplifyMoreCount] = useState<number>(0);
+
+  // reset simplify more states when new image taken
+  useEffect(() => {
+    setSimplifyMoreText(null);
+    setSimplifyMoreCount(0);
+  }, [imageUri]); // new image uri triggers
+
   useEffect(() => {
     // prevent mounting issues
     let cancelled = false;
@@ -152,7 +162,7 @@ export default function ReaderScreen() {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `${tokenType} ${token}`} : {})
           },
-          body: JSON.stringify({text: data.text ?? "", mode: badgeMode ?? "Document"})
+          body: JSON.stringify({text: data.text ?? "", mode: mode ?? "Document"})
         });
         // check response, handle error
         if (!geminiResponse.ok) {
@@ -215,7 +225,7 @@ export default function ReaderScreen() {
     if (geminiError) return `Gemini error:\n\n${geminiError}`;
 
     // if user wants original text, show ocr text
-    if (showOriginal) {
+    if (tab === "Overview" && showOriginal) {
       return ocrText || "No OCR text available.";
     }
 
@@ -236,14 +246,14 @@ export default function ReaderScreen() {
         );
       case "Easy Read":
         // simplified explanation for easy read tab
-        return geminiData.simplified_explanation;
+        return simplifyMoreText ?? geminiData.simplified_explanation;
       case "Translate":
         // translation for translate tab, tell user when no translation was provided
         return geminiData.translation ?? "No translation available. Please change your language settings.";
       default:
         return "";
     }
-  }, [tab, ocrLoading, ocrError, ocrText, geminiLoading, geminiError, geminiData, showOriginal]); //recompute when tab, data, or loading/error states changes
+  }, [tab, ocrLoading, ocrError, ocrText, geminiLoading, geminiError, geminiData, showOriginal, simplifyMoreText]); //recompute when tab, data, simplify more, or loading/error states changes
 
   // screen dimensions
   const screen = Dimensions.get("window");
@@ -335,11 +345,70 @@ export default function ReaderScreen() {
 
 
               {/* Bottom CTA */}
-              <Pressable style={styles.ctaBtn} onPress={() => setShowOriginal(!showOriginal)}>
+              <Pressable 
+                style={[
+                  styles.ctaBtn,
+                  (ocrLoading || geminiLoading || !ocrText) && { backgroundColor: '#6C6767', opacity: 0.5 }
+                ]} 
+                onPress={async () => {
+                  if (tab === "Overview") {
+                    setShowOriginal(!showOriginal)
+                  }
+                  else if (tab === "Easy Read") {
+                    if (ocrLoading || geminiLoading || !ocrText) {
+                      return;
+                    }
+                    if (!api_url) {
+                      return;
+                    }
+
+                    setGeminiLoading(true);
+                    setGeminiError(null);
+
+                    try {
+                      const token = await storage.getItem("access_token");
+                      const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+
+                      const nextSimplifyStep = simplifyMoreCount + 1;
+                      setSimplifyMoreCount(nextSimplifyStep);
+
+                      const simplifyMoreBy = 2 * nextSimplifyStep;
+
+                      const response = await fetch(`${api_url}/gemini`, {
+                        method: 'POST',
+                        headers: {
+                          "Content-Type": "application/json",
+                          ...(token ? { Authorization: `${tokenType} ${token}`} : {})
+                        },
+                        body: JSON.stringify({
+                          text: ocrText,
+                          mode: mode ?? "Document",
+                          simplify_more_by: simplifyMoreBy
+                        })
+                      });
+
+                      if (!response.ok) {
+                        const text = await response.text();
+                        throw new Error(text || `Gemini response failed (HTTP ${response.status})`);
+                      }
+
+                      const json: GeminiResponse = await response.json();
+
+                      setSimplifyMoreText(json.simplified_explanation);
+                    }
+                    catch (e: any) {
+                      setGeminiError(e?.message ?? "Request failed");
+                    }
+                    finally {
+                      setGeminiLoading(false);
+                    }
+                  }
+                }}
+                disabled={ocrLoading || geminiLoading || !ocrText}>
                 <Text style={styles.ctaText}>
                   {(tab === "Overview" && !showOriginal) ? "See Original Text" 
                   : (tab === "Overview" && showOriginal) ? "See Simplified Text"
-                  : (!showOriginal) ? "Simplify More"
+                  : (tab != "Overview") ? "Simplify More"
                   : "Simplify More"}
                 </Text>
               </Pressable>

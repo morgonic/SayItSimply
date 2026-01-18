@@ -269,18 +269,24 @@ def gemini(request: GeminiRequest, user: User = Depends(current_active_user)):
     text = (request.text or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Text is required")
-    
+    # document type mode
+    mode = request.mode or "Document"
     # default english if no user language found
     language = user.language or "en"
     # default 6 grade level if none found
     reading_level = user.reading_level or 6
+    # how many grades lower than user's reading level
+    offset = request.simplify_more_by or 0
+    # new reading level with offset
+    simplified_level = max(1, reading_level - offset)
+    print("Simplified reading level:", simplified_level)
     # return gemini response using 
     # OCR text, user language, user reading level, selected/detected doc type/mode
     return get_gemini_response(
-        input=request.text, 
+        input=text, 
         language=language, 
-        reading_level=reading_level,
-        mode=request.mode
+        reading_level=simplified_level,
+        mode=mode
     )
 
 ### OCR ###

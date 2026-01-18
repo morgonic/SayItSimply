@@ -35,6 +35,10 @@ class OCRResponse(BaseModel):
 class GeminiRequest(BaseModel):
     text: str
     mode: str = "Auto-detect"
+    simplify_more_by: int = Field(
+        default=0, 
+        description="How many grade levels lower than the user's reading_level to simplify more."
+    )
 
 # response model for /gemini endpoint
 class GeminiResponse(BaseModel):

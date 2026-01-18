@@ -35,8 +35,17 @@ export const styles = StyleSheet.create({
     fontSize: 14
   },
   // dashboard specific
-  dashSafe: { flex: 1, backgroundColor: "#0D1321" },
-  dashContainer: { flex: 1, backgroundColor: "#0D1321" },
+  dashSafe: { 
+    flex: 1, 
+    backgroundColor: "#0D1321"
+  },
+  dashContainer: { 
+    flex: 1, 
+    backgroundColor: "#0D1321",
+    marginTop: screenHeight * 0.03,
+    marginLeft: screenWidth * 0.1,
+    marginRight: screenWidth * 0.1 
+  },
 
   dashHeader: {
     height: 56,

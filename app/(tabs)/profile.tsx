@@ -72,7 +72,7 @@ function codeFromLabel(label: string): string {
   return found ? found.code : "en";
 }
 
-export default function profileScreen() {
+export default function ProfileScreen() {
   const router = useRouter();
 
   const [preferredLanguage, setPreferredLanguage] = useState("English");
@@ -442,9 +442,9 @@ export default function profileScreen() {
             <View style={styles.detailDivider} />
 
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Reading Level</Text>
+              <Text style={styles.detailLabel}>Account Type</Text>
               <Text style={styles.detailValue}>
-                {accountReadingLevel ?? "—"}
+                {isOAuthUser ? "Google" : "Email"}
               </Text>
             </View>
 

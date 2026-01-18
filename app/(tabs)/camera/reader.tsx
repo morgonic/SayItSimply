@@ -370,7 +370,7 @@ export default function ReaderScreen() {
                 <Pressable 
                   style={[
                     styles.ctaBtn,
-                    (ocrLoading || geminiLoading || !ocrText) && { backgroundColor: '#6C6767', opacity: 0.5 }
+                    (ocrLoading || geminiLoading || !ocrText || simplifiedMost) && { backgroundColor: '#6C6767', opacity: 0.5 }
                   ]} 
                   onPress={async () => {
                     if (tab === "Overview") {

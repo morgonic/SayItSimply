@@ -20,6 +20,7 @@ type GeminiResponse = {
   action_items: string[];
   translation?: string | null;
   mode: string;
+  reading_level?: number;
 }
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
@@ -86,10 +87,23 @@ export default function ReaderScreen() {
   const [simplifyMoreText, setSimplifyMoreText] = useState<string | null>(null);
   const [simplifyMoreCount, setSimplifyMoreCount] = useState<number>(0);
 
+  const [simplifiedReadingLevel, setSimplifiedReadingLevel] = useState<number | null>(null);
+  const [simplifiedMost, setSimplifiedMost] = useState<boolean>(false);
+
+  // calculate whether simplified level has reached minimum
+  useEffect(() => {
+    const isMost = simplifiedReadingLevel === 1;
+    setSimplifiedMost(isMost);
+    console.log("Simplified reading level:", simplifiedReadingLevel);
+    console.log("Simplified most:", isMost);
+  }, [simplifiedReadingLevel]);
+
   // reset simplify more states when new image taken
   useEffect(() => {
     setSimplifyMoreText(null);
     setSimplifyMoreCount(0);
+    setSimplifiedReadingLevel(null);
+    setSimplifiedMost(false);
   }, [imageUri]); // new image uri triggers
 
   useEffect(() => {
@@ -143,6 +157,7 @@ export default function ReaderScreen() {
 
         // parse json response
         const data = await response.json();
+        
         // store ocr text if still mounted
         if (!cancelled) {
           setOcrText(data.text ?? "");
@@ -171,6 +186,12 @@ export default function ReaderScreen() {
         }
         // grab and set json data
         const geminiJson: GeminiResponse = await geminiResponse.json();
+        console.log("Server-side reading level:", geminiJson.reading_level);
+        // update simplify more states
+        setSimplifyMoreText(geminiJson.simplified_explanation);
+        setSimplifiedReadingLevel(geminiJson.reading_level ?? null);
+        setSimplifiedMost(geminiJson.reading_level === 1);
+        
         if (!cancelled) {
           setGeminiData(geminiJson)
         }
@@ -356,6 +377,9 @@ export default function ReaderScreen() {
                       setShowOriginal(!showOriginal)
                     }
                     else if (tab === "Easy Read") {
+                      if (simplifiedMost || simplifiedReadingLevel === 1) {
+                        return;
+                      }
                       if (ocrLoading || geminiLoading || !ocrText) {
                         return;
                       }
@@ -366,7 +390,7 @@ export default function ReaderScreen() {
                       setGeminiLoading(true);
                       setGeminiError(null);
 
-                      try {
+                      try { 
                         const token = await storage.getItem("access_token");
                         const tokenType = (await storage.getItem("token_type")) ?? "bearer";
 
@@ -374,6 +398,7 @@ export default function ReaderScreen() {
                         setSimplifyMoreCount(nextSimplifyStep);
 
                         const simplifyMoreBy = 2 * nextSimplifyStep;
+                        
 
                         const response = await fetch(`${api_url}/gemini`, {
                           method: 'POST',
@@ -396,6 +421,8 @@ export default function ReaderScreen() {
                         const json: GeminiResponse = await response.json();
 
                         setSimplifyMoreText(json.simplified_explanation);
+                        setSimplifiedReadingLevel(json.reading_level ?? null);
+                        setSimplifiedMost(json.reading_level === 1);
                       }
                       catch (e: any) {
                         setGeminiError(e?.message ?? "Request failed");
@@ -405,9 +432,11 @@ export default function ReaderScreen() {
                       }
                     }
                   }}
-                  disabled={ocrLoading || geminiLoading || !ocrText}>
+                  disabled={ocrLoading || geminiLoading || !ocrText 
+                  || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1))}>
                   <Text style={styles.ctaText}>
-                    {(tab === "Overview" && !showOriginal) ? "See Original Text" 
+                    {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
+                    : (tab === "Overview" && !showOriginal) ? "See Original Text" 
                     : (tab === "Overview" && showOriginal) ? "See Simplified Text"
                     : (tab != "Overview") ? "Simplify More"
                     : "Simplify More"}

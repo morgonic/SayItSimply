@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Dimensions, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { styles as dashStyles } from "@/constants/styles";
@@ -61,7 +61,10 @@ export default function DocumentsScreen() {
 
   return (
     <SafeAreaView style={dashStyles.dashSafe}>
-      <View style={dashStyles.dashContainer}>
+      <View style={[dashStyles.dashContainer, {
+        marginLeft: Dimensions.get('window').width * 0.1, 
+        marginRight: Dimensions.get('window').width * 0.1
+      }]}>
         {items.length === 0 ? (
           <View style={local.empty}>
             <Text style={local.emptyTitle}>No documents yet</Text>

@@ -45,5 +45,6 @@ class GeminiResponse(BaseModel):
     summary: str = Field(description="A concise, plain-language summary of exactly what is written in the text.")
     simplified_explanation: str = Field(description="An explanation of the text simplified to the user's preferred reading level.")
     action_items: List[str] = Field(description="A list of the action items that have been detected from the text for the user to add to their to-do list.")
-    translation: Optional[str] = Field(description="A translation of the original text into the user's preferred language.")
+    translation: Optional[str] = Field(default=None, description="A translation of the original text into the user's preferred language.")
     mode: str = Field(description="The detected document type (one word).")
+    reading_level: int = Field(description="The grade level used for simplified_explanation. Clamped to minimum 1.")

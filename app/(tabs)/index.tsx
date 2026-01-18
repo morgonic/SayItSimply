@@ -187,7 +187,7 @@ export default function DashboardScreen() {
                     <View style={styles.dashBulletGroup}>
                       <Text style={styles.dashBullet}>• Medical Bill - Yesterday</Text>
                       <Text style={styles.dashBullet}>
-                        • Financial Aid Letter - 3 days ago
+                        • Parking Ticket - 3 days ago
                       </Text>
                     </View>
 

@@ -43,8 +43,8 @@ export const styles = StyleSheet.create({
     flex: 1, 
     backgroundColor: "#0D1321",
     marginTop: screenHeight * 0.03,
-    marginLeft: screenWidth * 0.1,
-    marginRight: screenWidth * 0.1 
+    marginLeft: screenWidth * 0.05,
+    marginRight: screenWidth * 0.05 
   },
 
   dashHeader: {
@@ -183,7 +183,6 @@ export const styles = StyleSheet.create({
   dashShortcutRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 12,
     marginTop: 10
   },
   dashShortcutCardOuter: {
@@ -192,8 +191,12 @@ export const styles = StyleSheet.create({
     //borderWidth: 3,
     backgroundColor: "rgba(233,198,166,0.9)",
     padding: 6,
+    marginLeft: 6,
+    marginRight: 6,
     height: 190,
-    justifyContent: 'center'
+    width: 150,
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   dashShortcutCardInnerOuter: {
     flex: 1,
@@ -202,7 +205,9 @@ export const styles = StyleSheet.create({
     backgroundColor: "#277A8C",
     padding: 6,
     height: 180,
-    justifyContent: 'center'
+    width: 140,
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   dashShortcutCard: {
     flex: 1,
@@ -210,7 +215,9 @@ export const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     height: 170,
-    justifyContent: 'center'
+    width: 130,
+    justifyContent: 'center',
+    alignItems: 'center'
   },
   dashShortcutTitle: {
     color: "#1B1B1B",
@@ -233,7 +240,7 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#00000014",
-    width: "95%",
+    width: 100,
     justifyContent: "center",
   },
   dashViewAllText: { color: "#222", fontWeight: "900", marginRight: 8 },

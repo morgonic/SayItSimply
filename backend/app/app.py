@@ -17,9 +17,12 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse, Response
 
-from app.db import User, create_db_and_tables, engine
+from sqlalchemy import delete, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db import User, OAuthAccount, create_db_and_tables, engine, get_async_session
 from app.schemas import UserCreate, UserRead, UserUpdate, GeminiRequest, GeminiResponse, OCRRequest, OCRResponse
-from app.users import auth_backend, current_active_user, fastapi_users, google_oauth_client, SECRET
+from app.users import auth_backend, current_active_user, fastapi_users, get_user_manager, google_oauth_client, SECRET
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -133,7 +136,7 @@ class OAuthAuthorizeRedirectMiddleware(BaseHTTPMiddleware):
                 headers=dict(response.headers),
                 media_type=content_type
             )
-        # redirect brwoser to google 
+        # redirect browser to google 
         redirect = RedirectResponse(url=auth_url, status_code=303)
         # set oauth cookies
         for cookie in response.headers.getlist("set-cookie"):
@@ -177,6 +180,20 @@ app.include_router(
     prefix="/auth",
     tags=["auth"]
 )
+
+@app.delete("/users/me", tags=["users"])
+async def delete_me(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    await session.execute(
+        delete(OAuthAccount).where(OAuthAccount.user_id == user.id)
+    )
+    await session.delete(user)
+    await session.commit()
+
+    return {"ok": True}
+
 app.include_router(
     fastapi_users.get_users_router(UserRead, UserUpdate),
     prefix="/users",
@@ -199,6 +216,48 @@ app.include_router(
     prefix="/auth/associate/google",
     tags=["auth"]
 )
+
+### Password Change Logic ###
+# Disabled if user logged in via Oauth, so it checks for matching id/user_id between the 2 tables 
+class PasswordChangeRequest(BaseModel):
+    password: str
+
+@app.get("/users/me/auth-method", tags=["users"])
+async def get_auth_method(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    result = await session.execute(
+        select(OAuthAccount).where(OAuthAccount.user_id == user.id)
+    )
+    oauth = result.scalars().first()
+    return {"is_oauth": oauth is not None}
+
+
+@app.patch("/users/me/password", tags=["users"])
+async def change_password(
+    payload: PasswordChangeRequest,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+    user_manager=Depends(get_user_manager),
+):
+    result = await session.execute(
+        select(OAuthAccount).where(OAuthAccount.user_id == user.id)
+    )
+    oauth = result.scalars().first()
+    if oauth is not None:
+        raise HTTPException(status_code=400, detail="OAuth users cannot change password.")
+
+    new_password = (payload.password or "").strip()
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+
+    user.hashed_password = user_manager.password_helper.hash(new_password)
+
+    session.add(user)
+    await session.commit()
+
+    return {"ok": True}
 
 ### Gemini ###
 

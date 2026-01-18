@@ -203,7 +203,7 @@ export default function DashboardScreen() {
 
           <View style={{ height: 36 }} />
 
-          {/* login button (maybe temporary?) */}
+          {/* logout button */}
           <View style={styles.dashLoginWrap}>
             <Pressable
               onPress={handleLogout}

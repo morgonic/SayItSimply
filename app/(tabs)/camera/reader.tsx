@@ -111,12 +111,39 @@ export default function ReaderScreen() {
 
       // render original token with highlights applied to matching words
       return (
-        <Text key={i} style={match ? styles.complexWord : undefined}>
+        <Text key={i} style={match ? styles.complexWord : styles.bodyText}>
           {part}
         </Text>
       );
     });
   }, [ocrText, geminiData?.complex_words]) // update when ocr text or complex_words list change
+
+  // build version of simplified_explanation text with complex words highlighted
+  const highlightedSimplified = useMemo(() => {
+    // easy read tab text, always string
+    const text = (simplifyMoreText === null ? geminiData?.simplified_explanation : simplifyMoreText) ?? "";
+    // normalize complex words to lowercase
+    const words = (geminiData?.complex_words ?? []).map(w => w.toLowerCase());
+
+    //split easy read text into tokens, keep whitespace tokens
+    return text.split(/(\s+)/).map((part, i) => {
+      // return whitespace tokens
+      if (!part.trim()) {
+        return part;
+      }
+      // clean words of symbols, punctuation, cpaitalization
+      const clean_words = part.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+      // check for complex word matches
+      const match = words.includes(clean_words);
+
+      // render text component with highlighted complex words
+      return (
+        <Text key={i} style={match ? styles.complexWord : styles.bodyText}>
+          {part}
+        </Text>
+      );
+    });
+  }, [geminiData]); // update when geminiData containing complex words and definitions changes
 
   // calculate whether simplified level has reached minimum
   useEffect(() => {
@@ -295,7 +322,7 @@ export default function ReaderScreen() {
         );
       case "Easy Read":
         // simplified explanation for easy read tab
-        return simplifyMoreText ?? geminiData.simplified_explanation;
+        return highlightedSimplified;
       case "Translate":
         // translation for translate tab, tell user when no translation was provided
         return geminiData.translation ?? (geminiData.complex_words + "\n\n" + geminiData.complex_definitions);

@@ -86,7 +86,7 @@ def get_gemini_response(input: str, reading_level: int, language: str, mode: str
         "- Convert relative dates (like tomorrow, next Friday, in 2 weeks, et cetera) into ISO format YYYY-MM-DD.\n"
         "- If dates are ambiguous, keep original phrasing instead of guessing exact dates.\n\n"
         "Complex words rules:\n"
-        "- Use the provided reading_level_grade to determine which words in the input_text are above the user's reading level.\n"
+        "- Use the provided reading_level_grade to determine which words in the input_text are above the user's reading level, or otherwise generally uncommonly known.\n"
         "- Extract all words determined to be above the provided reading_level_grade as individual items in a list.\n"
         "- Output these words as strings within a list called complex_words in the JSON schema. Do not capitalize words unless they are proper nouns.\n\n"
         "Complex definitions rules:\n"

@@ -88,9 +88,35 @@ export default function ReaderScreen() {
   // simplify more states
   const [simplifyMoreText, setSimplifyMoreText] = useState<string | null>(null);
   const [simplifyMoreCount, setSimplifyMoreCount] = useState<number>(0);
-
   const [simplifiedReadingLevel, setSimplifiedReadingLevel] = useState<number | null>(null);
   const [simplifiedMost, setSimplifiedMost] = useState<boolean>(false);
+
+  // build version of ocr text with complex words highlighted
+  const highlightedOriginal = useMemo(() => {
+    // ocr text is always string
+    const text = ocrText ?? "";
+    // normalize complex words to lowercase for case insensitive checking
+    const words = (geminiData?.complex_words ?? []).map(w=>w.toLowerCase());
+
+    // split ocr into tokens with whitespace kept for formatting
+    return text.split(/(\s+)/).map((part, i) => {
+      // if only whitespace, return it without <Text>
+      if (!part.trim()) {
+        return part;
+      }
+      // clean words to be lowercase with no punctuation/symbols
+      const clean_words = part.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+      // check whether cleaned word exists in complex_words list
+      const match = words.includes(clean_words);
+
+      // render original token with highlights applied to matching words
+      return (
+        <Text key={i} style={match ? styles.complexWord : undefined}>
+          {part}
+        </Text>
+      );
+    });
+  }, [ocrText, geminiData?.complex_words]) // update when ocr text or complex_words list change
 
   // calculate whether simplified level has reached minimum
   useEffect(() => {
@@ -363,7 +389,9 @@ export default function ReaderScreen() {
                 keyboardShouldPersistTaps='handled'
                 indicatorStyle='black'
               >
-                <Text style={styles.bodyText}>{content}</Text>
+                <Text style={styles.bodyText}>
+                  {tab === "Overview" && showOriginal ? highlightedOriginal : content}
+                </Text>
               </ScrollView>
 
 
@@ -626,4 +654,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
   },
   ctaText: { color: "white", fontWeight: "900", fontSize: 16 },
+  complexWord: {
+    color: '#8C311C',
+    fontWeight: '800',
+    textDecorationLine: 'underline'
+  }
 });

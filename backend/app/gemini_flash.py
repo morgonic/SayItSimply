@@ -88,7 +88,7 @@ def get_gemini_response(input: str, reading_level: int, language: str, mode: str
         "Complex words rules:\n"
         "- Use the provided reading_level_grade to determine which words in the input_text are above the user's reading level.\n"
         "- Extract all words determined to be above the provided reading_level_grade as individual items in a list.\n"
-        "- Output these words as a list of strings called complex_words in the JSON schema.\n\n"
+        "- Output these words as strings within a list called complex_words in the JSON schema. Do not capitalize words unless they are proper nouns.\n\n"
         "Complex definitions rules:\n"
         "- Use the extracted complex_words from the input_text at the provided reading_level_grade to output definitions for each word in the order they are listed.\n"
         "- List complex_definitions for each word in complex_words in the same order they are listed.\n"

@@ -48,3 +48,5 @@ class GeminiResponse(BaseModel):
     translation: Optional[str] = Field(default=None, description="A translation of the original text into the user's preferred language.")
     mode: str = Field(description="The detected document type (one word).")
     reading_level: int = Field(description="The grade level used for simplified_explanation. Clamped to minimum 1.")
+    complex_words: Optional[List[str]] = Field(default=None, description="A list of words extracted from the input_text that are above the user's preferred reading level.")
+    complex_definitions: Optional[List[str]] = Field(default=None, description="A list of short plain-language definitions for each of the complex_words extracted from the input_text.")

@@ -21,6 +21,8 @@ type GeminiResponse = {
   translation?: string | null;
   mode: string;
   reading_level?: number;
+  complex_words?: string[];
+  complex_definitions?: string[];
 }
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
@@ -270,7 +272,7 @@ export default function ReaderScreen() {
         return simplifyMoreText ?? geminiData.simplified_explanation;
       case "Translate":
         // translation for translate tab, tell user when no translation was provided
-        return geminiData.translation ?? "No translation available. Please change your language settings.";
+        return geminiData.translation ?? (geminiData.complex_words + "\n\n" + geminiData.complex_definitions);
       default:
         return "";
     }

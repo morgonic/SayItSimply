@@ -6,14 +6,17 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View
+  View,
+  Modal
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
 import storage from '@/app/storage';
 
+// reader screen tabs
 type ReaderTab = "Overview" | "Easy Read" | "Translate";
 
+// structured gemini output
 type GeminiResponse = {
   summary: string;
   simplified_explanation: string;
@@ -25,6 +28,14 @@ type GeminiResponse = {
   complex_definitions?: string[];
 }
 
+// complex word/definitions modal states: visibility, word, definition
+type DefinitionModalState = {
+  isVisible: boolean;
+  word: string;
+  definition: string;
+}
+
+// backend fastapi url
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
 // convert image file uri to base64
@@ -65,7 +76,9 @@ async function uriToBase64(uri: string): Promise<string> {
 
 
 export default function ReaderScreen() {
+  // tracking reader tab being viewed
   const [tab, setTab] = useState<ReaderTab>("Overview");
+  // tracking Overview text being viewed (original vs summary)
   const [showOriginal, setShowOriginal] = useState(false);
 
   // read route params passed in from camerascreen
@@ -91,6 +104,66 @@ export default function ReaderScreen() {
   const [simplifiedReadingLevel, setSimplifiedReadingLevel] = useState<number | null>(null);
   const [simplifiedMost, setSimplifiedMost] = useState<boolean>(false);
 
+  // complex word definition modal state
+  const [definitionModal, setDefinitionModal] = useState<DefinitionModalState>({
+    isVisible: false, // visibility state, starts hidden
+    word: "", // word being defined, starts empty
+    definition: "" // definition of word, starts empty
+  });
+
+  // lookup table to get word definitions
+  const definitionMap = useMemo(() => {
+    // words being defined
+    const words = geminiData?.complex_words ?? [];
+    // definitions of words
+    const definitions = geminiData?.complex_definitions ?? [];
+    // create map to link words and definitions
+    const map = new Map<string, string>();
+
+    // words and definitions arrays should be same length
+    if (words.length === definitions.length) {
+      // iterate through both arrays
+      for (let i = 0; i < words.length; i++) {
+        // normalize word
+        const word = (words[i] ?? "").toLowerCase().trim();
+        // trim definition string
+        const definition = (definitions[i] ?? "").trim();
+
+        // store if word and definition are both valid
+        if (word && definition) {
+          map.set(word, definition);
+        }
+      }
+    }
+    // if they are not the same length, log/alert error
+    else {
+      console.log(`Words (${words.length}) and definitions (${definitions.length}) arrays are different lengths.`)
+    }
+
+    return map;
+  }, [geminiData?.complex_words, geminiData?.complex_definitions]); // rebuild table when word and definitions change
+
+  // close the definition modal by changing visibility but keep word/definition in state
+  function closeDefinitionModal() {
+    setDefinitionModal((prev) => ({ ...prev, isVisible: false }));
+  }
+
+  // look up definition from map, show modal with word/definition
+  function openDefinitionModal(word: string) {
+    // look up definition for word
+    const definition = definitionMap.get(word);
+    // no definition, do nothing
+    if (!definition) {
+      return;
+    }
+    // show modal with word and definition
+    setDefinitionModal({
+      isVisible: true,
+      word: word,
+      definition: definition,
+    });
+  }
+
   // build version of ocr text with complex words highlighted
   const highlightedOriginal = useMemo(() => {
     // ocr text is always string
@@ -111,7 +184,15 @@ export default function ReaderScreen() {
 
       // render original token with highlights applied to matching words
       return (
-        <Text key={i} style={match ? styles.complexWord : styles.bodyText}>
+        <Text
+          key={i}
+          style={match ? styles.complexWord : styles.bodyText}
+          onPress={() => {
+            if (match) {
+              openDefinitionModal(clean_words);
+            }
+          }}
+        >
           {part}
         </Text>
       );
@@ -188,7 +269,7 @@ export default function ReaderScreen() {
         setGeminiLoading(false);
         setGeminiError(null);
         setGeminiData(null);
-        
+
         // OCR
 
         // convert image file to base64 string payload
@@ -212,7 +293,7 @@ export default function ReaderScreen() {
 
         // parse json response
         const data = await response.json();
-        
+
         // store ocr text if still mounted
         if (!cancelled) {
           setOcrText(data.text ?? "");
@@ -246,7 +327,7 @@ export default function ReaderScreen() {
         setSimplifyMoreText(geminiJson.simplified_explanation);
         setSimplifiedReadingLevel(geminiJson.reading_level ?? null);
         setSimplifiedMost(geminiJson.reading_level === 1);
-        
+
         if (!cancelled) {
           setGeminiData(geminiJson)
         }
@@ -295,7 +376,7 @@ export default function ReaderScreen() {
     // while loading, show nothing
     if (ocrLoading) return "";
     if (geminiLoading) return "";
-    
+
     // if failure, show error message in content area
     if (ocrError) return `OCR error:\n\n${ocrError}`;
     if (geminiError) return `Gemini error:\n\n${geminiError}`;
@@ -308,7 +389,7 @@ export default function ReaderScreen() {
     if (!geminiData) {
       return ocrText ? ocrText : "No Gemini response yet.";
     }
-    
+
     // grab returned action items if action items is an array, otherwise default to empty array
     const items = Array.isArray(geminiData.action_items) ? geminiData.action_items : [];
 
@@ -353,9 +434,10 @@ export default function ReaderScreen() {
         </View>
 
         <ScrollView
-            style={{ flex: 1 }}
-            showsVerticalScrollIndicator
-            indicatorStyle='white'
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator
+          indicatorStyle='white'
+          onScrollBeginDrag={closeDefinitionModal}
         >
 
           {/* Top Tabs */}
@@ -403,7 +485,7 @@ export default function ReaderScreen() {
                   }}
                   >
                     {ocrLoading ? "Reading your text..."
-                    : "Rewriting your text..."}
+                      : "Rewriting your text..."}
                   </Text>
                 </View>
               )}
@@ -415,6 +497,7 @@ export default function ReaderScreen() {
                 showsVerticalScrollIndicator
                 keyboardShouldPersistTaps='handled'
                 indicatorStyle='black'
+                onScrollBeginDrag={closeDefinitionModal}
               >
                 <Text style={styles.bodyText}>
                   {tab === "Overview" && showOriginal ? highlightedOriginal : content}
@@ -424,11 +507,11 @@ export default function ReaderScreen() {
 
               {/* Bottom CTA */}
               {tab !== "Translate" && (
-                <Pressable 
+                <Pressable
                   style={[
                     styles.ctaBtn,
                     (ocrLoading || geminiLoading || !ocrText || simplifiedMost) && { backgroundColor: '#6C6767', opacity: 0.5 }
-                  ]} 
+                  ]}
                   onPress={async () => {
                     if (tab === "Overview") {
                       setShowOriginal(!showOriginal)
@@ -447,7 +530,7 @@ export default function ReaderScreen() {
                       setGeminiLoading(true);
                       setGeminiError(null);
 
-                      try { 
+                      try {
                         const token = await storage.getItem("access_token");
                         const tokenType = (await storage.getItem("token_type")) ?? "bearer";
 
@@ -455,7 +538,7 @@ export default function ReaderScreen() {
                         setSimplifyMoreCount(nextSimplifyStep);
 
                         const simplifyMoreBy = 2 * nextSimplifyStep;
-                        
+
 
                         const response = await fetch(`${api_url}/gemini`, {
                           method: 'POST',
@@ -489,14 +572,14 @@ export default function ReaderScreen() {
                       }
                     }
                   }}
-                  disabled={ocrLoading || geminiLoading || !ocrText 
-                  || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1))}>
+                  disabled={ocrLoading || geminiLoading || !ocrText
+                    || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1))}>
                   <Text style={styles.ctaText}>
                     {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
-                    : (tab === "Overview" && !showOriginal) ? "See Original Text" 
-                    : (tab === "Overview" && showOriginal) ? "See Simplified Text"
-                    : (tab != "Overview") ? "Simplify More"
-                    : "Simplify More"}
+                      : (tab === "Overview" && !showOriginal) ? "See Original Text"
+                        : (tab === "Overview" && showOriginal) ? "See Simplified Text"
+                          : (tab != "Overview") ? "Simplify More"
+                            : "Simplify More"}
                   </Text>
                 </Pressable>
               )}
@@ -504,6 +587,32 @@ export default function ReaderScreen() {
           </View>
         </ScrollView>
       </View>
+
+      {/* Complex Word Definition Modal */}
+      <Modal
+        transparent
+        visible={definitionModal.isVisible}
+        animationType="fade"
+        onRequestClose={closeDefinitionModal}
+      >
+          <Pressable
+            style={styles.definitionBackground}
+            onPress={closeDefinitionModal}
+          >
+            <Pressable
+              style={styles.definitionModalCard}
+              onPress={() => {}}
+            >
+              <Text style={styles.definitionModalWordText}>
+                {definitionModal.word}
+              </Text>
+              <Text style={styles.definitionModalDefinitionText}>
+                {definitionModal.definition}
+              </Text>
+            </Pressable>
+          </Pressable>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -540,13 +649,13 @@ const BADGE = "#B65A43";
 const CTA = "#2C9AA4";
 
 const styles = StyleSheet.create({
-  safe: { 
-    flex: 1, 
+  safe: {
+    flex: 1,
     backgroundColor: BG
   },
-  container: { 
-    flex: 1, 
-    backgroundColor: BG, 
+  container: {
+    flex: 1,
+    backgroundColor: BG,
     paddingHorizontal: 16
   },
 
@@ -681,9 +790,41 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
   },
   ctaText: { color: "white", fontWeight: "900", fontSize: 16 },
+
   complexWord: {
     color: '#8C311C',
     fontWeight: '800',
     textDecorationLine: 'underline'
+  },
+  
+  definitionBackground: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16
+  },
+  definitionModalCard: {
+    backgroundColor: PAPER,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 8,
+    borderColor: CARD_BORDER,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+    width: '100%',
+    maxWidth: 340
+  },
+  definitionModalWordText: {
+    fontWeight: '900',
+    color: '#000000',
+    marginBottom: 6
+  },
+  definitionModalDefinitionText: {
+    fontWeight: '600',
+    color: '#000000',
+    lineHeight: 20
   }
 });

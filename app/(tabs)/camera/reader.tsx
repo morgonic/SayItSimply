@@ -406,7 +406,7 @@ export default function ReaderScreen() {
         return highlightedSimplified;
       case "Translate":
         // translation for translate tab, tell user when no translation was provided
-        return geminiData.translation ?? (geminiData.complex_words + "\n\n" + geminiData.complex_definitions);
+        return geminiData.translation ?? "No translation available.\n\nPlease change your language settings in the Profile to receive translations in that language.";
       default:
         return "";
     }

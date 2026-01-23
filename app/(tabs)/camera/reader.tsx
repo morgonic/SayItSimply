@@ -6,23 +6,38 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  View
+  View,
+  Modal
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams } from "expo-router";
 import storage from '@/app/storage';
 
+// reader screen tabs
 type ReaderTab = "Overview" | "Easy Read" | "Translate";
 
+// structured gemini output
 type GeminiResponse = {
   summary: string;
-  simplified_explanation: string;
+  simplification: string;
   action_items: string[];
   translation?: string | null;
   mode: string;
   reading_level?: number;
+  complex_words?: string[]; // OCR text
+  complex_definitions?: string[]; // OCR text
+  simple_words?: string[]; // Simplified text
+  simple_definitions?: string[]; // Simplified text
 }
 
+// complex word/definitions modal states: visibility, word, definition
+type DefinitionModalState = {
+  isVisible: boolean;
+  word: string;
+  definition: string;
+}
+
+// backend fastapi url
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
 // convert image file uri to base64
@@ -63,7 +78,9 @@ async function uriToBase64(uri: string): Promise<string> {
 
 
 export default function ReaderScreen() {
+  // tracking reader tab being viewed
   const [tab, setTab] = useState<ReaderTab>("Overview");
+  // tracking Overview text being viewed (original vs summary)
   const [showOriginal, setShowOriginal] = useState(false);
 
   // read route params passed in from camerascreen
@@ -86,9 +103,174 @@ export default function ReaderScreen() {
   // simplify more states
   const [simplifyMoreText, setSimplifyMoreText] = useState<string | null>(null);
   const [simplifyMoreCount, setSimplifyMoreCount] = useState<number>(0);
-
   const [simplifiedReadingLevel, setSimplifiedReadingLevel] = useState<number | null>(null);
   const [simplifiedMost, setSimplifiedMost] = useState<boolean>(false);
+
+  // complex word definition modal state
+  const [definitionModal, setDefinitionModal] = useState<DefinitionModalState>({
+    isVisible: false, // visibility state, starts hidden
+    word: "", // word being defined, starts empty
+    definition: "" // definition of word, starts empty
+  });
+
+  // lookup table to get word definitions
+  const definitionMap = useMemo(() => {
+    // words being defined
+    const words = geminiData?.complex_words ?? [];
+    // definitions of words
+    const definitions = geminiData?.complex_definitions ?? [];
+    // create map to link words and definitions
+    const map = new Map<string, string>();
+
+    // keep shortest length between words and definitions arrays
+    const minLength = Math.min(words.length, definitions.length);
+    
+    // iterate through both arrays
+    for (let i = 0; i < minLength; i++) {
+      // normalize word
+      const word = (words[i] ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "").trim();
+      // trim definition string
+      const definition = (definitions[i] ?? "").trim();
+
+      // store if word and definition are both valid
+      if (word && definition) {
+        map.set(word, definition);
+      }
+    }
+    
+    // log array lengths
+    console.log(`Complex words: ${words.length}\nComplex definitions: ${definitions.length}`)
+    return map;
+  }, [geminiData?.complex_words, geminiData?.complex_definitions]); // rebuild table when word and definitions change
+
+  // lookup table to get word definitions for easy read tab
+  const simpleDefinitionMap = useMemo(() => {
+    // words being defined
+    const words = geminiData?.simple_words ?? [];
+    // definitions of words
+    const definitions = geminiData?.simple_definitions ?? [];
+    // create map to link words and definitions
+    const map = new Map<string, string>();
+
+    // keep shortest length between words and definitions arrays
+    const minLength = Math.min(words.length, definitions.length);
+    
+    // iterate through both arrays
+    for (let i = 0; i < minLength; i++) {
+      // normalize word
+      const word = (words[i] ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "").trim();
+      // trim definition string
+      const definition = (definitions[i] ?? "").trim();
+
+      // store if word and definition are both valid
+      if (word && definition) {
+        map.set(word, definition);
+      }
+    }
+    
+    // log array lengths
+    console.log(`Simplified complex words: ${words.length}\nSimplified complex definitions: ${definitions.length}`)
+    return map;
+  }, [geminiData?.simple_words, geminiData?.simple_definitions]); // rebuild table when words and definitions change
+
+  // close the definition modal by changing visibility but keep word/definition in state
+  function closeDefinitionModal() {
+    setDefinitionModal((prev) => ({ ...prev, isVisible: false }));
+  }
+
+  // look up definition from map, show modal with word/definition
+  function openDefinitionModal(word: string) {
+    let definition = undefined;
+
+    if (tab === "Overview") {
+      // look up definition for word
+      definition = definitionMap.get(word);
+    }
+    // get definition from simple_definitions for simplified text
+    if (tab === "Easy Read") {
+      definition = simpleDefinitionMap.get(word);
+    }
+    // no definition, do nothing
+    if (!definition) {
+      return;
+    }
+    // show modal with word and definition
+    setDefinitionModal({
+      isVisible: true,
+      word: word,
+      definition: definition,
+    });
+  }
+
+  // build version of ocr text with complex words highlighted
+  const highlightedOriginal = useMemo(() => {
+    // ocr text is always string
+    const text = ocrText ?? "";
+    // normalize complex words to lowercase for case insensitive checking
+    const words = (geminiData?.complex_words ?? []).map(w=>w.toLowerCase());
+
+    // split ocr into tokens with whitespace kept for formatting
+    return text.split(/(\s+)/).map((part, i) => {
+      // if only whitespace, return it without <Text>
+      if (!part.trim()) {
+        return part;
+      }
+      // clean words to be lowercase with no punctuation/symbols
+      const clean_words = part.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+      // check whether cleaned word exists in complex_words list
+      const match = words.includes(clean_words);
+
+      // render original token with highlights applied to matching words
+      return (
+        <Text
+          key={i}
+          style={match ? styles.complexWord : styles.bodyText}
+          onPress={() => {
+            if (match) {
+              openDefinitionModal(clean_words);
+            }
+          }}
+        >
+          {part}
+        </Text>
+      );
+    });
+  }, [ocrText, geminiData?.complex_words]) // update when ocr text or complex_words list change
+
+  // build version of simplification text with complex words highlighted
+  const highlightedSimplified = useMemo(() => {
+    // easy read tab text, always string
+    const text = (simplifyMoreText === null ? geminiData?.simplification : simplifyMoreText) ?? "";
+    // normalize complex words to lowercase
+    const words = (geminiData?.simple_words ?? []).map(w => w.toLowerCase());
+
+    //split easy read text into tokens, keep whitespace tokens
+    return text.split(/(\s+)/).map((part, i) => {
+      // return whitespace tokens
+      if (!part.trim()) {
+        return part;
+      }
+      // clean words of symbols, punctuation, cpaitalization
+      const clean_words = part.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+      // check for complex word matches
+      const match = words.includes(clean_words);
+
+      // render text component with highlighted complex words
+      return (
+        <Text
+          key={i}
+          style={match ? styles.complexWord : styles.bodyText}
+          onPress={() => {
+            if (match) {
+              openDefinitionModal(clean_words);
+            }
+          }}
+        >
+          {part}
+        </Text>
+      );
+    });
+  }, [simplifyMoreText, geminiData?.simplification, geminiData?.simple_words, tab]); // update when simplification text/words or tab state changes
 
   // calculate whether simplified level has reached minimum
   useEffect(() => {
@@ -104,7 +286,13 @@ export default function ReaderScreen() {
     setSimplifyMoreCount(0);
     setSimplifiedReadingLevel(null);
     setSimplifiedMost(false);
+    setDefinitionModal({isVisible: false, word: "", definition: ""})
   }, [imageUri]); // new image uri triggers
+
+  // close modal when tab cahanges
+  useEffect(() => {
+    closeDefinitionModal();
+  }, [tab]);
 
   useEffect(() => {
     // prevent mounting issues
@@ -133,7 +321,7 @@ export default function ReaderScreen() {
         setGeminiLoading(false);
         setGeminiError(null);
         setGeminiData(null);
-        
+
         // OCR
 
         // convert image file to base64 string payload
@@ -157,7 +345,7 @@ export default function ReaderScreen() {
 
         // parse json response
         const data = await response.json();
-        
+
         // store ocr text if still mounted
         if (!cancelled) {
           setOcrText(data.text ?? "");
@@ -186,12 +374,24 @@ export default function ReaderScreen() {
         }
         // grab and set json data
         const geminiJson: GeminiResponse = await geminiResponse.json();
-        console.log("Server-side reading level:", geminiJson.reading_level);
+        console.log("\n---[ORIGINAL TEXT] COMPLEX WORDS/DEFS---\n")
+        if (geminiJson.complex_words && geminiJson.complex_definitions) {
+          for (const i in geminiJson.complex_words) {
+            console.log(`${geminiJson.complex_words[i]}: ${geminiJson.complex_definitions[i]}`)
+          }
+        }
+        console.log("\n---[SIMPLIFIED TEXT] COMPLEX WORDS/DEFS---\n")
+        if (geminiJson.simple_words && geminiJson.simple_definitions) {
+          for (const i in geminiJson.simple_words) {
+            console.log(`${geminiJson.simple_words[i]}: ${geminiJson.simple_definitions[i]}`)
+          }
+        }
+        
         // update simplify more states
-        setSimplifyMoreText(geminiJson.simplified_explanation);
+        setSimplifyMoreText(geminiJson.simplification);
         setSimplifiedReadingLevel(geminiJson.reading_level ?? null);
         setSimplifiedMost(geminiJson.reading_level === 1);
-        
+
         if (!cancelled) {
           setGeminiData(geminiJson)
         }
@@ -240,7 +440,7 @@ export default function ReaderScreen() {
     // while loading, show nothing
     if (ocrLoading) return "";
     if (geminiLoading) return "";
-    
+
     // if failure, show error message in content area
     if (ocrError) return `OCR error:\n\n${ocrError}`;
     if (geminiError) return `Gemini error:\n\n${geminiError}`;
@@ -253,7 +453,7 @@ export default function ReaderScreen() {
     if (!geminiData) {
       return ocrText ? ocrText : "No Gemini response yet.";
     }
-    
+
     // grab returned action items if action items is an array, otherwise default to empty array
     const items = Array.isArray(geminiData.action_items) ? geminiData.action_items : [];
 
@@ -267,10 +467,10 @@ export default function ReaderScreen() {
         );
       case "Easy Read":
         // simplified explanation for easy read tab
-        return simplifyMoreText ?? geminiData.simplified_explanation;
+        return highlightedSimplified;
       case "Translate":
         // translation for translate tab, tell user when no translation was provided
-        return geminiData.translation ?? "No translation available. Please change your language settings.";
+        return geminiData.translation ?? "No translation available.\n\nPlease change your language settings in the Profile to receive translations in that language.";
       default:
         return "";
     }
@@ -298,9 +498,10 @@ export default function ReaderScreen() {
         </View>
 
         <ScrollView
-            style={{ flex: 1 }}
-            showsVerticalScrollIndicator
-            indicatorStyle='white'
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator
+          indicatorStyle='white'
+          onScrollBeginDrag={closeDefinitionModal}
         >
 
           {/* Top Tabs */}
@@ -348,7 +549,7 @@ export default function ReaderScreen() {
                   }}
                   >
                     {ocrLoading ? "Reading your text..."
-                    : "Rewriting your text..."}
+                      : "Rewriting your text..."}
                   </Text>
                 </View>
               )}
@@ -360,18 +561,27 @@ export default function ReaderScreen() {
                 showsVerticalScrollIndicator
                 keyboardShouldPersistTaps='handled'
                 indicatorStyle='black'
+                onScrollBeginDrag={closeDefinitionModal}
               >
-                <Text style={styles.bodyText}>{content}</Text>
+                <Text style={styles.bodyText}>
+                  {tab === "Overview" && showOriginal 
+                    ? highlightedOriginal
+                    : tab === "Easy Read"
+                      ? highlightedSimplified
+                      : content
+                  }
+                </Text>
               </ScrollView>
 
 
               {/* Bottom CTA */}
               {tab !== "Translate" && (
-                <Pressable 
+                <Pressable
                   style={[
                     styles.ctaBtn,
-                    (ocrLoading || geminiLoading || !ocrText || simplifiedMost) && { backgroundColor: '#6C6767', opacity: 0.5 }
-                  ]} 
+                    (ocrLoading || geminiLoading || !ocrText || simplifiedMost) && 
+                    { backgroundColor: '#6C6767', opacity: 0.5 }
+                  ]}
                   onPress={async () => {
                     if (tab === "Overview") {
                       setShowOriginal(!showOriginal)
@@ -390,7 +600,7 @@ export default function ReaderScreen() {
                       setGeminiLoading(true);
                       setGeminiError(null);
 
-                      try { 
+                      try {
                         const token = await storage.getItem("access_token");
                         const tokenType = (await storage.getItem("token_type")) ?? "bearer";
 
@@ -398,7 +608,7 @@ export default function ReaderScreen() {
                         setSimplifyMoreCount(nextSimplifyStep);
 
                         const simplifyMoreBy = 2 * nextSimplifyStep;
-                        
+
 
                         const response = await fetch(`${api_url}/gemini`, {
                           method: 'POST',
@@ -420,7 +630,7 @@ export default function ReaderScreen() {
 
                         const json: GeminiResponse = await response.json();
 
-                        setSimplifyMoreText(json.simplified_explanation);
+                        setSimplifyMoreText(json.simplification);
                         setSimplifiedReadingLevel(json.reading_level ?? null);
                         setSimplifiedMost(json.reading_level === 1);
                       }
@@ -429,17 +639,18 @@ export default function ReaderScreen() {
                       }
                       finally {
                         setGeminiLoading(false);
+                        setDefinitionModal({isVisible: false, word: "", definition: ""})
                       }
                     }
                   }}
-                  disabled={ocrLoading || geminiLoading || !ocrText 
-                  || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1))}>
+                  disabled={ocrLoading || geminiLoading || !ocrText
+                    || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1))}>
                   <Text style={styles.ctaText}>
                     {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
-                    : (tab === "Overview" && !showOriginal) ? "See Original Text" 
-                    : (tab === "Overview" && showOriginal) ? "See Simplified Text"
-                    : (tab != "Overview") ? "Simplify More"
-                    : "Simplify More"}
+                      : (tab === "Overview" && !showOriginal) ? "See Original Text"
+                        : (tab === "Overview" && showOriginal) ? "See Simplified Text"
+                          : (tab != "Overview") ? "Simplify More"
+                            : "Simplify More"}
                   </Text>
                 </Pressable>
               )}
@@ -447,6 +658,32 @@ export default function ReaderScreen() {
           </View>
         </ScrollView>
       </View>
+
+      {/* Complex Word Definition Modal */}
+      <Modal
+        transparent
+        visible={definitionModal.isVisible}
+        animationType="fade"
+        onRequestClose={closeDefinitionModal}
+      >
+          <Pressable
+            style={styles.definitionBackground}
+            onPress={closeDefinitionModal}
+          >
+            <Pressable
+              style={styles.definitionModalCard}
+              onPress={() => {}}
+            >
+              <Text style={styles.definitionModalWordText}>
+                {definitionModal.word}
+              </Text>
+              <Text style={styles.definitionModalDefinitionText}>
+                {definitionModal.definition}
+              </Text>
+            </Pressable>
+          </Pressable>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -483,13 +720,13 @@ const BADGE = "#B65A43";
 const CTA = "#2C9AA4";
 
 const styles = StyleSheet.create({
-  safe: { 
-    flex: 1, 
+  safe: {
+    flex: 1,
     backgroundColor: BG
   },
-  container: { 
-    flex: 1, 
-    backgroundColor: BG, 
+  container: {
+    flex: 1,
+    backgroundColor: BG,
     paddingHorizontal: 16
   },
 
@@ -624,4 +861,41 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
   },
   ctaText: { color: "white", fontWeight: "900", fontSize: 16 },
+
+  complexWord: {
+    color: '#8C311C',
+    fontWeight: '800',
+    textDecorationLine: 'underline'
+  },
+  
+  definitionBackground: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16
+  },
+  definitionModalCard: {
+    backgroundColor: PAPER,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 8,
+    borderColor: CARD_BORDER,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+    width: '100%',
+    maxWidth: 340
+  },
+  definitionModalWordText: {
+    fontWeight: '900',
+    color: '#000000',
+    marginBottom: 6
+  },
+  definitionModalDefinitionText: {
+    fontWeight: '600',
+    color: '#000000',
+    lineHeight: 20
+  }
 });

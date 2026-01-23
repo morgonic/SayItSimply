@@ -19,13 +19,15 @@ type ReaderTab = "Overview" | "Easy Read" | "Translate";
 // structured gemini output
 type GeminiResponse = {
   summary: string;
-  simplified_explanation: string;
+  simplification: string;
   action_items: string[];
   translation?: string | null;
   mode: string;
   reading_level?: number;
-  complex_words?: string[];
-  complex_definitions?: string[];
+  complex_words?: string[]; // OCR text
+  complex_definitions?: string[]; // OCR text
+  simple_words?: string[]; // Simplified text
+  simple_definitions?: string[]; // Simplified text
 }
 
 // complex word/definitions modal states: visibility, word, definition
@@ -120,28 +122,56 @@ export default function ReaderScreen() {
     // create map to link words and definitions
     const map = new Map<string, string>();
 
-    // words and definitions arrays should be same length
-    if (words.length === definitions.length) {
-      // iterate through both arrays
-      for (let i = 0; i < words.length; i++) {
-        // normalize word
-        const word = (words[i] ?? "").toLowerCase().trim();
-        // trim definition string
-        const definition = (definitions[i] ?? "").trim();
+    // keep shortest length between words and definitions arrays
+    const minLength = Math.min(words.length, definitions.length);
+    
+    // iterate through both arrays
+    for (let i = 0; i < minLength; i++) {
+      // normalize word
+      const word = (words[i] ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "").trim();
+      // trim definition string
+      const definition = (definitions[i] ?? "").trim();
 
-        // store if word and definition are both valid
-        if (word && definition) {
-          map.set(word, definition);
-        }
+      // store if word and definition are both valid
+      if (word && definition) {
+        map.set(word, definition);
       }
     }
-    // if they are not the same length, log/alert error
-    else {
-      console.log(`Words (${words.length}) and definitions (${definitions.length}) arrays are different lengths.`)
-    }
-
+    
+    // log array lengths
+    console.log(`Complex words: ${words.length}\nComplex definitions: ${definitions.length}`)
     return map;
   }, [geminiData?.complex_words, geminiData?.complex_definitions]); // rebuild table when word and definitions change
+
+  // lookup table to get word definitions for easy read tab
+  const simpleDefinitionMap = useMemo(() => {
+    // words being defined
+    const words = geminiData?.simple_words ?? [];
+    // definitions of words
+    const definitions = geminiData?.simple_definitions ?? [];
+    // create map to link words and definitions
+    const map = new Map<string, string>();
+
+    // keep shortest length between words and definitions arrays
+    const minLength = Math.min(words.length, definitions.length);
+    
+    // iterate through both arrays
+    for (let i = 0; i < minLength; i++) {
+      // normalize word
+      const word = (words[i] ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "").trim();
+      // trim definition string
+      const definition = (definitions[i] ?? "").trim();
+
+      // store if word and definition are both valid
+      if (word && definition) {
+        map.set(word, definition);
+      }
+    }
+    
+    // log array lengths
+    console.log(`Simplified complex words: ${words.length}\nSimplified complex definitions: ${definitions.length}`)
+    return map;
+  }, [geminiData?.simple_words, geminiData?.simple_definitions]); // rebuild table when words and definitions change
 
   // close the definition modal by changing visibility but keep word/definition in state
   function closeDefinitionModal() {
@@ -150,8 +180,16 @@ export default function ReaderScreen() {
 
   // look up definition from map, show modal with word/definition
   function openDefinitionModal(word: string) {
-    // look up definition for word
-    const definition = definitionMap.get(word);
+    let definition = undefined;
+
+    if (tab === "Overview") {
+      // look up definition for word
+      definition = definitionMap.get(word);
+    }
+    // get definition from simple_definitions for simplified text
+    if (tab === "Easy Read") {
+      definition = simpleDefinitionMap.get(word);
+    }
     // no definition, do nothing
     if (!definition) {
       return;
@@ -199,12 +237,12 @@ export default function ReaderScreen() {
     });
   }, [ocrText, geminiData?.complex_words]) // update when ocr text or complex_words list change
 
-  // build version of simplified_explanation text with complex words highlighted
+  // build version of simplification text with complex words highlighted
   const highlightedSimplified = useMemo(() => {
     // easy read tab text, always string
-    const text = (simplifyMoreText === null ? geminiData?.simplified_explanation : simplifyMoreText) ?? "";
+    const text = (simplifyMoreText === null ? geminiData?.simplification : simplifyMoreText) ?? "";
     // normalize complex words to lowercase
-    const words = (geminiData?.complex_words ?? []).map(w => w.toLowerCase());
+    const words = (geminiData?.simple_words ?? []).map(w => w.toLowerCase());
 
     //split easy read text into tokens, keep whitespace tokens
     return text.split(/(\s+)/).map((part, i) => {
@@ -219,12 +257,20 @@ export default function ReaderScreen() {
 
       // render text component with highlighted complex words
       return (
-        <Text key={i} style={match ? styles.complexWord : styles.bodyText}>
+        <Text
+          key={i}
+          style={match ? styles.complexWord : styles.bodyText}
+          onPress={() => {
+            if (match) {
+              openDefinitionModal(clean_words);
+            }
+          }}
+        >
           {part}
         </Text>
       );
     });
-  }, [geminiData]); // update when geminiData containing complex words and definitions changes
+  }, [simplifyMoreText, geminiData?.simplification, geminiData?.simple_words, tab]); // update when simplification text/words or tab state changes
 
   // calculate whether simplified level has reached minimum
   useEffect(() => {
@@ -240,6 +286,7 @@ export default function ReaderScreen() {
     setSimplifyMoreCount(0);
     setSimplifiedReadingLevel(null);
     setSimplifiedMost(false);
+    setDefinitionModal({isVisible: false, word: "", definition: ""})
   }, [imageUri]); // new image uri triggers
 
   useEffect(() => {
@@ -322,9 +369,21 @@ export default function ReaderScreen() {
         }
         // grab and set json data
         const geminiJson: GeminiResponse = await geminiResponse.json();
-        console.log("Server-side reading level:", geminiJson.reading_level);
+        console.log("\n---[ORIGINAL TEXT] COMPLEX WORDS/DEFS---\n")
+        if (geminiJson.complex_words && geminiJson.complex_definitions) {
+          for (const i in geminiJson.complex_words) {
+            console.log(`${geminiJson.complex_words[i]}: ${geminiJson.complex_definitions[i]}`)
+          }
+        }
+        console.log("\n---[SIMPLIFIED TEXT] COMPLEX WORDS/DEFS---\n")
+        if (geminiJson.simple_words && geminiJson.simple_definitions) {
+          for (const i in geminiJson.simple_words) {
+            console.log(`${geminiJson.simple_words[i]}: ${geminiJson.simple_definitions[i]}`)
+          }
+        }
+        
         // update simplify more states
-        setSimplifyMoreText(geminiJson.simplified_explanation);
+        setSimplifyMoreText(geminiJson.simplification);
         setSimplifiedReadingLevel(geminiJson.reading_level ?? null);
         setSimplifiedMost(geminiJson.reading_level === 1);
 
@@ -397,12 +456,14 @@ export default function ReaderScreen() {
     switch (tab) {
       case "Overview":
         // for now, format action items with summary as numbered list, n/a if no items
+        closeDefinitionModal();
         return (
           `${geminiData.summary}\n\n` +
           `Action items:\n\n${items.map((x, i) => `${i+1}) ${x}`).join("\n\n") || "N/A"}`
         );
       case "Easy Read":
         // simplified explanation for easy read tab
+        closeDefinitionModal();
         return highlightedSimplified;
       case "Translate":
         // translation for translate tab, tell user when no translation was provided
@@ -500,7 +561,12 @@ export default function ReaderScreen() {
                 onScrollBeginDrag={closeDefinitionModal}
               >
                 <Text style={styles.bodyText}>
-                  {tab === "Overview" && showOriginal ? highlightedOriginal : content}
+                  {tab === "Overview" && showOriginal 
+                    ? highlightedOriginal
+                    : tab === "Easy Read"
+                      ? highlightedSimplified
+                      : content
+                  }
                 </Text>
               </ScrollView>
 
@@ -510,7 +576,8 @@ export default function ReaderScreen() {
                 <Pressable
                   style={[
                     styles.ctaBtn,
-                    (ocrLoading || geminiLoading || !ocrText || simplifiedMost) && { backgroundColor: '#6C6767', opacity: 0.5 }
+                    (ocrLoading || geminiLoading || !ocrText || simplifiedMost) && 
+                    { backgroundColor: '#6C6767', opacity: 0.5 }
                   ]}
                   onPress={async () => {
                     if (tab === "Overview") {
@@ -560,7 +627,7 @@ export default function ReaderScreen() {
 
                         const json: GeminiResponse = await response.json();
 
-                        setSimplifyMoreText(json.simplified_explanation);
+                        setSimplifyMoreText(json.simplification);
                         setSimplifiedReadingLevel(json.reading_level ?? null);
                         setSimplifiedMost(json.reading_level === 1);
                       }
@@ -569,6 +636,7 @@ export default function ReaderScreen() {
                       }
                       finally {
                         setGeminiLoading(false);
+                        setDefinitionModal({isVisible: false, word: "", definition: ""})
                       }
                     }
                   }}

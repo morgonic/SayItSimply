@@ -43,10 +43,12 @@ class GeminiRequest(BaseModel):
 # response model for /gemini endpoint
 class GeminiResponse(BaseModel):
     summary: str = Field(description="A concise, plain-language summary of exactly what is written in the text.")
-    simplified_explanation: str = Field(description="An explanation of the text simplified to the user's preferred reading level.")
+    simplification: str = Field(description="A version of the text that is simplified to the user's reading level.")
     action_items: List[str] = Field(description="A list of the action items that have been detected from the text for the user to add to their to-do list.")
     translation: Optional[str] = Field(default=None, description="A translation of the original text into the user's preferred language.")
     mode: str = Field(description="The detected document type (one word).")
-    reading_level: int = Field(description="The grade level used for simplified_explanation. Clamped to minimum 1.")
+    reading_level: int = Field(description="The grade level used for simplification. Clamped to minimum 1.")
     complex_words: Optional[List[str]] = Field(default=None, description="A list of words extracted from the input_text that are above the user's preferred reading level.")
     complex_definitions: Optional[List[str]] = Field(default=None, description="A list of short plain-language definitions for each of the complex_words extracted from the input_text.")
+    simple_words: Optional[List[str]] = Field(default=None, description="A list of words extracted from the simplification that are above the user's preferred reading level.")
+    simple_definitions: Optional[List[str]] = Field(default=None, description="A list of short plain-language definitions for each of the simple_words extracted from the simplification.")

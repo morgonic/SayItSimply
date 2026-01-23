@@ -283,7 +283,7 @@ def gemini(request: GeminiRequest, user: User = Depends(current_active_user)):
     # return gemini response using 
     # OCR text, user language, user reading level, selected/detected doc type/mode
     return get_gemini_response(
-        input=text, 
+        input_text=text, 
         language=language, 
         reading_level=simplified_level,
         mode=mode

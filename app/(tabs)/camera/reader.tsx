@@ -289,6 +289,11 @@ export default function ReaderScreen() {
     setDefinitionModal({isVisible: false, word: "", definition: ""})
   }, [imageUri]); // new image uri triggers
 
+  // close modal when tab cahanges
+  useEffect(() => {
+    closeDefinitionModal();
+  }, [tab]);
+
   useEffect(() => {
     // prevent mounting issues
     let cancelled = false;
@@ -456,14 +461,12 @@ export default function ReaderScreen() {
     switch (tab) {
       case "Overview":
         // for now, format action items with summary as numbered list, n/a if no items
-        closeDefinitionModal();
         return (
           `${geminiData.summary}\n\n` +
           `Action items:\n\n${items.map((x, i) => `${i+1}) ${x}`).join("\n\n") || "N/A"}`
         );
       case "Easy Read":
         // simplified explanation for easy read tab
-        closeDefinitionModal();
         return highlightedSimplified;
       case "Translate":
         // translation for translate tab, tell user when no translation was provided

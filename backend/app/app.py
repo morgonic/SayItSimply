@@ -273,8 +273,8 @@ def gemini(request: GeminiRequest, user: User = Depends(current_active_user)):
     mode = request.mode or "Document"
     # default english if no user language found
     language = user.language or "en"
-    # default 6 grade level if none found
-    reading_level = user.reading_level or 6
+    # default 6 grade level if none found; prefer request override
+    reading_level = request.reading_level or user.reading_level or 6
     # how many grades lower than user's reading level
     offset = request.simplify_more_by or 0
     # new reading level with offset

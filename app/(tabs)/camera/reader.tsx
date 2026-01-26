@@ -1,17 +1,19 @@
+import storage from '@/app/storage';
+import { Ionicons } from "@expo/vector-icons";
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  View,
-  Modal
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams } from "expo-router";
-import storage from '@/app/storage';
 
 // reader screen tabs
 type ReaderTab = "Overview" | "Easy Read" | "Translate";
@@ -78,6 +80,17 @@ async function uriToBase64(uri: string): Promise<string> {
 
 
 export default function ReaderScreen() {
+  
+  const tabBarHeight = useBottomTabBarHeight();
+  
+  const reading_levels = {
+      standard: 9,
+      simple: 6,
+      super_simple: 3,
+    } as const;
+  type LevelKey = keyof typeof reading_levels;
+  const [sessionReadingLevel, setSessionReadingLevel] = useState<number | null>(null);
+
   // tracking reader tab being viewed
   const [tab, setTab] = useState<ReaderTab>("Overview");
   // tracking Overview text being viewed (original vs summary)
@@ -287,6 +300,7 @@ export default function ReaderScreen() {
     setSimplifiedReadingLevel(null);
     setSimplifiedMost(false);
     setDefinitionModal({isVisible: false, word: "", definition: ""})
+    setSessionReadingLevel(null);
   }, [imageUri]); // new image uri triggers
 
   // close modal when tab cahanges
@@ -387,6 +401,10 @@ export default function ReaderScreen() {
           }
         }
         
+
+        // only set sessionreadinglevel if not null
+        setSessionReadingLevel((prev) => (prev === null ? (geminiJson.reading_level ?? null) : prev));
+
         // update simplify more states
         setSimplifyMoreText(geminiJson.simplification);
         setSimplifiedReadingLevel(geminiJson.reading_level ?? null);
@@ -474,12 +492,59 @@ export default function ReaderScreen() {
       default:
         return "";
     }
-  }, [tab, ocrLoading, ocrError, ocrText, geminiLoading, geminiError, geminiData, showOriginal, simplifyMoreText]); //recompute when tab, data, simplify more, or loading/error states changes
+  }, [tab, ocrLoading, ocrError, ocrText, geminiLoading, geminiError, geminiData, showOriginal, simplifyMoreText]);
 
-  // screen dimensions
   const screen = Dimensions.get("window");
-  // reader card height
+
   const cardHeight = Math.min(screen.height * 0.62, 560);
+
+  async function rerunGeminiWithLevel(level: number) {
+    if (!api_url) return;
+    if (ocrLoading || geminiLoading) return;
+    if (!ocrText) return;
+
+    setGeminiLoading(true);
+    setGeminiError(null);
+
+    try {
+      const token = await storage.getItem("access_token");
+      const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+
+      // reset "simplify more" 
+      setSimplifyMoreCount(0);
+      setSimplifyMoreText(null);
+      setSessionReadingLevel(level);
+
+      const response = await fetch(`${api_url}/gemini`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `${tokenType} ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          text: ocrText,
+          mode: mode ?? "Document",
+          reading_level: level,
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Gemini response failed (HTTP ${response.status})`);
+      }
+
+      const json: GeminiResponse = await response.json();
+
+      setGeminiData(json);
+      setSimplifyMoreText(json.simplification);
+      setSimplifiedReadingLevel(json.reading_level ?? level);
+      setSimplifiedMost((json.reading_level ?? level) === 1);
+    } catch (e: any) {
+      setGeminiError(e?.message ?? "Request failed");
+    } finally {
+      setGeminiLoading(false);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -573,7 +638,6 @@ export default function ReaderScreen() {
                 </Text>
               </ScrollView>
 
-
               {/* Bottom CTA */}
               {tab !== "Translate" && (
                 <Pressable
@@ -587,7 +651,7 @@ export default function ReaderScreen() {
                       setShowOriginal(!showOriginal)
                     }
                     else if (tab === "Easy Read") {
-                      if (simplifiedMost || simplifiedReadingLevel === 1) {
+                      if (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1) {
                         return;
                       }
                       if (ocrLoading || geminiLoading || !ocrText) {
@@ -619,7 +683,8 @@ export default function ReaderScreen() {
                           body: JSON.stringify({
                             text: ocrText,
                             mode: mode ?? "Document",
-                            simplify_more_by: simplifyMoreBy
+                            simplify_more_by: simplifyMoreBy,
+                            ...(sessionReadingLevel !== null ? { reading_level: sessionReadingLevel } : {}),
                           })
                         });
 
@@ -643,8 +708,8 @@ export default function ReaderScreen() {
                       }
                     }
                   }}
-                  disabled={ocrLoading || geminiLoading || !ocrText
-                    || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1))}>
+                  disabled={ocrLoading || geminiLoading || !ocrText 
+                  || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1))}>
                   <Text style={styles.ctaText}>
                     {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
                       : (tab === "Overview" && !showOriginal) ? "See Original Text"
@@ -657,6 +722,34 @@ export default function ReaderScreen() {
             </View>
           </View>
         </ScrollView>
+
+        {tab === "Easy Read" && (
+          <View style={styles.levelControlsWrap}>
+            <DetailLevelTab
+              label="Standard"
+              hint="More detail"
+              icon={<Ionicons name="book-outline" size={22} color="#1B1B1B" />}
+              active={sessionReadingLevel === reading_levels.standard}
+              onPress={() => rerunGeminiWithLevel(reading_levels.standard)}
+            />
+
+            <DetailLevelTab
+              label="Simple"
+              hint="Easier words"
+              icon={<Ionicons name="reader-outline" size={22} color="#1B1B1B" />}
+              active={sessionReadingLevel === reading_levels.simple}
+              onPress={() => rerunGeminiWithLevel(reading_levels.simple)}
+            />
+
+            <DetailLevelTab
+              label="Super"
+              hint="Most simple"
+              icon={<Ionicons name="sparkles-outline" size={22} color="#1B1B1B" />}
+              active={sessionReadingLevel === reading_levels.super_simple}
+              onPress={() => rerunGeminiWithLevel(reading_levels.super_simple)}
+            />
+          </View>
+        )}
       </View>
 
       {/* Complex Word Definition Modal */}
@@ -705,6 +798,49 @@ function TopTab({
     >
       <Text style={[styles.topTabText, active ? styles.topTabTextActive : styles.topTabTextInactive]}>
         {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+function DetailLevelTab({
+  label,
+  hint,
+  icon,
+  active,
+  onPress,
+}: {
+  label: string;
+  hint: string;
+  icon: React.ReactNode;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.levelTab,
+        active ? styles.levelTabActive : styles.levelTabInactive,
+      ]}
+      hitSlop={8}
+    >
+      {icon}
+      <Text
+        style={[
+          styles.levelTabText,
+          active ? styles.levelTabText : styles.levelTabText,
+        ]}
+      >
+        {label}
+      </Text>
+      <Text
+        style={[
+          styles.levelTabHint,
+          active ? styles.levelTabHint : styles.levelTabHint,
+        ]}
+      >
+        {hint}
       </Text>
     </Pressable>
   );
@@ -768,7 +904,7 @@ const styles = StyleSheet.create({
   topTabTextInactive: { color: "#1B1B1B" },
 
   outerCard: {
-    marginTop: 28,
+    marginTop: 15,
     borderRadius: 24,
     borderWidth: 12,
     borderColor: TAB_INACTIVE,
@@ -897,5 +1033,40 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#000000',
     lineHeight: 20
-  }
+  },
+
+  levelControlsWrap: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: -25,
+  },
+
+  levelTab: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    backgroundColor: "#1B1B1B",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#1B1B1B",
+  },
+
+  levelTabActive: { backgroundColor: TAB_ACTIVE },
+  levelTabInactive: { backgroundColor: TAB_INACTIVE },
+
+  levelTabText: {
+    marginTop: 4,
+    fontWeight: "900",
+    fontSize: 12,
+    color: "#1B1B1B",
+  },
+
+  levelTabHint: {
+    marginTop: 2,
+    fontWeight: "700",
+    fontSize: 10,
+    color: "#1B1B1B",
+  },
 });

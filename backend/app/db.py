@@ -23,6 +23,7 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     )
     language: Mapped[str] = mapped_column(default="en")
     reading_level: Mapped[int] = mapped_column(default=6)
+    challenge_mode: Mapped[bool] = mapped_column(default=False, server_default="0")
     onboarding_done: Mapped[bool] = mapped_column(default=False)
     profile_photo: Mapped[str | None] = mapped_column(nullable=True, default=None)
 

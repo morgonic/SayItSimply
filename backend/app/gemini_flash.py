@@ -102,6 +102,7 @@ def get_gemini_response(input_text: str, reading_level: int, language: str, mode
         
         "Complex definitions rules:\n"
         "- Use the extracted complex_words from the input_text at the provided reading_level_grade to output definitions for each word in the order they are listed.\n"
+        "- There MUST be one definition for each word in complex_words. No more and no less.\n"
         "- List complex_definitions for each word in complex_words in the same order they are listed.\n"
         "- Generate short, simple, plain-language definitions for each word in complex_words.\n"
         "- ONLY include the definition, NOT the word being defined.\n\n"
@@ -115,6 +116,7 @@ def get_gemini_response(input_text: str, reading_level: int, language: str, mode
         
         "Simple definitions rules:\n"
         "- Use the extracted simple_words from the simplification at the provided reading_level_grade to output definitions fro each word in the order they are listed.\n"
+        "- There MUST be one definition for each word in simple_words. No more and no less.\n"
         "- List simple_definitions for each word in simple_words in the same order they are listed.\n"
         "- Generate short, simple, plain-language definitions for each word in simple_words.\n"
         "- ONLY include the definition, NOT the word being defined.\n\n"

@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import storage from "../storage";
+import storage from "@/app/storage";
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
@@ -279,7 +279,7 @@ export default function ProfileScreen() {
   };
 
   const onSettings = () => {
-    router.push("/settings");
+    router.push("/(tabs)/profile/settings");
   };
 
   const onLogout = () => {

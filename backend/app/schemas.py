@@ -6,18 +6,21 @@ from pydantic import BaseModel, Field
 class UserRead(schemas.BaseUser[uuid.UUID]):
     language: str
     reading_level: int
+    challenge_mode: bool
     onboarding_done: bool
     profile_photo: Optional[str] = None
 
 class UserCreate(schemas.BaseUserCreate):
     language: str = "en"
     reading_level: int = 6
+    challenge_mode: bool = False
     onboarding_done: bool = False
     profile_photo: Optional[str] = None
 
 class UserUpdate(schemas.BaseUserUpdate):
     language: Optional[str] = None
     reading_level: Optional[int] = None
+    challenge_mode: Optional[bool] = None
     onboarding_done: Optional[bool] = None
     profile_photo: Optional[str] = None
 

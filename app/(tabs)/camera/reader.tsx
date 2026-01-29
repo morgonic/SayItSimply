@@ -953,7 +953,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: PAPER,
     borderRadius: 14,
-    paddingHorizontal: 18,
+    paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 18,
   },
@@ -973,7 +973,8 @@ const styles = StyleSheet.create({
     flex: 1
   },
   bodyScrollContent: {
-    padding: 24
+    paddingVertical: 24,
+    paddingHorizontal: 12
   },
   bodyText: {
     color: "#1B1B1B",

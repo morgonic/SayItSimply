@@ -286,7 +286,8 @@ def gemini(request: GeminiRequest, user: User = Depends(current_active_user)):
         input_text=text, 
         language=language, 
         reading_level=simplified_level,
-        mode=mode
+        mode=mode,
+        challenge_mode=user.challenge_mode
     )
 
 ### OCR ###

@@ -21,8 +21,28 @@ def client() -> genai.Client:
     # return gemini client
     return genai.Client(api_key=api_key)
 
+# get reading level to prompt at (challenge mode or not)
+def compute_reading_level(reading_level: int, challenge_mode: bool, increase: int = 2, max_level: int = 9) -> int:
+    # base reading level
+    base = int(reading_level)
+    # compute new level if there's a challenge mode increase or not
+    level = base + (increase if challenge_mode else 0)
+    # cap it at max_level=9, return minimum between computed level and max level
+    return min(level, max_level)
+
 # returns text response from gemini endpoint
-def get_gemini_response(input_text: str, reading_level: int, language: str, mode: str) -> GeminiResponse:
+def get_gemini_response(
+        input_text: str, 
+        reading_level: int, 
+        language: str, 
+        mode: str,
+        challenge_mode: bool
+) -> GeminiResponse:
+    
+    # user's reading level
+    base_level = int(reading_level or 6)
+    # get prompted reading level based on challenge mode bool
+    rewrite_level = compute_reading_level(reading_level, challenge_mode)
 
     # current date info
     day = datetime.now(ZoneInfo("America/New_York")) #timezone-aware
@@ -94,28 +114,28 @@ def get_gemini_response(input_text: str, reading_level: int, language: str, mode
         "- If dates are ambiguous, keep original phrasing instead of guessing exact dates.\n\n"
         
         "Complex words rules:\n"
-        "- Use the provided reading_level_grade to determine which words in the input_text are above the provided reading_level_grade.\n"
-        "- ONLY extract words that are deemed more complex than the provided reading_level_grade.\n"
-        "- Extract all words determined to be above the provided reading_level_grade as individual items in a list.\n"
+        "- Use the provided base_reading_level_grade to determine which words in the input_text are above the provided base_reading_level_grade.\n"
+        "- ONLY extract words that are deemed more complex than the provided base_reading_level_grade.\n"
+        "- Extract all words determined to be above the provided base_reading_level_grade as individual items in a list.\n"
         "- Extract words in the order they are listed in the original text.\n"
         "- Output these words as strings within a list called complex_words in the JSON schema. Do not capitalize words unless they are proper nouns.\n\n"
         
         "Complex definitions rules:\n"
-        "- Use the extracted complex_words from the input_text at the provided reading_level_grade to output definitions for each word in the order they are listed.\n"
+        "- Use the extracted complex_words from the input_text at the provided base_reading_level_grade to output definitions for each word in the order they are listed.\n"
         "- There MUST be one definition for each word in complex_words. No more and no less.\n"
         "- List complex_definitions for each word in complex_words in the same order they are listed.\n"
         "- Generate short, simple, plain-language definitions for each word in complex_words.\n"
         "- ONLY include the definition, NOT the word being defined.\n\n"
         
         "Simple words rules:\n"
-        "- Use the provided reading_level_grade to determine which words in the simplification text are above the provided reading_level_grade.\n"
-        "- ONLY extract words that are deemed more complex than the provided reading_level_grade.\n"
-        "- Extract all words determined to be above the provided reading_level_grade as individual items in a list.\n"
+        "- Use the provided base_reading_level_grade to determine which words in the simplification text are above the provided base_reading_level_grade.\n"
+        "- ONLY extract words that are deemed more complex than the provided base_reading_level_grade.\n"
+        "- Extract all words determined to be above the provided base_reading_level_grade as individual items in a list.\n"
         "- Extract words in the order they are listed in the original text.\n"
         "- Output these words as strings within a list called simple_words in the JSON schema. Do not capitalize words unless they are proper nouns.\n\n"
         
         "Simple definitions rules:\n"
-        "- Use the extracted simple_words from the simplification at the provided reading_level_grade to output definitions fro each word in the order they are listed.\n"
+        "- Use the extracted simple_words from the simplification at the provided base_reading_level_grade to output definitions fro each word in the order they are listed.\n"
         "- There MUST be one definition for each word in simple_words. No more and no less.\n"
         "- List simple_definitions for each word in simple_words in the same order they are listed.\n"
         "- Generate short, simple, plain-language definitions for each word in simple_words.\n"
@@ -132,14 +152,16 @@ def get_gemini_response(input_text: str, reading_level: int, language: str, mode
     )
 
     print("System instructions:\n", system_instructions)
-    print("Prompted at reading level:", reading_level)
+    print("Prompted at reading level:", rewrite_level)
+    print("User's reading level:", base_level)
 
     # gemini prompt using XML tags and output prefix
     prompt = (
         "<context>\n"
         f"current_datetime: {now}\n"
         f"current_date: {today}\n"
-        f"reading_level_grade: {reading_level}\n"
+        f"base_reading_level_grade:{base_level}\n"
+        f"reading_level_grade: {rewrite_level}\n"
         f"output_language: en\n"
         f"target_language: {language}\n"
         f"provided_mode: {mode}\n"

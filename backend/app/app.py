@@ -2,7 +2,7 @@ import base64
 import os, json
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -17,7 +17,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse, Response
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import User, OAuthAccount, create_db_and_tables, engine, get_async_session
@@ -261,6 +261,9 @@ async def change_password(
 
 ### Gemini ###
 
+class ReadingLevelPatch(BaseModel):
+    reading_level: int
+
 # gemini endpoint for main structured output
 @app.post("/gemini")
 def gemini(request: GeminiRequest, user: User = Depends(current_active_user)):
@@ -289,6 +292,23 @@ def gemini(request: GeminiRequest, user: User = Depends(current_active_user)):
         mode=mode,
         challenge_mode=user.challenge_mode
     )
+
+# endpoint for updating user reading level
+@app.patch("/users/me/reading-level", tags=["users"])
+async def update_reading_level(
+    payload: ReadingLevelPatch,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    # set user reading level to payload (input) reading level
+    user.reading_level = payload.reading_level
+    # log to console for debug
+    print("User's new reading level:", user.reading_level)
+    # commit session changes
+    await session.commit()
+    # return reading level value
+    return {"reading_level": user.reading_level}
+
 
 ### OCR ###
 

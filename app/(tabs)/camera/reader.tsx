@@ -1,8 +1,7 @@
 import storage from '@/app/storage';
 import { Ionicons } from "@expo/vector-icons";
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { useLocalSearchParams } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
@@ -38,6 +37,10 @@ type DefinitionModalState = {
   word: string;
   definition: string;
 }
+
+const calibScanCountKey = "calib_scan_count";
+const calibFreqKey = "calib_freq";
+const calibReadingLevelKey = "user_reading_level";
 
 // backend fastapi url
 const api_url = process.env.EXPO_PUBLIC_API_URL;
@@ -78,17 +81,35 @@ async function uriToBase64(uri: string): Promise<string> {
   })
 }
 
+// randomizer functions
+function clampInt(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
+}
+function randomIntInclusive(min: number, max: number) {
+  const _min = Math.ceil(min);
+  const _max = Math.floor(max);
+  return Math.floor(Math.random() * (_max - _min + 1)) + _min;
+}
 
+/**
+ * 
+ * reading level pulled from db. left option is 1 reading lvl lower, right option is 1 reading lvl higher
+ * caveat: if reading lvl is 1, left option is reading level 2 and right option is reading level 3
+ * caveat: if reading lvl is 9, left option is reading level 7 and right option is reading level 8
+ */
+function CalibrateReadingLvl(current: number) {
+  if (current == 1) return { left: 2, right: 3 };
+  if (current == 9) return { left: 7, right: 8 };
+  return { left: clampInt(current - 1, 1, 9), right: clampInt(current + 1, 1, 9)};
+}
 export default function ReaderScreen() {
-  
-  const tabBarHeight = useBottomTabBarHeight();
   
   const reading_levels = {
       standard: 9,
       simple: 6,
       super_simple: 3,
     } as const;
-  type LevelKey = keyof typeof reading_levels;
+  // session reading level state for easy read tab
   const [sessionReadingLevel, setSessionReadingLevel] = useState<number | null>(null);
 
   // tracking reader tab being viewed
@@ -125,6 +146,19 @@ export default function ReaderScreen() {
     word: "", // word being defined, starts empty
     definition: "" // definition of word, starts empty
   });
+
+  // Calibration states
+  const [calibVis, setCalibVis] = useState(false);
+  const [calibLoad, setCalibLoad] = useState(false);
+  const [calibErr, setCalibErr] = useState<string | null>(null);
+
+  const [calibLower, setCalibLower] = useState<number | null>(null);
+  const [calibHigher, setCalibHigher] = useState<number | null>(null);
+  const [calibLowerTxt, setCalibLowerTxt] = useState<string>("");
+  const [calibHigherTxt, setCalibHigherTxt] = useState<string>("");
+
+  // prevents scan count from updating every render
+  const imageUriRef = useRef<string | null>(null);
 
   // lookup table to get word definitions
   const definitionMap = useMemo(() => {
@@ -301,12 +335,267 @@ export default function ReaderScreen() {
     setSimplifiedMost(false);
     setDefinitionModal({isVisible: false, word: "", definition: ""})
     setSessionReadingLevel(null);
+
+    // reset calibration states as well
+    setCalibVis(false);
+    setCalibLoad(false);
+    setCalibErr(null);
+    setCalibLower(null);
+    setCalibHigher(null);
+    setCalibLowerTxt("");
+    setCalibHigherTxt("");
   }, [imageUri]); // new image uri triggers
 
-  // close modal when tab cahanges
+  // close modal when tab changes
   useEffect(() => {
     closeDefinitionModal();
   }, [tab]);
+
+  // 
+  async function getAuthToken() {
+    const token = await storage.getItem("access_token");
+    const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+    return {
+      ...(token ? { Authorization: `${tokenType} ${token}`} : {}),
+    };
+  }
+
+  // get calibration state from db
+  async function dbGetCalibState(): Promise<{
+    scan_count: number;
+    calib_freq: number;
+    reading_level: number | null;
+  } | null> {
+    if (!api_url) return null;
+    try {
+      const tokenHeaders = await getAuthToken();
+      const res = await fetch(`${api_url}/user/calib_state`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json", ...tokenHeaders },
+      });
+      const json = await res.json();
+      return {
+        scan_count: Number(json.scan_count ?? 0),
+        calib_freq: Number(json.calib_freq ?? 0),
+        reading_level: (json.reading_level === null || json.reading_level === undefined) ? null : Number(json.reading_level),
+      };
+    } catch (e) {
+      console.error("Error fetching calibration state:", e);
+      return null;
+    }
+  }
+
+  // increment scan count in db after each scan
+  async function dbScanCountIncrement(): Promise<{
+    scan_count: number;
+    calib_freq: number;
+    prompt: boolean;
+    reading_level: number | null;
+  } | null> {
+    try{
+      const tokenHeaders = await getAuthToken();
+      const res = await fetch(`${api_url}/user/scan_count`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...tokenHeaders },
+        body: JSON.stringify({ event: "scan" }),
+      });
+      const json = await res.json();
+      return {
+        scan_count: Number(json.scan_count ?? 0),
+        calib_freq: Number(json.calib_freq ?? 0),
+        prompt: Boolean(json.prompt ?? false),
+        reading_level: (json.reading_level === null || json.reading_level === undefined) ? null : Number(json.reading_level),
+      };
+    } catch (e) {
+      console.error("Error incrementing scan count:", e);
+      return null;
+    }
+  }
+
+  // update reading level in db after calibration choice
+  async function dbUpdateReadingLvl(payload: { new_level: number; choice: "lower" | "stay" | "higher"; }) : Promise<boolean> {
+    try {
+      const tokenHeaders = await getAuthToken();
+      const res = await fetch(`${api_url}/user/reading_level`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...tokenHeaders },
+        body: JSON.stringify(payload),
+      });
+      return res.ok;
+    } catch (e) {
+      console.error("Error updating reading level:", e);
+      return false;
+    }
+  }
+
+  async function getInt(key: string, defaultValue: number) {
+    const value = await storage.getItem(key);
+    const _value = Number(value);
+    return Number.isFinite(_value) ? _value : defaultValue;
+  }
+
+  async function setInt(key: string, value: number) {
+    await storage.setItem(key, value.toString());
+  }
+
+  async function getReadingLvl(): Promise<number | null> {
+    const value = await storage.getItem(calibReadingLevelKey);
+    const _value = Number(value);
+    if (!Number.isFinite(_value)) return null;
+    return clampInt(_value, 1, 9);
+  }
+
+  async function setReadingLvl(level: number) {
+    await storage.setItem(calibReadingLevelKey, String(clampInt(level, 1, 9)));
+  }
+
+  // increment scan count
+  async function incrScan(): Promise<{
+    scan_count: number;
+    calib_freq: number;
+    prompt: boolean;
+    reading_level: number | null;
+  }> {
+    let scanCount = await getInt(calibScanCountKey, 0);
+    let calibFreq = await getInt(calibFreqKey, 0);
+    if (!calibFreq || calibFreq < 1) {
+      // change below values to adjust default calibration frequency -- maybe 10, 15 after testing is done
+      calibFreq = randomIntInclusive(1, 2);
+      await setInt(calibFreqKey, calibFreq);
+    }
+    scanCount += 1;
+    await setInt(calibScanCountKey, scanCount);
+
+    const prompt = scanCount >= calibFreq;
+    const rLvl = await getReadingLvl();
+
+    return { scan_count: scanCount, calib_freq: calibFreq, prompt: prompt, reading_level: rLvl };
+  }
+
+  async function fetchSimplifiedTxt(level: number): Promise<string> {
+    const normalizeMode = typeof mode === "string" ? mode : Array.isArray(mode) ? mode[0] : geminiData?.mode ?? "Auto-detect";
+    const tokenHeaders = await getAuthToken();
+    const res = await fetch(`${api_url}/gemini`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...tokenHeaders },
+      body: JSON.stringify({ text: ocrText, mode: normalizeMode, reading_level: level }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Gemini response failed (HTTP ${res.status})`);
+    }
+    const json: GeminiResponse = await res.json();
+    return (json.simplification ?? "").trim();
+  }
+
+  async function openCalibModal(currLevel: number) {
+    const { left, right } = CalibrateReadingLvl(currLevel);
+    setCalibLower(left);
+    setCalibHigher(right);
+    setCalibVis(true);
+    setCalibLoad(true);
+    setCalibErr(null);
+    setCalibLowerTxt("Loading...");
+    setCalibHigherTxt("Loading...");
+    try {
+      const [lowerTxt, higherTxt] = await Promise.all([
+        fetchSimplifiedTxt(left),
+        fetchSimplifiedTxt(right)
+      ]);
+      setCalibLowerTxt(lowerTxt);
+      setCalibHigherTxt(higherTxt);
+      setCalibLoad(false);
+    } catch (e: any) {
+      setCalibErr(e.message ?? "Failed to load simplified text");
+    } finally {
+      setCalibLoad(false);
+    }
+  }
+  
+  function closeCalibModal() {
+    setCalibVis(false);
+    setCalibLoad(false);
+    setCalibErr(null);
+  }
+
+  async function resetScanCount() {
+    await setInt(calibScanCountKey, 0);
+    // change below values to adjust default calibration frequency -- maybe 10, 15 after testing is done
+    const next = randomIntInclusive(1, 2);
+    await setInt(calibFreqKey, next);
+  }
+
+  async function setCalibChoice(choice: "lower" | "stay" | "higher") {
+    const currLevel = sessionReadingLevel ?? geminiData?.reading_level ?? reading_levels.standard;
+    const lowLevel = calibLower ?? CalibrateReadingLvl(currLevel).left;
+    const highLevel = calibHigher ?? CalibrateReadingLvl(currLevel).right;
+
+    const newLevel = choice === "lower" ? lowLevel : choice === "higher" ? highLevel : currLevel;
+
+    const saveToDb = await dbUpdateReadingLvl({ new_level: newLevel, choice: choice });
+    if (!saveToDb) {
+      await setReadingLvl(newLevel);
+      await resetScanCount();
+    }
+
+    closeCalibModal();
+
+    setSessionReadingLevel(newLevel);
+    await rerunGeminiWithLevel(newLevel);
+  }
+
+  async function checkIncrAndCalib() {
+    if (!imageUri) return;
+
+    if (imageUriRef.current === imageUri) return;
+
+    imageUriRef.current = imageUri;
+
+    const db = await dbScanCountIncrement();
+    if (db) return;
+
+    await incrScan();
+    const local = await incrScan();
+    const currLevel = sessionReadingLevel ?? local.reading_level ?? geminiData?.reading_level ?? reading_levels.standard;
+    if (local.prompt) {
+      return;
+    }
+  }
+
+  useEffect(() => {
+    checkIncrAndCalib();
+  }, [imageUri]);
+
+  useEffect(() => {
+    async function checkPrompt() {
+      if (!imageUri) return;
+      if (!ocrText) return;
+      if (calibVis) return;
+
+      const dbState = await dbGetCalibState();
+      if (dbState) {
+        const calibFreq = dbState.calib_freq || 0;
+        const scanCount = dbState.scan_count || 0;
+
+        if (calibFreq > 0 && scanCount >= calibFreq) {
+          const currLevel = sessionReadingLevel ?? dbState.reading_level ?? geminiData?.reading_level ?? reading_levels.standard;
+          await openCalibModal(currLevel);
+        }
+        return;
+      }
+
+      const scanCount = await getInt(calibScanCountKey, 0);
+      const calibFreq = await getInt(calibFreqKey, 0);
+      if (calibFreq > 0 && scanCount >= calibFreq) {
+        const reading_level = await getReadingLvl();
+        const currLevel = sessionReadingLevel ?? reading_level ?? geminiData?.reading_level ?? reading_levels.standard;
+        await openCalibModal(currLevel);
+      }
+    }
+
+    checkPrompt();
+  }, [ocrText]);
 
   useEffect(() => {
     // prevent mounting issues
@@ -404,6 +693,15 @@ export default function ReaderScreen() {
 
         // only set sessionreadinglevel if not null
         setSessionReadingLevel((prev) => (prev === null ? (geminiJson.reading_level ?? null) : prev));
+
+        try {
+          const exists = await getReadingLvl();
+          if (exists === null && geminiJson.reading_level) {
+            await setReadingLvl(geminiJson.reading_level);
+          }
+        } catch {
+          // do nothing on error
+        }
 
         // update simplify more states
         setSimplifyMoreText(geminiJson.simplification);
@@ -514,6 +812,8 @@ export default function ReaderScreen() {
       setSimplifyMoreCount(0);
       setSimplifyMoreText(null);
       setSessionReadingLevel(level);
+
+      try { await setReadingLvl(level); } catch { /* do nothing on error */ }
 
       const response = await fetch(`${api_url}/gemini`, {
         method: "POST",
@@ -751,6 +1051,84 @@ export default function ReaderScreen() {
           </View>
         )}
       </View>
+
+      {/* Calibration Modal */}
+      <Modal
+        transparent
+        visible={calibVis}
+        animationType="fade"
+        onRequestClose={closeCalibModal}
+      >
+        <View style={styles.calibBackground}>
+          <Pressable style={styles.fullFill} onPress={closeCalibModal}/>
+          <View style={styles.calibCenter} pointerEvents='box-none'>
+            <View style={styles.calibModalCard}>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.calibBodyContent}
+                showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
+              >
+                <Text style={styles.calibTitle}>Calibrate Reading Level</Text>
+
+                {calibLoad ? (
+                  <View style={styles.calibLoadRow}>
+                    <ActivityIndicator size={22} color={"black"} />
+                    <Text style={styles.calibLoadTxt}>Loading...</Text>
+                  </View>
+                ) : calibErr ? (
+                  <Text style={styles.calibErrTxt}>{calibErr}</Text>
+                ) : (
+                  <View style={styles.calibOptsRow}>
+                    <View style={styles.calibOpt}>
+                      <View style={styles.calibOptHeader}>
+                        <Text style={styles.calibOptHeaderTxt}> Option A - Lower</Text>
+                      </View>
+                      <Text style={styles.calibOptTxt}>{calibLowerTxt}</Text>
+                    </View>
+
+                    <View style={styles.calibOpt}>
+                      <View style={styles.calibOptHeader}>
+                        <Text style={styles.calibOptHeaderTxt}> Option B - Higher</Text>
+                      </View>
+                      <Text style={styles.calibOptTxt}>{calibHigherTxt}</Text>
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.calibBtnRow}>
+                  <Pressable
+                    style={[styles.calibBtn, styles.calibBtnLow]}
+                    disabled={calibLoad}
+                    onPress={async () => {
+                      await setCalibChoice("lower");
+                    }}
+                  >
+                    <Text style={styles.calibChoiceTxt}>Choose Option A</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[styles.calibBtn, styles.calibBtnStay]}
+                    disabled={calibLoad}
+                    onPress={async () => {
+                      await setCalibChoice("stay");
+                    }}
+                  >
+                    <Text style={styles.calibChoiceDarkTxt}>Neither - Don't change</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[styles.calibBtn, styles.calibBtnHigh]}
+                    disabled={calibLoad}
+                    onPress={async () => {
+                      await setCalibChoice("higher");
+                    }}
+                  >
+                    <Text style={styles.calibChoiceTxt}>Choose Option B</Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Complex Word Definition Modal */}
       <Modal
@@ -1070,4 +1448,133 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: "#1B1B1B",
   },
+
+  calibBackground: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  calibModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    height: Dimensions.get("window").height * 0.72,
+    backgroundColor: PAPER,
+    borderRadius: 18,
+    borderWidth: 10,
+    borderColor: CARD_BORDER,
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+    overflow: "hidden",
+  },
+  calibTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: "#1B1B1B",
+    marginBottom: 4,
+  },
+  calibLoadRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 18,
+  },
+  calibLoadTxt: {
+    fontWeight: "800",
+    color: "#1B1B1B",
+  },
+  calibCenter: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  calibBodyScroll: {
+    flex: 1,
+  },
+  calibBodyContent: {
+    padding: 14,
+    flexGrow: 1,
+  },
+  calibErrTxt: {
+    fontWeight: "800",
+    color: "#8C311C",
+    paddingVertical: 14,
+  },
+  calibOptsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+  calibOpt: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "rgba(0,0,0,0.15)",
+    backgroundColor: "rgba(0,0,0,0.03)",
+    overflow: "hidden",
+  },
+  calibOptHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: "rgba(0,0,0,0.06)",
+  },
+  calibOptHeaderTxt: {
+    fontWeight: "900",
+    color: "#1B1B1B",
+    fontSize: 12,
+  },
+  calibOptScroll: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  calibOptTxt: {
+    fontWeight: "600",
+    color: "#1B1B1B",
+    lineHeight: 20,
+    fontSize: 13,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  calibBtnRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  calibBtn: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  calibBtnLow: {
+    backgroundColor: CTA,
+  },
+  calibBtnHigh: {
+    backgroundColor: CTA,
+  },
+  calibBtnStay: {
+    backgroundColor: TAB_INACTIVE,
+    borderWidth: 1,
+    borderColor: "#1B1B1B",
+  },
+  calibChoiceTxt: {
+    color: "white",
+    fontWeight: "900",
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 14,
+    flexWrap: "wrap",
+  },
+  calibChoiceDarkTxt: {
+    color: "#1B1B1B",
+    fontWeight: "900",
+  }
 });

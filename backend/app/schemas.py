@@ -1,5 +1,5 @@
 import uuid
-from typing import List, Optional
+from typing import Optional, List, Literal
 from fastapi_users import schemas
 from pydantic import BaseModel, Field
 
@@ -9,6 +9,8 @@ class UserRead(schemas.BaseUser[uuid.UUID]):
     challenge_mode: bool
     onboarding_done: bool
     profile_photo: Optional[str] = None
+    scan_count: int
+    calib_freq: int
 
 class UserCreate(schemas.BaseUserCreate):
     language: str = "en"
@@ -16,6 +18,8 @@ class UserCreate(schemas.BaseUserCreate):
     challenge_mode: bool = False
     onboarding_done: bool = False
     profile_photo: Optional[str] = None
+    scan_count: int = 0
+    calib_freq: int = 0
 
 class UserUpdate(schemas.BaseUserUpdate):
     language: Optional[str] = None
@@ -23,6 +27,8 @@ class UserUpdate(schemas.BaseUserUpdate):
     challenge_mode: Optional[bool] = None
     onboarding_done: Optional[bool] = None
     profile_photo: Optional[str] = None
+    scan_count: Optional[int] = None
+    calib_freq: Optional[int] = None
 
 # request model for /ocr endpoint
 class OCRRequest(BaseModel):
@@ -56,3 +62,22 @@ class GeminiResponse(BaseModel):
     complex_definitions: Optional[List[str]] = Field(default=None, description="A list of short plain-language definitions for each of the complex_words extracted from the input_text.")
     simple_words: Optional[List[str]] = Field(default=None, description="A list of words extracted from the simplification that are above the user's preferred reading level.")
     simple_definitions: Optional[List[str]] = Field(default=None, description="A list of short plain-language definitions for each of the simple_words extracted from the simplification.")
+    
+# calibration schemas
+class CalibStateRes(BaseModel):
+    scan_count: int = Field(default=0,description="The amount of scans the user has intitiated")
+    calib_freq: int = Field(default=0,description="How often the user is prompted to calibrate -- random number within the given range.")
+    reading_level: Optional[int] = Field(default=None,description="The grade level used for simplification. Only changed if user selects higher/lower")
+    
+class ScanCountIncrReq(BaseModel):
+    event: str = "scan"
+    
+class ScanCountIncrRes(BaseModel):
+    scan_count: int
+    calib_freq: int
+    prompt: bool = Field(description="The checker to see if scan_count has reached the calib_freq")
+    reading_level: Optional[int] = None
+    
+class UpdateReadingLvlReq(BaseModel):
+    new_level: int = Field(ge=1, le=9)
+    choice: Literal["lower", "stay", "higher"]

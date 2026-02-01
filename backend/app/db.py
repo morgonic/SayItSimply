@@ -26,6 +26,8 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     challenge_mode: Mapped[bool] = mapped_column(default=False, server_default="0")
     onboarding_done: Mapped[bool] = mapped_column(default=False)
     profile_photo: Mapped[str | None] = mapped_column(nullable=True, default=None)
+    scan_count: Mapped[int] = mapped_column(default=0, server_default="0")
+    calib_freq: Mapped[int] = mapped_column(default=0, server_default="0")
 
 # Create async engine and session maker
 engine = create_async_engine(DATABASE_URL)

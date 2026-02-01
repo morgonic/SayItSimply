@@ -6,8 +6,6 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
-
-
 from google.cloud import vision
 
 from pydantic import BaseModel
@@ -28,6 +26,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app.gemini_flash import get_gemini_response
+from app.calibration import router as calibration_router
 
 print("GOOGLE_OAUTH_CLIENT_ID loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_ID")))
 print("GOOGLE_OAUTH_CLIENT_SECRET loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")))
@@ -180,6 +179,8 @@ app.include_router(
     prefix="/auth",
     tags=["auth"]
 )
+
+app.include_router(calibration_router)
 
 @app.delete("/users/me", tags=["users"])
 async def delete_me(

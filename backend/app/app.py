@@ -1,8 +1,9 @@
 import base64
 import os, json
+import httpx
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -267,7 +268,7 @@ class ReadingLevelPatch(BaseModel):
 
 # gemini endpoint for main structured output
 @app.post("/gemini")
-def gemini(request: GeminiRequest, user: User = Depends(current_active_user)):
+async def gemini(request: GeminiRequest, user: User = Depends(current_active_user)):
 
     # check if text is valid, error if not
     text = (request.text or "").strip()
@@ -286,7 +287,7 @@ def gemini(request: GeminiRequest, user: User = Depends(current_active_user)):
     print("Simplified reading level:", simplified_level)
     # return gemini response using 
     # OCR text, user language, user reading level, selected/detected doc type/mode
-    return get_gemini_response(
+    return await get_gemini_response(
         input_text=text, 
         language=language, 
         reading_level=simplified_level,

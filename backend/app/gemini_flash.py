@@ -6,13 +6,14 @@ from functools import lru_cache
 from app.schemas import GeminiResponse
 import os
 from dotenv import load_dotenv
+from fastapi.concurrency import run_in_threadpool
 load_dotenv()
 
 
 # least recently used overwrites old cache entries first
 # saves only 1 client instance to memory
 @lru_cache(maxsize=1)
-def client() -> genai.Client:
+def gemini_client() -> genai.Client:
     # read gemini api key from env
     api_key = os.getenv("GEMINI_API_KEY")
     # error if no api key
@@ -31,7 +32,7 @@ def compute_reading_level(reading_level: int, challenge_mode: bool, increase: in
     return min(level, max_level)
 
 # returns text response from gemini endpoint
-def get_gemini_response(
+async def get_gemini_response(
         input_text: str, 
         reading_level: int, 
         language: str, 
@@ -173,21 +174,24 @@ def get_gemini_response(
     ).strip()
 
     # gemini call
-    # response_json_schema forces output shape GeminiResponse
-    response = client().models.generate_content(
-        model="gemini-2.5-flash", 
-        config=types.GenerateContentConfig(
-            # system instructions for behavior
-            system_instruction=system_instructions,
-            # json output
-            response_mime_type="application/json",
-            # enforce response shape
-            response_json_schema=GeminiResponse.model_json_schema(),
-            # lower temperature to reduce variability
-            temperature=0.2
-        ),
-        contents=prompt
-    )
+    def _call_gemini_sync() -> str:
+        # response_json_schema forces output shape GeminiResponse
+        response = gemini_client().models.generate_content(
+            model="gemini-2.5-flash", 
+            config=types.GenerateContentConfig(
+                # system instructions for behavior
+                system_instruction=system_instructions,
+                # json output
+                response_mime_type="application/json",
+                # enforce response shape
+                response_json_schema=GeminiResponse.model_json_schema(),
+                # lower temperature to reduce variability
+                temperature=0.2
+            ),
+            contents=prompt
+        )
+        return response.text
+    
     # parse, validate model output, return
-    result = GeminiResponse.model_validate_json(response.text)
-    return result
+    result = await run_in_threadpool(_call_gemini_sync)
+    return GeminiResponse.model_validate_json(result)

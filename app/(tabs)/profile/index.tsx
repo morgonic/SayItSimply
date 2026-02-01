@@ -1,3 +1,4 @@
+import storage from "@/app/storage";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
@@ -5,7 +6,6 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import storage from "@/app/storage";
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
@@ -72,7 +72,30 @@ function codeFromLabel(label: string): string {
   return found ? found.code : "en";
 }
 
-export default function ProfileScreen() {
+//calibration functions
+function clampInt(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function calibSimplificationLvl(current: number) {
+  if (current === 1) return { left: 2, right: 3 };
+  if (current === 9) return { left: 7, right: 8 };
+  return { left: clampInt(current - 1, 1, 9), right: clampInt(current + 1, 1, 9) };
+}
+
+const calibSampleText =
+  "The gods realized that ordinary chains would not hold the monstrous wolf Fenrir, so they sought help from the dark elves of Svartalfheimr after he easily shattered the heavy iron links of Laeding and Dromi. In response, the elves forged Gleipnir, a magical ribbon as soft as silk but made from six impossible things: the sound of a cat’s footfall, the beard of a woman, the roots of a mountain, the sinews of a bear, the breath of a fish, and the spittle of a bird. Although Fenrir suspected a trick, he agreed to the binding only on the condition that a god placed a hand in his mouth as a pledge of good faith. Tyr bravely stepped forward, sacrificing his sword hand to ensure the wolf was successfully tethered and muzzled with a sword, forever ending the threat to Asgard.";
+
+type GeminiResponse = {
+  summary?: string;
+  simplification?: string;
+  action_items?: string[];
+  translation?: string | null;
+  mode?: string;
+  reading_level?: number;
+};
+
+  export default function ProfileScreen() {
   const router = useRouter();
 
   const [preferredLanguage, setPreferredLanguage] = useState("English");
@@ -91,6 +114,15 @@ export default function ProfileScreen() {
   const [accountModalVisible, setAccountModalVisible] = useState(false);
   const [accountEmail, setAccountEmail] = useState<string>("");
   const [accountReadingLevel, setAccountReadingLevel] = useState<number | null>(null);
+
+  const [calibVis, setCalibVis] = useState(false);
+  const [calibLoad, setCalibLoad] = useState(false);
+  const [calibErr, setCalibErr] = useState<string | null>(null);
+
+  const [calibLower, setCalibLower] = useState<number | null>(null);
+  const [calibHigher, setCalibHigher] = useState<number | null>(null);
+  const [calibLowerTxt, setCalibLowerTxt] = useState<string>("");
+  const [calibHigherTxt, setCalibHigherTxt] = useState<string>("");
 
   const getTokenOrRedirect = async (): Promise<string | null> => {
     const token = await storage.getItem("access_token");
@@ -219,8 +251,9 @@ export default function ProfileScreen() {
     await updateLanguageInDb(newLabel);
   };
 
-  const onCalibrate = () => {
-    Alert.alert("Calibrate Simplification");
+  const onCalibrate = async () => {
+    const curr = accountReadingLevel ?? 9;
+    await openCalibModal(curr);
   };
 
   const onAccountDetails = () => {
@@ -324,6 +357,98 @@ export default function ProfileScreen() {
       ]
     );
   };
+
+  async function getAuthTokenHeaders() {
+    const token = await storage.getItem("access_token");
+    const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+    return {
+      ...(token ? { Authorization: `${tokenType} ${token}` } : {}),
+    };
+  }
+
+  async function fetchSimplifiedTxt(level: number): Promise<string> {
+    const tokenHeaders = await getAuthTokenHeaders();
+    const res = await fetch(`${api_url}/gemini`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...tokenHeaders },
+      body: JSON.stringify({ text: calibSampleText, mode: "Document", reading_level: level }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Gemini response failed (HTTP ${res.status})`);
+    }
+    const json: GeminiResponse = await res.json();
+    return (json.simplification ?? "").trim();
+  }
+
+  async function dbUpdateReadingLvl(payload: { new_level: number; choice: "lower" | "stay" | "higher" }): Promise<boolean> {
+    try {
+      const tokenHeaders = await getAuthTokenHeaders();
+      const res = await fetch(`${api_url}/user/reading_level`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...tokenHeaders },
+        body: JSON.stringify(payload),
+      });
+      return res.ok;
+    } catch (e) {
+      console.error("Error updating reading level:", e);
+      return false;
+    }
+  }
+
+  function closeCalibModal() {
+    setCalibVis(false);
+    setCalibLoad(false);
+    setCalibErr(null);
+  }
+
+  async function openCalibModal(currLevel: number) {
+    const { left, right } = calibSimplificationLvl(currLevel);
+
+    setCalibLower(left);
+    setCalibHigher(right);
+    setCalibVis(true);
+    setCalibLoad(true);
+    setCalibErr(null);
+    setCalibLowerTxt("Loading...");
+    setCalibHigherTxt("Loading...");
+
+    try {
+      const [lowerTxt, higherTxt] = await Promise.all([
+        fetchSimplifiedTxt(left),
+        fetchSimplifiedTxt(right),
+      ]);
+      setCalibLowerTxt(lowerTxt);
+      setCalibHigherTxt(higherTxt);
+    } catch (e: any) {
+      setCalibErr(e?.message ?? "Failed to load calibration text");
+    } finally {
+      setCalibLoad(false);
+    }
+  }
+
+  async function setCalibChoice(choice: "lower" | "stay" | "higher") {
+    const currLevel = accountReadingLevel ?? 9;
+    const lowLevel = calibLower ?? calibSimplificationLvl(currLevel).left;
+    const highLevel = calibHigher ?? calibSimplificationLvl(currLevel).right;
+
+    const newLevel = choice === "lower" ? lowLevel : choice === "higher" ? highLevel : currLevel;
+
+    const saved = await dbUpdateReadingLvl({ new_level: newLevel, choice });
+    if (!saved) {
+      Alert.alert("Couldn’t save your preference", "Please try again.");
+      return;
+    }
+
+    setAccountReadingLevel(newLevel);
+    try {
+      await storage.setItem("user_reading_level", String(newLevel));
+    } catch {}
+
+    closeCalibModal();
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -545,9 +670,90 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        transparent
+        visible={calibVis}
+        animationType="fade"
+        onRequestClose={closeCalibModal}
+      >
+        <View style={styles.calibBackground}>
+          <Pressable style={styles.fullFill} onPress={closeCalibModal}/>
+          <View style={styles.calibCenter} pointerEvents='box-none'>
+            <View style={styles.calibModalCard}>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.calibBodyContent}
+                showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
+              >
+                <Text style={styles.calibTitle}>Calibrate Simplification</Text>
+
+                {calibLoad ? (
+                  <View style={styles.calibLoadRow}>
+                    <Text style={styles.calibLoadTxt}>Loading...</Text>
+                  </View>
+                ) : calibErr ? (
+                  <Text style={styles.calibErrTxt}>{calibErr}</Text>
+                ) : (
+                  <View style={styles.calibOptsRow}>
+                    <View style={styles.calibOpt}>
+                      <View style={styles.calibOptHeader}>
+                        <Text style={styles.calibOptHeaderTxt}> Option A - Lower</Text>
+                      </View>
+                      <Text style={styles.calibOptTxt}>{calibLowerTxt}</Text>
+                    </View>
+
+                    <View style={styles.calibOpt}>
+                      <View style={styles.calibOptHeader}>
+                        <Text style={styles.calibOptHeaderTxt}> Option B - Higher</Text>
+                      </View>
+                      <Text style={styles.calibOptTxt}>{calibHigherTxt}</Text>
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.calibBtnRow}>
+                  <Pressable
+                    style={[styles.calibBtn, styles.calibBtnLow]}
+                    disabled={calibLoad}
+                    onPress={async () => {
+                      await setCalibChoice("lower");
+                    }}
+                  >
+                    <Text style={styles.calibChoiceTxt}>Choose Option A</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[styles.calibBtn, styles.calibBtnStay]}
+                    disabled={calibLoad}
+                    onPress={async () => {
+                      await setCalibChoice("stay");
+                    }}
+                  >
+                    <Text style={styles.calibChoiceDarkTxt}>Neither - Don't change</Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[styles.calibBtn, styles.calibBtnHigh]}
+                    disabled={calibLoad}
+                    onPress={async () => {
+                      await setCalibChoice("higher");
+                    }}
+                  >
+                    <Text style={styles.calibChoiceTxt}>Choose Option B</Text>
+                  </Pressable>
+                </View>
+              </ScrollView>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
+
+const TAB_INACTIVE = "#E9C6A6";
+const CARD_BORDER = "#2C9AA4";
+const PAPER = "#FFFFF2";
+const CTA = "#2C9AA4";
 
 const styles = StyleSheet.create({
   safe: {
@@ -909,4 +1115,139 @@ pickProfileButton: {
     color: "#FFFFFF",
     fontWeight: "900",
   },
+
+  fullFill: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    width: "100%",
+    height: "100%",
+  },
+  calibBackground: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    calibModalCard: {
+      width: '100%',
+      maxWidth: 420,
+      height: "78%",
+      backgroundColor: PAPER,
+      borderRadius: 18,
+      borderWidth: 10,
+      borderColor: CARD_BORDER,
+      shadowOpacity: 0.22,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 8,
+      overflow: "hidden",
+    },
+    calibTitle: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: "#1B1B1B",
+      marginBottom: 4,
+    },
+    calibLoadRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 10,
+      paddingVertical: 18,
+    },
+    calibLoadTxt: {
+      fontWeight: "800",
+      color: "#1B1B1B",
+    },
+    calibCenter: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 16,
+    },
+    calibBodyScroll: {
+      flex: 1,
+    },
+    calibBodyContent: {
+      padding: 14,
+      flexGrow: 1,
+    },
+    calibErrTxt: {
+      fontWeight: "800",
+      color: "#8C311C",
+      paddingVertical: 14,
+    },
+    calibOptsRow: {
+      flexDirection: "row",
+      gap: 10,
+      marginBottom: 12,
+    },
+    calibOpt: {
+      flex: 1,
+      borderRadius: 14,
+      borderWidth: 2,
+      borderColor: "rgba(0,0,0,0.15)",
+      backgroundColor: "rgba(0,0,0,0.03)",
+      overflow: "hidden",
+    },
+    calibOptHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      backgroundColor: "rgba(0,0,0,0.06)",
+    },
+    calibOptHeaderTxt: {
+      fontWeight: "900",
+      color: "#1B1B1B",
+      fontSize: 12,
+    },
+    calibOptScroll: {
+      flex: 1,
+      paddingHorizontal: 10,
+      paddingVertical: 10,
+    },
+    calibOptTxt: {
+      fontWeight: "600",
+      color: "#1B1B1B",
+      lineHeight: 20,
+      fontSize: 13,
+      paddingHorizontal: 10,
+      paddingVertical: 10,
+    },
+    calibBtnRow: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    calibBtn: {
+      flex: 1,
+      minHeight: 52,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 8,
+      paddingVertical: 8,
+    },
+    calibBtnLow: {
+      backgroundColor: CTA,
+    },
+    calibBtnHigh: {
+      backgroundColor: CTA,
+    },
+    calibBtnStay: {
+      backgroundColor: TAB_INACTIVE,
+      borderWidth: 1,
+      borderColor: "#1B1B1B",
+    },
+    calibChoiceTxt: {
+      color: "white",
+      fontWeight: "900",
+      fontSize: 12,
+      textAlign: "center",
+      lineHeight: 14,
+      flexWrap: "wrap",
+    },
+    calibChoiceDarkTxt: {
+      color: "#1B1B1B",
+      fontWeight: "900",
+    }
 });

@@ -758,7 +758,7 @@ export default function ReaderScreen() {
     }
     // if loading states, show 'detecting...'
     if (ocrLoading || geminiLoading) {
-      return "Detecting\nType";
+      return "Type";
     }
     // return the mode or auto-detect
     return geminiData?.mode ?? "Auto-detect";
@@ -931,7 +931,10 @@ export default function ReaderScreen() {
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
                 {badgeMode}
-                {"\n"}
+                {"\n\n"}
+                <Text style={[styles.badgeText, {fontSize: 16, color: '#F2D3AC', fontWeight: '900'}]}>
+                  {langLabel}
+                </Text>
               </Text>
               <View style={styles.badgeNotch} />
             </View>
@@ -1370,7 +1373,7 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: "white",
-    fontWeight: "900",
+    fontWeight: "800",
     fontSize: 14,
     textAlign: "center",
     marginBottom: 24,

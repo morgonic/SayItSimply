@@ -1105,7 +1105,7 @@ export default function ReaderScreen() {
               <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.calibBodyContent}
                 showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
               >
-                <Text style={styles.calibTitle}>Calibrate Reading Level</Text>
+                <Text style={styles.calibTitle}>Calibrate Simplification</Text>
 
                 {calibLoad ? (
                   <View style={styles.calibLoadRow}>
@@ -1617,5 +1617,8 @@ const styles = StyleSheet.create({
   calibChoiceDarkTxt: {
     color: "#1B1B1B",
     fontWeight: "900",
+  },
+  fullFill: {
+    width: '100%'
   }
 });

@@ -792,6 +792,34 @@ export default function ReaderScreen() {
     }
   }, [tab, ocrLoading, ocrError, ocrText, geminiLoading, geminiError, geminiData, showOriginal, simplifyMoreText]);
 
+  // function for updating user's reading level on backend
+  async function patchReadingLevel(newReadingLevel: number) {
+    // check for valid api url
+    if (!api_url) {
+      return;
+    }
+    // get token adn token type from securestorage
+    const token = await storage.getItem("access_token");
+    const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+    // patch reading level, return new reading level
+    const response = await fetch(`${api_url}/users/me/reading-level`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `${tokenType} ${token}`} : {}),
+      },
+      body: JSON.stringify({reading_level: newReadingLevel})
+    });
+    // invalid response, error
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Failed to store reading level. HTTP ${response.status}`);
+    }
+    // parse json, return json reading level or newreadinglevel if null
+    const json = await response.json();
+    return json?.reading_level ?? newReadingLevel;
+  }
+
   const screen = Dimensions.get("window");
 
   const cardHeight = Math.min(screen.height * 0.62, 560);
@@ -821,7 +849,7 @@ export default function ReaderScreen() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `${tokenType} ${token}` } : {}),
         },
-        body: JSON.stringify({
+        body: JSON.stringify({ 
           text: ocrText,
           mode: mode ?? "Document",
           reading_level: level,
@@ -839,6 +867,14 @@ export default function ReaderScreen() {
       setSimplifyMoreText(json.simplification);
       setSimplifiedReadingLevel(json.reading_level ?? level);
       setSimplifiedMost((json.reading_level ?? level) === 1);
+      try {
+        setSessionReadingLevel(json.reading_level!!);
+        setSimplifyMoreCount(0);
+        await patchReadingLevel(level);
+      }
+      catch (e: any) {
+        console.warn("Failed to store reading level:", e?.message ?? e);
+      }
     } catch (e: any) {
       setGeminiError(e?.message ?? "Request failed");
     } finally {
@@ -998,6 +1034,9 @@ export default function ReaderScreen() {
                         setSimplifyMoreText(json.simplification);
                         setSimplifiedReadingLevel(json.reading_level ?? null);
                         setSimplifiedMost(json.reading_level === 1);
+                        if (json.reading_level != null) {
+                          await patchReadingLevel(json.reading_level);
+                        }
                       }
                       catch (e: any) {
                         setGeminiError(e?.message ?? "Request failed");
@@ -1066,7 +1105,7 @@ export default function ReaderScreen() {
               <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.calibBodyContent}
                 showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
               >
-                <Text style={styles.calibTitle}>Calibrate Reading Level</Text>
+                <Text style={styles.calibTitle}>Calibrate Simplification</Text>
 
                 {calibLoad ? (
                   <View style={styles.calibLoadRow}>
@@ -1238,6 +1277,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: BG
   },
+  fullFill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
   container: {
     flex: 1,
     backgroundColor: BG,
@@ -1352,14 +1400,16 @@ const styles = StyleSheet.create({
   },
   bodyScrollContent: {
     paddingVertical: 24,
-    paddingHorizontal: 12
+    paddingHorizontal: 12,
+    width: '100%'
   },
   bodyText: {
     color: "#1B1B1B",
     fontSize: 16.67,
     lineHeight: 24,
     fontWeight: "600",
-    flex: 1,
+    flexShrink: 1,
+    flexWrap: 'wrap'
   },
 
   ctaBtn: {

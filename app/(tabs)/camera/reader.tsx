@@ -100,15 +100,15 @@ function randomIntInclusive(min: number, max: number) {
 function CalibrateReadingLvl(current: number) {
   if (current == 1) return { left: 2, right: 3 };
   if (current == 9) return { left: 7, right: 8 };
-  return { left: clampInt(current - 1, 1, 9), right: clampInt(current + 1, 1, 9)};
+  return { left: clampInt(current - 1, 1, 9), right: clampInt(current + 1, 1, 9) };
 }
 export default function ReaderScreen() {
-  
+
   const reading_levels = {
-      standard: 9,
-      simple: 6,
-      super_simple: 3,
-    } as const;
+    standard: 9,
+    simple: 6,
+    super_simple: 3,
+  } as const;
   // session reading level state for easy read tab
   const [sessionReadingLevel, setSessionReadingLevel] = useState<number | null>(null);
 
@@ -128,6 +128,11 @@ export default function ReaderScreen() {
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [ocrText, setOcrText] = useState<string>("");
+  const [ocrLanguage, setOcrLanguage] = useState<string>("unknown");
+  const [ocrLanguageConfidence, setOcrLanguageConfidence] = useState<number | null>(null);
+
+  const langLabel = ocrLanguage && ocrLanguage !== "unknown" ? ocrLanguage.toUpperCase() : "N/A";
+  const confLabel = ocrLanguageConfidence == null ? "" : ` (${Math.round(ocrLanguageConfidence * 100)}%)`;
 
   // gemini request states
   const [geminiLoading, setGeminiLoading] = useState(false);
@@ -171,7 +176,7 @@ export default function ReaderScreen() {
 
     // keep shortest length between words and definitions arrays
     const minLength = Math.min(words.length, definitions.length);
-    
+
     // iterate through both arrays
     for (let i = 0; i < minLength; i++) {
       // normalize word
@@ -184,7 +189,7 @@ export default function ReaderScreen() {
         map.set(word, definition);
       }
     }
-    
+
     // log array lengths
     console.log(`Complex words: ${words.length}\nComplex definitions: ${definitions.length}`)
     return map;
@@ -201,7 +206,7 @@ export default function ReaderScreen() {
 
     // keep shortest length between words and definitions arrays
     const minLength = Math.min(words.length, definitions.length);
-    
+
     // iterate through both arrays
     for (let i = 0; i < minLength; i++) {
       // normalize word
@@ -214,7 +219,7 @@ export default function ReaderScreen() {
         map.set(word, definition);
       }
     }
-    
+
     // log array lengths
     console.log(`Simplified complex words: ${words.length}\nSimplified complex definitions: ${definitions.length}`)
     return map;
@@ -254,7 +259,7 @@ export default function ReaderScreen() {
     // ocr text is always string
     const text = ocrText ?? "";
     // normalize complex words to lowercase for case insensitive checking
-    const words = (geminiData?.complex_words ?? []).map(w=>w.toLowerCase());
+    const words = (geminiData?.complex_words ?? []).map(w => w.toLowerCase());
 
     // split ocr into tokens with whitespace kept for formatting
     return text.split(/(\s+)/).map((part, i) => {
@@ -333,8 +338,10 @@ export default function ReaderScreen() {
     setSimplifyMoreCount(0);
     setSimplifiedReadingLevel(null);
     setSimplifiedMost(false);
-    setDefinitionModal({isVisible: false, word: "", definition: ""})
+    setDefinitionModal({ isVisible: false, word: "", definition: "" })
     setSessionReadingLevel(null);
+    setOcrLanguage("unknown");
+    setOcrLanguageConfidence(null);
 
     // reset calibration states as well
     setCalibVis(false);
@@ -356,7 +363,7 @@ export default function ReaderScreen() {
     const token = await storage.getItem("access_token");
     const tokenType = (await storage.getItem("token_type")) ?? "bearer";
     return {
-      ...(token ? { Authorization: `${tokenType} ${token}`} : {}),
+      ...(token ? { Authorization: `${tokenType} ${token}` } : {}),
     };
   }
 
@@ -392,7 +399,7 @@ export default function ReaderScreen() {
     prompt: boolean;
     reading_level: number | null;
   } | null> {
-    try{
+    try {
       const tokenHeaders = await getAuthToken();
       const res = await fetch(`${api_url}/user/scan_count`, {
         method: "POST",
@@ -413,7 +420,7 @@ export default function ReaderScreen() {
   }
 
   // update reading level in db after calibration choice
-  async function dbUpdateReadingLvl(payload: { new_level: number; choice: "lower" | "stay" | "higher"; }) : Promise<boolean> {
+  async function dbUpdateReadingLvl(payload: { new_level: number; choice: "lower" | "stay" | "higher"; }): Promise<boolean> {
     try {
       const tokenHeaders = await getAuthToken();
       const res = await fetch(`${api_url}/user/reading_level`, {
@@ -512,7 +519,7 @@ export default function ReaderScreen() {
       setCalibLoad(false);
     }
   }
-  
+
   function closeCalibModal() {
     setCalibVis(false);
     setCalibLoad(false);
@@ -652,6 +659,12 @@ export default function ReaderScreen() {
         // store ocr text if still mounted
         if (!cancelled) {
           setOcrText(data.text ?? "");
+          setOcrLanguage(data.language ?? "unknown");
+          setOcrLanguageConfidence(
+            data.language_conf === null || data.language_conf === undefined
+              ? null
+              : Number(data.language_conf)
+          );
           setOcrLoading(false);
         }
 
@@ -666,9 +679,9 @@ export default function ReaderScreen() {
           method: 'POST',
           headers: {
             "Content-Type": "application/json",
-            ...(token ? { Authorization: `${tokenType} ${token}`} : {})
+            ...(token ? { Authorization: `${tokenType} ${token}` } : {})
           },
-          body: JSON.stringify({text: data.text ?? "", mode: mode ?? "Document"})
+          body: JSON.stringify({ text: data.text ?? "", mode: mode ?? "Document" })
         });
         // check response, handle error
         if (!geminiResponse.ok) {
@@ -689,7 +702,7 @@ export default function ReaderScreen() {
             console.log(`${geminiJson.simple_words[i]}: ${geminiJson.simple_definitions[i]}`)
           }
         }
-        
+
 
         // only set sessionreadinglevel if not null
         setSessionReadingLevel((prev) => (prev === null ? (geminiJson.reading_level ?? null) : prev));
@@ -745,7 +758,7 @@ export default function ReaderScreen() {
     }
     // if loading states, show 'detecting...'
     if (ocrLoading || geminiLoading) {
-      return "Detecting...";
+      return "Detecting\nType";
     }
     // return the mode or auto-detect
     return geminiData?.mode ?? "Auto-detect";
@@ -779,7 +792,7 @@ export default function ReaderScreen() {
         // for now, format action items with summary as numbered list, n/a if no items
         return (
           `${geminiData.summary}\n\n` +
-          `Action items:\n\n${items.map((x, i) => `${i+1}) ${x}`).join("\n\n") || "N/A"}`
+          `Action items:\n\n${items.map((x, i) => `${i + 1}) ${x}`).join("\n\n") || "N/A"}`
         );
       case "Easy Read":
         // simplified explanation for easy read tab
@@ -806,9 +819,9 @@ export default function ReaderScreen() {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
-        ...(token ? { Authorization: `${tokenType} ${token}`} : {}),
+        ...(token ? { Authorization: `${tokenType} ${token}` } : {}),
       },
-      body: JSON.stringify({reading_level: newReadingLevel})
+      body: JSON.stringify({ reading_level: newReadingLevel })
     });
     // invalid response, error
     if (!response.ok) {
@@ -849,7 +862,7 @@ export default function ReaderScreen() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `${tokenType} ${token}` } : {}),
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           text: ocrText,
           mode: mode ?? "Document",
           reading_level: level,
@@ -916,8 +929,11 @@ export default function ReaderScreen() {
           <View style={[styles.outerCard, { height: cardHeight }]}>
             {/* Badge */}
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>{badgeMode}{"\n"}1/1</Text>
-              <View style={styles.badgeNotch}/>
+              <Text style={styles.badgeText}>
+                {badgeMode}
+                {"\n"}
+              </Text>
+              <View style={styles.badgeNotch} />
             </View>
 
             {/* Inner "paper" */}
@@ -965,7 +981,7 @@ export default function ReaderScreen() {
                 onScrollBeginDrag={closeDefinitionModal}
               >
                 <Text style={styles.bodyText}>
-                  {tab === "Overview" && showOriginal 
+                  {tab === "Overview" && showOriginal
                     ? highlightedOriginal
                     : tab === "Easy Read"
                       ? highlightedSimplified
@@ -979,7 +995,7 @@ export default function ReaderScreen() {
                 <Pressable
                   style={[
                     styles.ctaBtn,
-                    (ocrLoading || geminiLoading || !ocrText || simplifiedMost) && 
+                    (ocrLoading || geminiLoading || !ocrText || simplifiedMost) &&
                     { backgroundColor: '#6C6767', opacity: 0.5 }
                   ]}
                   onPress={async () => {
@@ -1014,7 +1030,7 @@ export default function ReaderScreen() {
                           method: 'POST',
                           headers: {
                             "Content-Type": "application/json",
-                            ...(token ? { Authorization: `${tokenType} ${token}`} : {})
+                            ...(token ? { Authorization: `${tokenType} ${token}` } : {})
                           },
                           body: JSON.stringify({
                             text: ocrText,
@@ -1043,12 +1059,12 @@ export default function ReaderScreen() {
                       }
                       finally {
                         setGeminiLoading(false);
-                        setDefinitionModal({isVisible: false, word: "", definition: ""})
+                        setDefinitionModal({ isVisible: false, word: "", definition: "" })
                       }
                     }
                   }}
-                  disabled={ocrLoading || geminiLoading || !ocrText 
-                  || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1))}>
+                  disabled={ocrLoading || geminiLoading || !ocrText
+                    || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1))}>
                   <Text style={styles.ctaText}>
                     {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
                       : (tab === "Overview" && !showOriginal) ? "See Original Text"
@@ -1099,7 +1115,7 @@ export default function ReaderScreen() {
         onRequestClose={closeCalibModal}
       >
         <View style={styles.calibBackground}>
-          <Pressable style={styles.fullFill} onPress={closeCalibModal}/>
+          <Pressable style={styles.fullFill} onPress={closeCalibModal} />
           <View style={styles.calibCenter} pointerEvents='box-none'>
             <View style={styles.calibModalCard}>
               <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.calibBodyContent}
@@ -1176,22 +1192,22 @@ export default function ReaderScreen() {
         animationType="fade"
         onRequestClose={closeDefinitionModal}
       >
+        <Pressable
+          style={styles.definitionBackground}
+          onPress={closeDefinitionModal}
+        >
           <Pressable
-            style={styles.definitionBackground}
-            onPress={closeDefinitionModal}
+            style={styles.definitionModalCard}
+            onPress={() => { }}
           >
-            <Pressable
-              style={styles.definitionModalCard}
-              onPress={() => {}}
-            >
-              <Text style={styles.definitionModalWordText}>
-                {definitionModal.word}
-              </Text>
-              <Text style={styles.definitionModalDefinitionText}>
-                {definitionModal.definition}
-              </Text>
-            </Pressable>
+            <Text style={styles.definitionModalWordText}>
+              {definitionModal.word}
+            </Text>
+            <Text style={styles.definitionModalDefinitionText}>
+              {definitionModal.definition}
+            </Text>
           </Pressable>
+        </Pressable>
       </Modal>
 
     </SafeAreaView>
@@ -1355,7 +1371,7 @@ const styles = StyleSheet.create({
   badgeText: {
     color: "white",
     fontWeight: "900",
-    fontSize: 12,
+    fontSize: 14,
     textAlign: "center",
     marginBottom: 24,
     lineHeight: 14,
@@ -1432,7 +1448,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textDecorationLine: 'underline'
   },
-  
+
   definitionBackground: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

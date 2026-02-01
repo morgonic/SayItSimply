@@ -1,4 +1,5 @@
 import base64
+import math
 import os, json
 from contextlib import asynccontextmanager
 
@@ -27,6 +28,7 @@ load_dotenv()
 
 from app.gemini_flash import get_gemini_response
 from app.calibration import router as calibration_router
+from app.detectlang import detect_language
 
 print("GOOGLE_OAUTH_CLIENT_ID loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_ID")))
 print("GOOGLE_OAUTH_CLIENT_SECRET loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")))
@@ -362,8 +364,24 @@ async def ocr_text(payload: OCRRequest):
         # if vision api returns error, return 500 with error message
         if response.error.message:
             raise HTTPException(status_code=500, detail=response.error.message)
+        # detect langauge from ocr text
+        lang, prob = await run_in_threadpool(detect_language, text)
+        # normalize prob into float
+        if prob is None:
+            pass
+        elif isinstance(prob, (int, float)):
+            prob = float(prob)
+        else:
+            try:
+                prob = float(prob)
+            except (TypeError, ValueError):
+                prob = None
+        # if prob returns nan sanitize it
+        if prob is not None and (math.isnan(prob) or math.isinf(prob)):
+            prob = None
+            print("lang/prob:", lang, prob, type(prob))
         # return response to client
-        return OCRResponse(text=text)
+        return OCRResponse(text=text, language=lang, language_conf=prob)
     
     except Exception as e:
         # 500 with error message

@@ -100,7 +100,8 @@ def get_gemini_response(
         "- Action items should include relevant details like dates, amounts, names, phone numbers, et cetera.\n\n"
         
         "Translation rules:\n"
-        "- If target_language == 'en', translation MUST be null.\n"
+        "- If target_language == 'en', translation MUST be null unless the input_text is NOT written in English.\n"
+        "- If the input_text is not written in English, output an English translation for the translation field.\n"
         "- Otherwise, translation MUST be the original input text translated into the target_language.\n\n"
         
         "Mode rules:\n"

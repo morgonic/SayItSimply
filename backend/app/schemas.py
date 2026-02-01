@@ -39,6 +39,8 @@ class OCRRequest(BaseModel):
 # response model for /ocr endpoint
 class OCRResponse(BaseModel):
     text: str # extracted ocr text
+    language: str = "unknown"
+    language_conf: Optional[float] = None
 
 # request model for /gemini endpoint
 class GeminiRequest(BaseModel):

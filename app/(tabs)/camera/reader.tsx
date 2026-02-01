@@ -1105,7 +1105,7 @@ export default function ReaderScreen() {
               <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.calibBodyContent}
                 showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
               >
-                <Text style={styles.calibTitle}>Calibrate Reading Level</Text>
+                <Text style={styles.calibTitle}>Calibrate Simplification</Text>
 
                 {calibLoad ? (
                   <View style={styles.calibLoadRow}>
@@ -1276,6 +1276,15 @@ const styles = StyleSheet.create({
   safe: {
     flex: 1,
     backgroundColor: BG
+  },
+  fullFill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
   },
   container: {
     flex: 1,

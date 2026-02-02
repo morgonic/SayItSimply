@@ -26,6 +26,15 @@ SayItSimply is designed to act as an assistive or accessibility tool for three t
 
 - The user will be able to request definitions for complex words.
 
+## Beta Features (to be working by 01Mar2026)
+- The user will be able to view and change settings specific to the app.
+
+- The user will be able to view their previously captured or uploaded pictures and submit them through the simplification workflow again.
+
+- The user will be able to see action items based on text extracted in OCR workflow (both in summary and within the action items tab).
+
+- The user will be able to see what language is currently displaying on the reader screen.
+
 ## Technologies
 - Developer Tools:
    - Visual Studio Code
@@ -99,9 +108,10 @@ uvicorn app.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 6. Running app (via Expo)
-   - 6a. open a new command prompt and navigate to the root directory for the SayItSimply app, then run the following command:
-   - NOTE: if this is the first time running expo, before executing the start command, run this command: *npx expo install expo-camera*
+   - 6a. open a new command prompt and navigate to the root directory for the SayItSimply app, then run the following commands:
+
 ```bash
+npm install
 npx expo start
 ```
    - 6b. if screen isn't rendering as expected, stop expo and then run the following command:
@@ -119,7 +129,7 @@ npx expo start -c
 - Cayden Fischer
 
 ## Project Status:
-- Initial Development
+- Beta
 
 
 

@@ -136,7 +136,6 @@ npx expo start -c
 ## Contributors and Maintainers:
 - Austin Moses
 - Morgon Branning
-- Cayden Fischer
 
 ## Project Status:
 - Beta

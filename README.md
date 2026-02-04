@@ -39,7 +39,7 @@ SayItSimply is designed to act as an assistive or accessibility tool for three t
 
 - The user will be able to view their previously captured or uploaded pictures and submit them through the simplification workflow again.
 
-- The user will be able to see action items based on text extracted in OCR workflow (both in summary and within the action items tab).
+- The user will be able to see action items based on text extracted in OCR workflow (within the action items tab).
 
 - The user will be able to Edit, Delete, and Complete action items that are populated.
 

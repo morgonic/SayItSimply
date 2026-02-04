@@ -1,25 +1,76 @@
-import React, { useMemo, useState } from "react";
-import { Dimensions, Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Dimensions, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { addCapture } from "../../doc-storage";
 
-const MODES = ["Sign", "Document", "Book", "Board"] as const;
+const MODES = ["Auto-detect", "Sign", "Menu", "Form", "Label", "Receipt", "Document",  "Medical", "Instructions", "Article", "Book", "Board"] as const;
 type Mode = (typeof MODES)[number];
 
 
 
 export default function CameraScreen() {
-  const [mode, setMode] = useState<Mode>("Document");
+  const [mode, setMode] = useState<Mode>("Auto-detect");
 
   const screen = Dimensions.get("window");
   const previewHeight = useMemo(() => Math.min(screen.height * 0.56, 520), [screen.height]);
+  const [lastCaptureUri, setLastCaptureUri] = useState<string | null>(null);
 
    const router = useRouter();
+
+   const cameraRef = useRef<CameraView>(null);
+   const [permission, requestPermission] = useCameraPermissions();
+   const [cameraReady, setCameraReady] = useState(false);
+   const [isCapturing, setIsCapturing] = useState(false);
+
+   useEffect(() => {
+    (async () => {
+      if (!permission) return;
+      if (!permission.granted) {
+        await requestPermission();
+      }
+    })();
+   }, [permission, requestPermission]);
+
+   const handleTakePic = async () => {
+    try {
+      if (!permission?.granted) {
+        Alert.alert("Camera permission needed", "Allow SayItSimply to access the camera to use this feature.");
+        const res = await requestPermission();
+        if (!res.granted) return;
+      }
+      if (!cameraRef.current || !cameraReady || isCapturing) return;
+
+      setIsCapturing(true);
+
+      const pic = await cameraRef.current.takePictureAsync({
+        quality: 0.9, skipProcessing: false,
+      });
+      if (!pic?.uri) throw new Error("Photo path not returned");
+
+      const saved = await addCapture({
+        tempUri: pic.uri, mode, source: "camera",
+      });
+
+      setLastCaptureUri(saved.uri)
+
+      router.push({
+        pathname: "/camera/reader", params: { imageUri: saved.uri, mode },
+      });
+    } catch (e: any) {
+      console.error(e);
+      Alert.alert("Failed to take picture", e?.message ?? "Capture failed");
+    } finally {
+      setIsCapturing(false);
+    }
+   };
+
+   const showPermissionUI = permission && !permission.granted;
 
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.container}>
-          {/* Header */}
           <View style={styles.header}>
             <Pressable style={styles.headerIconBtn} onPress={() => {}}>
               <Text style={styles.headerIcon}>☰</Text>
@@ -32,16 +83,44 @@ export default function CameraScreen() {
             </Pressable>
           </View>
 
-          {/* Camera Preview Placeholder */}
+          {/* Camera Preview */}
           <View style={[styles.previewWrap, { height: previewHeight }]}>
             <View style={styles.preview}>
-              {/* This is where expo-camera preview will go later */}
-              <Text style={styles.previewHint}>Camera Preview</Text>
+              {!permission && (
+                <View style={styles.previewOverlay}>
+                  <ActivityIndicator />
+                  <Text style={styles.previewHintDark}>Checking permissions</Text>
+                </View>
+              )}
+              {showPermissionUI && (
+                <View style={styles.previewOverlay}>
+                </View>
+              )}
+              {permission?.granted && (
+                <>
+                <CameraView
+                  ref={cameraRef}
+                  style={styles.camera}
+                  facing="back"
+                  onCameraReady={() => setCameraReady(true)}
+                />
+                {!cameraReady && (
+                  <View style={styles.previewOverlay}>
+                    <ActivityIndicator />
+                    <Text style={styles.previewHintDark}>Activating camera</Text>
+                  </View>
+                  )}
+                </>
+              )}
             </View>
           </View>
 
           {/* Mode Selector */}
-          <View style={styles.modeRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.modeScrollContent}
+          >
             {MODES.map((m) => {
               const selected = m === mode;
               return (
@@ -49,7 +128,8 @@ export default function CameraScreen() {
                   key={m}
                   onPress={() => setMode(m)}
                   style={styles.modeItem}
-                  hitSlop={8}
+                  hitSlop={10}
+                  disabled={isCapturing}
                 >
                   <Text style={[styles.modeText, selected && styles.modeTextSelected]}>
                     {m}
@@ -58,23 +138,22 @@ export default function CameraScreen() {
                 </Pressable>
               );
             })}
-          </View>
+          </ScrollView>
 
           {/* Shutter Row */}
           <View style={styles.shutterRow}>
-            <Pressable style={styles.smallBtn} onPress={() => {}}>
-              <Text style={styles.smallBtnIcon}>🖼️</Text>
+            <Pressable style={styles.thumbBtn} onPress={() => router.push("/(tabs)/documents")}
+              disabled={isCapturing}>
+              <Image source={ lastCaptureUri ? { uri: lastCaptureUri } : require("../../../assets/images/logo.png")}
+                style={styles.thumbImage} resizeMode={lastCaptureUri ? "cover" : "contain"} />
             </Pressable>
 
- 
-
-            <Pressable style={styles.shutterBtn} onPress={() => router.navigate("/camera/reader")}>
-              <View style={styles.shutterOuter}>
+            <Pressable style={styles.shutterBtn} onPress={handleTakePic} disabled={!permission?.granted || !cameraReady || isCapturing}>
+              <View style={[styles.shutterOuter, isCapturing && { opacity: 0.6 }]}>
                 <View style={styles.shutterInner} />
               </View>
             </Pressable>
 
-            {/* Spacer to balance layout */}
             <View style={styles.smallBtnPlaceholder} />
           </View>
         </View>
@@ -114,6 +193,17 @@ const styles = StyleSheet.create({
   avatarPlaceholder: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.35)" },
   avatar: { width: 32, height: 32, borderRadius: 16 },
 
+  thumbBtn: {
+  width: 52,
+  height: 52,
+  borderRadius: 14,
+  overflow: "hidden",
+  alignItems: "center",
+  justifyContent: "center",
+  backgroundColor: "rgba(255,255,255,0.06)",
+},
+thumbImage: { width: "100%", height: "100%" },
+
   previewWrap: {
     marginTop: 6,
     borderRadius: 36,
@@ -126,15 +216,31 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  previewHint: { color: "rgba(0,0,0,0.45)", fontWeight: "600" },
-
-  modeRow: {
-    marginTop: 18,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 6,
+  camera: { flex: 1, width: "100%", height: "100%", },
+  previewOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(255,255,255,0.35)",
   },
-  modeItem: { alignItems: "center", gap: 6 },
+  previewHintDark: { color: "rgba(0,0,0,0.45)", fontWeight: "600" },
+  permissionBtn: {
+    marginTop: 12,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  permissionBtnText: { color: "white", fontWeight: "700" },
+
+  modeScrollContent: {
+    paddingHorizontal: 6,
+    paddingVertical: 10,
+    alignItems: "center",
+    gap: 22,
+  },
+  modeItem: {alignItems: "center", minWidth: 64,},
   modeText: { color: TEXT_MUTED, fontSize: 16, fontWeight: "600" },
   modeTextSelected: { color: "white" },
   modeUnderline: {

@@ -1,4 +1,4 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 
@@ -37,6 +37,8 @@ function TabIcon({
 }
 
 export default function TabLayout() {
+  const router = useRouter();
+  
   return (
     <Tabs
       screenOptions={{ 
@@ -103,6 +105,12 @@ export default function TabLayout() {
             </TabIcon>
           ),
         }}
+        listeners={{
+          tabPress: ((e) => {
+            e.preventDefault();
+            router.replace('/(tabs)/camera')
+          })
+        }}
       />
 
       <Tabs.Screen
@@ -134,6 +142,12 @@ export default function TabLayout() {
               />
             </TabIcon>
           ),
+        }}
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+            router.replace("/(tabs)/profile");
+          }
         }}
       />
     </Tabs>

@@ -1,24 +1,38 @@
+import base64
+import math
 import os, json
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+
+from google.cloud import vision
+
+from pydantic import BaseModel
 
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse, Response
 
-from app.db import User, create_db_and_tables, engine
-from app.schemas import UserCreate, UserRead, UserUpdate
-from app.users import auth_backend, current_active_user, fastapi_users, google_oauth_client, SECRET
+from sqlalchemy import delete, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db import User, OAuthAccount, create_db_and_tables, engine, get_async_session
+from app.schemas import UserCreate, UserRead, UserUpdate, GeminiRequest, GeminiResponse, OCRRequest, OCRResponse
+from app.users import auth_backend, current_active_user, fastapi_users, get_user_manager, google_oauth_client, SECRET
 
 from dotenv import load_dotenv
-
 load_dotenv()
+
+from app.gemini_flash import get_gemini_response
+from app.calibration import router as calibration_router
+from app.detectlang import detect_language
 
 print("GOOGLE_OAUTH_CLIENT_ID loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_ID")))
 print("GOOGLE_OAUTH_CLIENT_SECRET loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")))
+print("GEMINI_API_KEY loaded:", bool(os.getenv("GEMINI_API_KEY")))
 print("GOOGLE_REDIRECT_URL:", os.getenv("GOOGLE_REDIRECT_URL"))
 print("MOBILE_REDIRECT_URL", os.getenv("MOBILE_REDIRECT_URL"))
 
@@ -123,7 +137,7 @@ class OAuthAuthorizeRedirectMiddleware(BaseHTTPMiddleware):
                 headers=dict(response.headers),
                 media_type=content_type
             )
-        # redirect brwoser to google 
+        # redirect browser to google 
         redirect = RedirectResponse(url=auth_url, status_code=303)
         # set oauth cookies
         for cookie in response.headers.getlist("set-cookie"):
@@ -167,6 +181,22 @@ app.include_router(
     prefix="/auth",
     tags=["auth"]
 )
+
+app.include_router(calibration_router)
+
+@app.delete("/users/me", tags=["users"])
+async def delete_me(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    await session.execute(
+        delete(OAuthAccount).where(OAuthAccount.user_id == user.id)
+    )
+    await session.delete(user)
+    await session.commit()
+
+    return {"ok": True}
+
 app.include_router(
     fastapi_users.get_users_router(UserRead, UserUpdate),
     prefix="/users",
@@ -189,6 +219,173 @@ app.include_router(
     prefix="/auth/associate/google",
     tags=["auth"]
 )
+
+### Password Change Logic ###
+# Disabled if user logged in via Oauth, so it checks for matching id/user_id between the 2 tables 
+class PasswordChangeRequest(BaseModel):
+    password: str
+
+@app.get("/users/me/auth-method", tags=["users"])
+async def get_auth_method(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    result = await session.execute(
+        select(OAuthAccount).where(OAuthAccount.user_id == user.id)
+    )
+    oauth = result.scalars().first()
+    return {"is_oauth": oauth is not None}
+
+
+@app.patch("/users/me/password", tags=["users"])
+async def change_password(
+    payload: PasswordChangeRequest,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+    user_manager=Depends(get_user_manager),
+):
+    result = await session.execute(
+        select(OAuthAccount).where(OAuthAccount.user_id == user.id)
+    )
+    oauth = result.scalars().first()
+    if oauth is not None:
+        raise HTTPException(status_code=400, detail="OAuth users cannot change password.")
+
+    new_password = (payload.password or "").strip()
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters.")
+
+    user.hashed_password = user_manager.password_helper.hash(new_password)
+
+    session.add(user)
+    await session.commit()
+
+    return {"ok": True}
+
+### Gemini ###
+
+class ReadingLevelPatch(BaseModel):
+    reading_level: int
+
+# gemini endpoint for main structured output
+@app.post("/gemini")
+async def gemini(request: GeminiRequest, user: User = Depends(current_active_user)):
+
+    # check if text is valid, error if not
+    text = (request.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Text is required")
+    # document type mode
+    mode = request.mode or "Document"
+    # default english if no user language found
+    language = user.language or "en"
+    # default 6 grade level if none found; prefer request override
+    reading_level = request.reading_level or user.reading_level or 6
+    # how many grades lower than user's reading level
+    offset = request.simplify_more_by or 0
+    # new reading level with offset
+    simplified_level = max(1, reading_level - offset)
+    print("Simplified reading level:", simplified_level)
+    # return gemini response using 
+    # OCR text, user language, user reading level, selected/detected doc type/mode
+    return await get_gemini_response(
+        input_text=text, 
+        language=language, 
+        reading_level=simplified_level,
+        mode=mode,
+        challenge_mode=user.challenge_mode
+    )
+
+# endpoint for updating user reading level
+@app.patch("/users/me/reading-level", tags=["users"])
+async def update_reading_level(
+    payload: ReadingLevelPatch,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    # set user reading level to payload (input) reading level
+    user.reading_level = payload.reading_level
+    # log to console for debug
+    print("User's new reading level:", user.reading_level)
+    # commit session changes
+    await session.commit()
+    # return reading level value
+    return {"reading_level": user.reading_level}
+
+
+### OCR ###
+
+# ocr endpoint, accepts base64 image, runs google cloud vision ocr, returns extracted text
+@app.post("/ocr", response_model=OCRResponse, tags=["ocr"])
+async def ocr_text(payload: OCRRequest):
+    try:
+        # extract raw base64 string from request body
+        raw = payload.image_base64
+        # decode base64 into bytes for vision api
+        content = base64.b64decode(raw)
+
+        # instantiate vision client
+        vision_client = vision.ImageAnnotatorClient()
+        # build vision image object from bytes
+        image = vision.Image(content=content)
+
+        # language hints to improve ocr results
+        image_context = None
+        if payload.language:
+            image_context = vision.ImageContext(language_hints=payload.language)
+
+        # normalize mode string and compare against set of document-like modes
+        doc_modes = {"document", "receipt", "form", "instructions", "article", "book", "medical"}
+        use_document = (payload.mode or "").strip().lower() in doc_modes
+
+        if use_document:
+            # document_text_detection butter for full-page documents
+            # run_in_threadpool to prevent blocking event loop
+            response = await run_in_threadpool(
+                vision_client.document_text_detection,
+                image=image,
+                image_context=image_context
+            )
+            # full_text_annotation has complete extracted text for document ocr
+            text = (response.full_text_annotation.text or "").strip()
+        else:
+            # text_detection for shorter text/signs/labels
+            response = await run_in_threadpool(
+                vision_client.text_detection,
+                image=image,
+                image_context=image_context
+            )
+            # text_annoations[0] contains full text concatenated
+            text = (
+                response.text_annotations[0].description 
+                if response.text_annotations 
+                else ""
+            ).strip()
+        # if vision api returns error, return 500 with error message
+        if response.error.message:
+            raise HTTPException(status_code=500, detail=response.error.message)
+        # detect langauge from ocr text
+        lang, prob = await run_in_threadpool(detect_language, text)
+        # normalize prob into float
+        if prob is None:
+            pass
+        elif isinstance(prob, (int, float)):
+            prob = float(prob)
+        else:
+            try:
+                prob = float(prob)
+            except (TypeError, ValueError):
+                prob = None
+        # if prob returns nan sanitize it
+        if prob is not None and (math.isnan(prob) or math.isinf(prob)):
+            prob = None
+            print("lang/prob:", lang, prob, type(prob))
+        # return response to client
+        return OCRResponse(text=text, language=lang, language_conf=prob)
+    
+    except Exception as e:
+        # 500 with error message
+        raise HTTPException(status_code=500, detail=f"OCR failed: {e}")
 
 @app.get("/authenticated-route")
 async def authenticated_route(user: User = Depends(current_active_user)):

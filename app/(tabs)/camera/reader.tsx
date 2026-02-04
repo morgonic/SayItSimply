@@ -1,4 +1,5 @@
 import storage from '@/app/storage';
+import ActionItemModal from '@/components/ActionItemModal';
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -44,6 +45,17 @@ const calibReadingLevelKey = "user_reading_level";
 
 // backend fastapi url
 const api_url = process.env.EXPO_PUBLIC_API_URL;
+
+// takes in language code, returns full language name
+function langCodeToName(code: string): string {
+  const langMap: { [key: string]: string } = {
+    EN: "English",
+    ES: "Spanish",
+    FR: "French",
+    DE: "German"
+  }
+  return langMap[code] ?? code; // return code if not in map
+}
 
 // convert image file uri to base64
 async function uriToBase64(uri: string): Promise<string> {
@@ -129,15 +141,58 @@ export default function ReaderScreen() {
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [ocrText, setOcrText] = useState<string>("");
   const [ocrLanguage, setOcrLanguage] = useState<string>("unknown");
-  const [ocrLanguageConfidence, setOcrLanguageConfidence] = useState<number | null>(null);
 
-  const langLabel = ocrLanguage && ocrLanguage !== "unknown" ? ocrLanguage.toUpperCase() : "N/A";
-  const confLabel = ocrLanguageConfidence == null ? "" : ` (${Math.round(ocrLanguageConfidence * 100)}%)`;
+  const [userLang, setUserLang] = useState<string | null>(null);
+
+
 
   // gemini request states
   const [geminiLoading, setGeminiLoading] = useState(false);
   const [geminiError, setGeminiError] = useState<string | null>(null);
   const [geminiData, setGeminiData] = useState<GeminiResponse | null>(null);
+
+  // fetch user language from backend
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try{
+        const token = await storage.getItem("access_token");
+        const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+        if (!api_url || !token) {
+          return;
+        }
+
+        const response = await fetch(`${api_url}/users/me`, {
+          headers: {Authorization: `${tokenType} ${token}`}
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const user = await response.json();
+        const lang = (user.language ?? null) as string | null;
+
+        if (!cancelled) {
+          setUserLang(lang);
+        }
+      }
+      catch {
+        if (!cancelled) {
+          setUserLang(null);
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
+
+  // overall loading state
+  const isLoading = ocrLoading || geminiLoading;
+  // only show language label under these conditions
+  const showLangLabel = !isLoading && !ocrError && !!ocrText && ocrLanguage !== "unknown";
+  // formatted language label (capitalized or N/A)
+  const langLabel = ocrLanguage && ocrLanguage !== "unknown" ? ocrLanguage.toUpperCase() : "N/A";
 
   // simplify more states
   const [simplifyMoreText, setSimplifyMoreText] = useState<string | null>(null);
@@ -151,6 +206,17 @@ export default function ReaderScreen() {
     word: "", // word being defined, starts empty
     definition: "" // definition of word, starts empty
   });
+
+  // action items modal states
+  const [actionItemsVisible, setActionItemsVisible] = useState(false);
+  // extract action items from gemini data
+  const actionItems = useMemo(() => {
+    return Array.isArray(geminiData?.action_items) ? geminiData!.action_items : [];
+  }, [geminiData?.action_items]);
+  // action items button disabled when loading or no action items
+  const actionItemsDisabled = (
+    isLoading || actionItems.length === 0
+  );
 
   // Calibration states
   const [calibVis, setCalibVis] = useState(false);
@@ -341,7 +407,6 @@ export default function ReaderScreen() {
     setDefinitionModal({ isVisible: false, word: "", definition: "" })
     setSessionReadingLevel(null);
     setOcrLanguage("unknown");
-    setOcrLanguageConfidence(null);
 
     // reset calibration states as well
     setCalibVis(false);
@@ -660,11 +725,6 @@ export default function ReaderScreen() {
         if (!cancelled) {
           setOcrText(data.text ?? "");
           setOcrLanguage(data.language ?? "unknown");
-          setOcrLanguageConfidence(
-            data.language_conf === null || data.language_conf === undefined
-              ? null
-              : Number(data.language_conf)
-          );
           setOcrLoading(false);
         }
 
@@ -758,7 +818,7 @@ export default function ReaderScreen() {
     }
     // if loading states, show 'detecting...'
     if (ocrLoading || geminiLoading) {
-      return "Type";
+      return "";
     }
     // return the mode or auto-detect
     return geminiData?.mode ?? "Auto-detect";
@@ -790,16 +850,15 @@ export default function ReaderScreen() {
     switch (tab) {
       case "Overview":
         // for now, format action items with summary as numbered list, n/a if no items
-        return (
-          `${geminiData.summary}\n\n` +
-          `Action items:\n\n${items.map((x, i) => `${i + 1}) ${x}`).join("\n\n") || "N/A"}`
-        );
+        return geminiData.summary;
       case "Easy Read":
         // simplified explanation for easy read tab
         return highlightedSimplified;
       case "Translate":
-        // translation for translate tab, tell user when no translation was provided
-        return geminiData.translation ?? "No translation available.\n\nPlease change your language settings in the Profile to receive translations in that language.";
+        const userLanguage = (userLang ?? "not set").toUpperCase();
+        const ocrLang = (ocrLanguage ?? "unknown").toUpperCase();
+        // translation for translate tab, tell user when no translation was provided and advise of user's saved language and ocr text language
+        return geminiData.translation ?? `No translation available.\n\nYour language is set to ${langCodeToName(userLanguage)} and the text is written in ${langCodeToName(ocrLang)}.`;
       default:
         return "";
     }
@@ -931,19 +990,42 @@ export default function ReaderScreen() {
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
                 {badgeMode}
-                {"\n\n"}
-                <Text style={[styles.badgeText, {fontSize: 16, color: '#F2D3AC', fontWeight: '900'}]}>
-                  {langLabel}
-                </Text>
+                {showLangLabel ? "\n\n" : ""}
+                {showLangLabel ? (
+                  <Text style={[styles.badgeText, { fontSize: 16, color: '#F2D3AC', fontWeight: '900' }]}>
+                    {langLabel}
+                  </Text>
+                ) : null}
               </Text>
               <View style={styles.badgeNotch} />
             </View>
 
             {/* Inner "paper" */}
             <View style={styles.innerPaper}>
-              {/* little menu icon */}
-              <Pressable style={styles.paperMenuBtn} onPress={() => { }}>
-                <Text style={styles.paperMenuIcon}>≡</Text>
+              {/* action items icon */}
+              <Pressable
+                style={[styles.actionItemBtn, {
+                  backgroundColor: actionItemsDisabled ? 'transparent' : '#ECC8AF',
+                  borderColor: actionItemsDisabled ? 'transparent' : 'rgba(0,0,0,0.5)'
+                }]}
+                onPress={() => {
+                  closeDefinitionModal();
+                  setActionItemsVisible(true);
+                }}
+                disabled={actionItemsDisabled}
+                hitSlop={10}
+                accessibilityRole='button'
+                accessibilityLabel="Open Action Items"
+              >
+                <Ionicons
+                  name="menu-outline"
+                  size={30}
+                  color={actionItemsDisabled ? 'transparent' : 'black'}
+                  style={{
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                  }}
+                />
               </Pressable>
 
               {/* Loading state + activity indicator */}
@@ -1213,6 +1295,16 @@ export default function ReaderScreen() {
         </Pressable>
       </Modal>
 
+      {/* Action Items Modal */}
+      <ActionItemModal
+        visible={actionItemsVisible}
+        onClose={() => setActionItemsVisible(false)}
+        actionItems={actionItems}
+        onAddItems={(selected) => {
+          console.log("Add to To-Do:", selected);
+        }}
+      />
+
     </SafeAreaView>
   );
 }
@@ -1317,7 +1409,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  headerIconBtn: { width: 44, height: 44, justifyContent: "center", marginRight: 8 },
+  headerIconBtn: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    marginRight: 8
+  },
   headerIcon: { color: "white", fontSize: 36, marginTop: 8, marginLeft: 8 },
   headerTitle: { color: ACCENT, fontSize: 26, fontWeight: "700" },
   avatarBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "flex-end" },
@@ -1326,6 +1423,20 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     backgroundColor: "rgba(255,255,255,0.35)",
+  },
+
+  actionItemBtn: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: 'center',
+    borderRadius: 12,
+    borderColor: 'rgba(0,0,0,0.5)',
+    borderWidth: 0.5,
+    shadowColor: 'black',
+    shadowOpacity: 0.4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 2
   },
 
   tabRow: {

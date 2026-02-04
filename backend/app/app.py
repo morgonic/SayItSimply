@@ -365,23 +365,9 @@ async def ocr_text(payload: OCRRequest):
         if response.error.message:
             raise HTTPException(status_code=500, detail=response.error.message)
         # detect langauge from ocr text
-        lang, prob = await run_in_threadpool(detect_language, text)
-        # normalize prob into float
-        if prob is None:
-            pass
-        elif isinstance(prob, (int, float)):
-            prob = float(prob)
-        else:
-            try:
-                prob = float(prob)
-            except (TypeError, ValueError):
-                prob = None
-        # if prob returns nan sanitize it
-        if prob is not None and (math.isnan(prob) or math.isinf(prob)):
-            prob = None
-            print("lang/prob:", lang, prob, type(prob))
+        lang = await run_in_threadpool(detect_language, text)
         # return response to client
-        return OCRResponse(text=text, language=lang, language_conf=prob)
+        return OCRResponse(text=text, language=lang)
     
     except Exception as e:
         # 500 with error message

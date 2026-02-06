@@ -8,9 +8,10 @@ class UserRead(schemas.BaseUser[uuid.UUID]):
     reading_level: int
     challenge_mode: bool
     onboarding_done: bool
-    profile_photo: Optional[str] = None
+    profile_photo: Optional[str]
     scan_count: int
     calib_freq: int
+    to_do: List[str]
 
 class UserCreate(schemas.BaseUserCreate):
     language: str = "en"
@@ -20,6 +21,7 @@ class UserCreate(schemas.BaseUserCreate):
     profile_photo: Optional[str] = None
     scan_count: int = 0
     calib_freq: int = 0
+    to_do: List[str] = []
 
 class UserUpdate(schemas.BaseUserUpdate):
     language: Optional[str] = None
@@ -29,6 +31,7 @@ class UserUpdate(schemas.BaseUserUpdate):
     profile_photo: Optional[str] = None
     scan_count: Optional[int] = None
     calib_freq: Optional[int] = None
+    to_do: Optional[List[str]] = None
 
 # request model for /ocr endpoint
 class OCRRequest(BaseModel):

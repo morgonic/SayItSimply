@@ -3,8 +3,9 @@ from typing import Optional, List, Literal
 from fastapi_users import schemas
 from pydantic import BaseModel, Field
 
-# custom type for to-do list items
-type ToDoItem = dict[str, Optional[str]] # action_item, deadline or None
+class ActionItem(BaseModel):
+    action_item: str
+    deadline: Optional[str] = None
 
 class UserRead(schemas.BaseUser[uuid.UUID]):
     language: str
@@ -14,7 +15,7 @@ class UserRead(schemas.BaseUser[uuid.UUID]):
     profile_photo: Optional[str]
     scan_count: int
     calib_freq: int
-    to_do: List[ToDoItem]
+    to_do: List[ActionItem] = Field(default_factory=list)
 
 class UserCreate(schemas.BaseUserCreate):
     language: str = "en"
@@ -24,7 +25,7 @@ class UserCreate(schemas.BaseUserCreate):
     profile_photo: Optional[str] = None
     scan_count: int = 0
     calib_freq: int = 0
-    to_do: List[ToDoItem] = []
+    to_do: List[ActionItem] = Field(default_factory=list)
 
 class UserUpdate(schemas.BaseUserUpdate):
     language: Optional[str] = None
@@ -34,7 +35,7 @@ class UserUpdate(schemas.BaseUserUpdate):
     profile_photo: Optional[str] = None
     scan_count: Optional[int] = None
     calib_freq: Optional[int] = None
-    to_do: Optional[List[ToDoItem]] = None
+    to_do: Optional[List[ActionItem]] = None
 
 # request model for /ocr endpoint
 class OCRRequest(BaseModel):
@@ -61,7 +62,7 @@ class GeminiRequest(BaseModel):
 class GeminiResponse(BaseModel):
     summary: str = Field(description="A concise, plain-language summary of exactly what is written in the text.")
     simplification: str = Field(description="A version of the text that is simplified to the user's reading level.")
-    action_items: List[str] = Field(description="A list of the action items that have been detected from the text for the user to add to their to-do list.")
+    action_items: List[ActionItem] = Field(description="A list of the action items that have been detected from the text for the user to add to their to-do list.")
     translation: Optional[str] = Field(default=None, description="A translation of the original text into the user's preferred language.")
     mode: str = Field(description="The detected document type (one word).")
     reading_level: int = Field(description="The grade level used for simplification. Clamped to minimum 1.")

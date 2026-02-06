@@ -26,6 +26,25 @@ SayItSimply is designed to act as an assistive or accessibility tool for three t
 
 - The user will be able to request definitions for complex words.
 
+## Beta Features (to be working by 01Mar2026)
+- The user will be able to view and change settings specific to the app.
+
+- The user will be able to sync their email with Google Oauth (which switches from email/password login to Google OAuth login).
+
+- The user will be able to adjust the app's text size.
+
+- The user will be able to switch the app's theme between light and dark mode.
+
+- The user will be able to listen to audio versions of summaries and explanations on the reader screen, in addition to reading the text.
+
+- The user will be able to view their previously captured or uploaded pictures and submit them through the simplification workflow again.
+
+- The user will be able to see action items based on text extracted in OCR workflow (within the action items tab).
+
+- The user will be able to Edit, Delete, and Complete action items that are populated.
+
+- The user will be able to see what language is currently displaying on the reader screen.
+
 ## Technologies
 - Developer Tools:
    - Visual Studio Code
@@ -99,9 +118,10 @@ uvicorn app.app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 6. Running app (via Expo)
-   - 6a. open a new command prompt and navigate to the root directory for the SayItSimply app, then run the following command:
-   - NOTE: if this is the first time running expo, before executing the start command, run this command: *npx expo install expo-camera*
+   - 6a. open a new command prompt and navigate to the root directory for the SayItSimply app, then run the following commands:
+
 ```bash
+npm install
 npx expo start
 ```
    - 6b. if screen isn't rendering as expected, stop expo and then run the following command:
@@ -116,10 +136,9 @@ npx expo start -c
 ## Contributors and Maintainers:
 - Austin Moses
 - Morgon Branning
-- Cayden Fischer
 
 ## Project Status:
-- Initial Development
+- Beta
 
 
 

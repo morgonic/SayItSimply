@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Modal, View, Text, Pressable, ScrollView } from "react-native";
 
+// properties for action item modal
 type Props = {
     visible: boolean;
     onClose: () => void;
@@ -14,41 +15,47 @@ export default function ActionItemModal({
     actionItems,
     onAddItems
 }: Props) {
-
+    // state to track selected items
     const [selectedItem, setSelectedItem] = useState<Set<number>>(new Set());
-
+    // reset selected items when modal is opened or action items change
     useEffect(() => {
         if (visible) {
             setSelectedItem(new Set());
         }
     }, [visible, actionItems]);
-
+    // check if any action items
     const hasItems = actionItems?.length > 0;
-
+    // get selected items from selected indices
     const selectedItems = useMemo(() => {
         return Array.from(selectedItem).map(index => actionItems[index]).filter(Boolean);
     }, [selectedItem, actionItems]);
-
+    // toggle item selection by index
     const toggleIndex = (index: number) => {
         setSelectedItem((prev) => {
+            // create new set, no direct mutation
             const next = new Set(prev);
+            // if index exists
             if (next.has(index)) {
+                // remove it
                 next.delete(index);
             }
             else {
+                // otherwise add it
                 next.add(index);
             }
 
             return next;
         });
     };
-
+    // handle adding selected action items to to-do list
     const handleAddItem = () => {
+        // if no callback, do nothing
         if (!onAddItems) {
             return;
         }
-
+        // callback with selected items
         onAddItems(selectedItems);
+        // close modal
         onClose();
     };
 

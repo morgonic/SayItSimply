@@ -3,6 +3,9 @@ from typing import Optional, List, Literal
 from fastapi_users import schemas
 from pydantic import BaseModel, Field
 
+# custom type for to-do list items
+type ToDoItem = dict[str, Optional[str]] # action_item, deadline or None
+
 class UserRead(schemas.BaseUser[uuid.UUID]):
     language: str
     reading_level: int
@@ -11,7 +14,7 @@ class UserRead(schemas.BaseUser[uuid.UUID]):
     profile_photo: Optional[str]
     scan_count: int
     calib_freq: int
-    to_do: List[str]
+    to_do: List[ToDoItem]
 
 class UserCreate(schemas.BaseUserCreate):
     language: str = "en"
@@ -21,7 +24,7 @@ class UserCreate(schemas.BaseUserCreate):
     profile_photo: Optional[str] = None
     scan_count: int = 0
     calib_freq: int = 0
-    to_do: List[str] = []
+    to_do: List[ToDoItem] = []
 
 class UserUpdate(schemas.BaseUserUpdate):
     language: Optional[str] = None
@@ -31,7 +34,7 @@ class UserUpdate(schemas.BaseUserUpdate):
     profile_photo: Optional[str] = None
     scan_count: Optional[int] = None
     calib_freq: Optional[int] = None
-    to_do: Optional[List[str]] = None
+    to_do: Optional[List[ToDoItem]] = None
 
 # request model for /ocr endpoint
 class OCRRequest(BaseModel):

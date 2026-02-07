@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field
 class UserRead(schemas.BaseUser[uuid.UUID]):
     language: str
     reading_level: int
-    challenge_mode: bool
     onboarding_done: bool
     profile_photo: Optional[str] = None
     scan_count: int
@@ -15,7 +14,6 @@ class UserRead(schemas.BaseUser[uuid.UUID]):
 class UserCreate(schemas.BaseUserCreate):
     language: str = "en"
     reading_level: int = 6
-    challenge_mode: bool = False
     onboarding_done: bool = False
     profile_photo: Optional[str] = None
     scan_count: int = 0
@@ -24,7 +22,6 @@ class UserCreate(schemas.BaseUserCreate):
 class UserUpdate(schemas.BaseUserUpdate):
     language: Optional[str] = None
     reading_level: Optional[int] = None
-    challenge_mode: Optional[bool] = None
     onboarding_done: Optional[bool] = None
     profile_photo: Optional[str] = None
     scan_count: Optional[int] = None
@@ -83,3 +80,39 @@ class ScanCountIncrRes(BaseModel):
 class UpdateReadingLvlReq(BaseModel):
     new_level: int = Field(ge=1, le=9)
     choice: Literal["lower", "stay", "higher"]
+    
+TextSizeVals = Literal["XS", "S", "M", "L", "XL"]
+
+class SettingsRead(BaseModel):
+    challenge_mode: bool
+    highlight_difficult_words: bool
+    dark_mode: bool
+    text_size: TextSizeVals
+    scan_history_save: bool
+    scan_history_delete: Optional[int] = Field(
+        default=30,
+        description="Days before deleting history. Null = never."
+    )
+    save_photos: bool
+    notif: bool
+    face_id: bool
+    tts_rate: float
+    tts_pitch: float
+    
+class SettingsUpdate(BaseModel):
+    challenge_mode: Optional[bool] = None
+
+    highlight_difficult_words: Optional[bool] = None
+    dark_mode: Optional[bool] = None
+    text_size: Optional[TextSizeVals] = None
+
+    scan_history_save: Optional[bool] = None
+    scan_history_delete: Optional[int] | None = None  # allow null
+
+    save_photos: Optional[bool] = None
+    notif: Optional[bool] = None
+    face_id: Optional[bool] = None
+
+    tts_rate: Optional[float] = None
+    tts_pitch: Optional[float] = None
+    

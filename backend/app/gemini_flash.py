@@ -94,11 +94,9 @@ async def get_gemini_response(
         "Action items rules:\n"
         "- 'Action items' means real-world tasks that the reader is explicitly instructed to do.\n"
         "- ONLY include tasks that are directly stated in the input_text as instructions or requirements for the reader.\n"
-        "- If you are not highly confident an item is a real-world task meant for the reader, EXCLUDE it.\n"
-        "- Do NOT add suggested tasks unless the input_text explicitly says so.\n"
-        "- Each action item should be short and begin with a verb.\n"
+        "- Each action item should be short, begin with a verb, and include a noun.\n"
         "- Each action item must be formatted as a checklist item. Example: Do X by Y-date, call X at Y number.\n"
-        "- Action items should include relevant details like dates, amounts, names, phone numbers, et cetera.\n\n"
+        "- Action items also include a deadline, which should be in ISO format YYYY-MM-DD. If there is no deadline applicable, set the deadline to null.\n\n"
         
         "Translation rules:\n"
         "- If target_language == 'en', translation MUST be null unless the input_text is NOT written in English.\n"

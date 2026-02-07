@@ -19,8 +19,8 @@ from starlette.responses import RedirectResponse, Response
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import User, OAuthAccount, create_db_and_tables, engine, get_async_session
-from app.schemas import UserCreate, UserRead, UserUpdate, GeminiRequest, GeminiResponse, OCRRequest, OCRResponse
+from app.db import User, UserSettings, OAuthAccount, create_db_and_tables, engine, get_async_session
+from app.schemas import UserCreate, UserRead, UserUpdate, GeminiRequest, GeminiResponse, OCRRequest, OCRResponse, SettingsRead, SettingsUpdate
 from app.users import auth_backend, current_active_user, fastapi_users, get_user_manager, google_oauth_client, SECRET
 
 from dotenv import load_dotenv
@@ -220,6 +220,76 @@ app.include_router(
     tags=["auth"]
 )
 
+### Settings ###
+async def get_or_create_user_settings(
+    session: AsyncSession,
+    user: User
+) -> UserSettings:
+    result = await session.execute(
+        select(UserSettings).where(UserSettings.user_id == user.id)
+    )
+    scal = result.scalars().first()
+    if scal:
+        return scal
+    
+    scal = UserSettings(user_id=user.id)
+    session.add(scal)
+    await session.commit()
+    await session.refresh(scal)
+    return scal
+
+@app.get("/users/me/settings", response_model=SettingsRead, tags=["users"])
+async def get_my_settings(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    s = await get_or_create_user_settings(session, user)
+    
+    return SettingsRead(
+        challenge_mode=s.challenge_mode,
+        highlight_difficult_words=s.highlight_difficult_words,
+        dark_mode=s.dark_mode,
+        text_size=s.text_size,
+        scan_history_save=s.scan_history_save,
+        scan_history_delete=s.scan_history_delete,
+        save_photos=s.save_photos,
+        notif=s.notif,
+        face_id=s.face_id,
+        tts_rate=s.tts_rate,
+        tts_pitch=s.tts_pitch,
+    )
+
+@app.patch("/users/me/settings", response_model=SettingsRead, tags=["users"])
+async def patch_my_settings(
+    payload: SettingsUpdate,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    s = await get_or_create_user_settings(session, user)
+    data = payload.model_dump(exclude_unset=True)
+    
+    for k, v in data.items():
+        if hasattr(s, k):
+            setattr(s, k, v)
+
+    session.add(s)
+    await session.commit()
+    
+    await session.refresh(s)
+    return SettingsRead(
+        challenge_mode=s.challenge_mode,
+        highlight_difficult_words=s.highlight_difficult_words,
+        dark_mode=s.dark_mode,
+        text_size=s.text_size,
+        scan_history_save=s.scan_history_save,
+        scan_history_delete=s.scan_history_delete,
+        save_photos=s.save_photos,
+        notif=s.notif,
+        face_id=s.face_id,
+        tts_rate=s.tts_rate,
+        tts_pitch=s.tts_pitch,
+    )
+
 ### Password Change Logic ###
 # Disabled if user logged in via Oauth, so it checks for matching id/user_id between the 2 tables 
 class PasswordChangeRequest(BaseModel):
@@ -269,12 +339,14 @@ class ReadingLevelPatch(BaseModel):
 
 # gemini endpoint for main structured output
 @app.post("/gemini")
-async def gemini(request: GeminiRequest, user: User = Depends(current_active_user)):
+async def gemini(request: GeminiRequest, user: User = Depends(current_active_user), session: AsyncSession = Depends(get_async_session)):
 
     # check if text is valid, error if not
     text = (request.text or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Text is required")
+    # settings
+    s = await get_or_create_user_settings(session, user)
     # document type mode
     mode = request.mode or "Document"
     # default english if no user language found
@@ -293,7 +365,7 @@ async def gemini(request: GeminiRequest, user: User = Depends(current_active_use
         language=language, 
         reading_level=simplified_level,
         mode=mode,
-        challenge_mode=user.challenge_mode
+        challenge_mode=s.challenge_mode
     )
 
 # endpoint for updating user reading level

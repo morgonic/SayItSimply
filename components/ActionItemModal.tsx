@@ -1,12 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Modal, View, Text, Pressable, ScrollView } from "react-native";
 
+// custom action item type matching gemini response schema
+type ActionItem = {
+    action_item: string;
+    deadline?: string | null;
+}
+
 // properties for action item modal
 type Props = {
     visible: boolean;
     onClose: () => void;
-    actionItems: string[];
-    onAddItems?: (selectedItems: string[]) => void;
+    actionItems: ActionItem[];
+    onAddItems?: (selectedItems: ActionItem[]) => void;
 };
 
 export default function ActionItemModal({
@@ -162,9 +168,9 @@ export default function ActionItemModal({
                                                 ) : null}
                                             </View>
 
-                                            {/*item text*/}
+                                            {/*action item and deadline*/}
                                             <Text style={{ color: 'black', fontSize: 16, flex: 1 }}>
-                                                {item}
+                                                {item.action_item} <Text style={{ color: 'gray', fontSize: 14}}>{item.deadline ? `by ${item.deadline}` : null}</Text>
                                             </Text>
                                         </Pressable>
                                     );

@@ -18,11 +18,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 // reader screen tabs
 type ReaderTab = "Overview" | "Easy Read" | "Translate";
 
+// custom action item type to match gemini output
+type ActionItem = {
+  action_item: string;
+  deadline: string | null; // null if no deadline
+}
+
 // structured gemini output
 type GeminiResponse = {
   summary: string;
   simplification: string;
-  action_items: string[];
+  action_items: ActionItem[];
   translation?: string | null;
   mode: string;
   reading_level?: number;

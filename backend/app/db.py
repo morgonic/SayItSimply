@@ -1,8 +1,9 @@
 from collections.abc import AsyncGenerator
 import uuid
+from datetime import datetime
 from fastapi import Depends
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase, SQLAlchemyBaseOAuthAccountTableUUID
-from sqlalchemy import JSON, ForeignKey
+from sqlalchemy import DateTime, JSON, ForeignKey, String
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.orm import DeclarativeBase, Mapped, relationship, mapped_column
@@ -40,6 +41,24 @@ class UserSettings(Base):
     tts_pitch: Mapped[float] = mapped_column(default=1.0, server_default="1.0")
     user: Mapped["User"] = relationship(back_populates="settings")
 
+# Define Documents model
+class Document(Base):
+    __tablename__ = "documents"
+    
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("user.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False
+    )
+    
+    mode: Mapped[str] = mapped_column(String(50), default="Document")
+    timestamp: Mapped[datetime] = mapped_column(DateTime)
+    image_uri: Mapped[str] = mapped_column(String, nullable=False)
+    thumb_uri: Mapped[str] = mapped_column(String, nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(50), default="image/jpeg")
+    user: Mapped["User"] = relationship("User", back_populates="documents")
+
 # Define the User model
 class User(SQLAlchemyBaseUserTableUUID, Base):
     oauth_accounts: Mapped[list[OAuthAccount]] = relationship(
@@ -58,6 +77,12 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
         cascade="all, delete-orphan",
         lazy="joined"
     )
+    documents: Mapped["Document | None"] = relationship(
+        "Document",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    
     to_do: Mapped[list[dict[str, any]]] = mapped_column(
         MutableList.as_mutable(JSON),
         default=list,

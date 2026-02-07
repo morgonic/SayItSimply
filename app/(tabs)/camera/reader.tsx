@@ -65,12 +65,22 @@ function langCodeToName(code: string): string {
 
 // convert image file uri to base64
 async function uriToBase64(uri: string): Promise<string> {
+  const token = await storage.getItem("access_token");
+  const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+
+  const isRemote = 
+  typeof uri === "string" && ! !api_url && uri.startsWith(api_url.replace(/\/$/, ""));
   // fetch local image file uri
-  const response = await fetch(uri);
+  const response = await fetch(uri, {
+    headers: {
+      ...(isRemote && token ? { Authorization: `${tokenType} ${token}` } : {}),
+    },
+  });
   // if fail to read file, throw error
   if (!response.ok) {
     throw new Error("Failed to read image file.");
   }
+  
   // convert response into blob for filereader to process
   const blob = await response.blob();
 
@@ -86,13 +96,9 @@ async function uriToBase64(uri: string): Promise<string> {
       // strip off prefixes and keep base64
       const base64 = result.split(",")[1] ?? "";
       // reject if something goes wrong
-      if (!base64) {
-        reject(new Error("Failed to convert image to base64."));
-      }
+      if (!base64) reject(new Error("Failed to convert image to base64."));
       // otherwise return base64 string to caller
-      else {
-        resolve(base64);
-      }
+      else resolve(base64);
     };
     // read blob, create base64 data url in reader.result
     reader.readAsDataURL(blob);

@@ -1,10 +1,20 @@
+import storage from "@/app/storage";
+import { styles as dashStyles } from "@/constants/styles";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Dimensions, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { styles as dashStyles } from "@/constants/styles";
-import { CaptureItem, getCaptures } from "../doc-storage";
+const api_url = process.env.EXPO_PUBLIC_API_URL;
+
+type DocItem = {
+  id: string;
+  mode: string;
+  timestamp: string;
+  thumb_uri: string;
+  thumb_b64?: string | null;
+  thumb_mime?: string | null;
+};
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -12,14 +22,42 @@ function formatDate(iso: string) {
   return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
+async function getAccessToken(): Promise<string | null> {
+  const token = await storage.getItem("access_token");
+  return token ?? null;
+}
+
 export default function DocumentsScreen() {
   const router = useRouter();
-  const [items, setItems] = useState<CaptureItem[]>([]);
+  const [items, setItems] = useState<DocItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const baseUrl = useMemo(() => {
+    if (!api_url) return "";
+    return api_url.replace(/\/$/, "");
+  }, []);
 
   const load = useCallback(async () => {
-    const list = await getCaptures();
-    setItems(list);
-  }, []);
+    try {
+      if (!baseUrl) return;
+
+      setLoading(true);
+      const token = await getAccessToken();
+      if (!token) return;
+
+      const res = await fetch(`${baseUrl}/documents`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error("Could not load documents");
+
+      const data = (await res.json()) as DocItem[];
+      setItems(data);
+    } catch (e) {
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [baseUrl]);
 
   useFocusEffect(
     useCallback(() => {
@@ -27,37 +65,48 @@ export default function DocumentsScreen() {
     }, [load])
   );
 
-  const openDoc = (item: CaptureItem) => {
+  const openDoc = (item: DocItem) => {
+    const fileUri = `${baseUrl}/documents/${item.id}/file`;
+
     router.push({
       pathname: "/camera/reader",
-      params: { imageUri: item.uri, mode: item.mode },
+      params: { imageUri: fileUri, mode: item.mode },
     });
   };
 
-  const renderItem = ({ item }: { item: CaptureItem }) => (
-    <Pressable style={local.row} onPress={() => openDoc(item)}>
-      {/* thumbnail */}
-      <View style={local.thumbWrap}>
-        <Image source={{ uri: item.uri }} style={local.thumb} resizeMode="cover" />
-      </View>
+  const renderItem = ({ item }: { item: DocItem }) => {
+    const thumbUri = `${baseUrl}${item.thumb_uri}`;
 
-      {/* text */}
-      <View style={local.textCol}>
-        <Text style={local.title}>{item.mode}</Text>
-        <Text style={local.subtitle}>{formatDate(item.createdAt)}</Text>
-      </View>
+    const thumbSource =
+      item.thumb_b64 ? { uri: `data:${item.thumb_mime ?? "image/jpeg"};base64,${item.thumb_b64}` }
+      : require("@/assets/images/logo.png");
 
-      <Pressable
-        onPress={() => openDoc(item)}
-        hitSlop={12}
-        style={local.chevBtn}
-        accessibilityRole="button"
-        accessibilityLabel="Open document"
-      >
-        <Text style={local.chev}>›</Text>
+    return (
+      <Pressable style={local.row} onPress={() => openDoc(item)}>
+        {/* thumbnail */}
+        <View style={local.thumbWrap}>
+          <Image source={thumbSource}
+          style={local.thumb} resizeMode="cover"/>
+        </View>
+
+        {/* text */}
+        <View style={local.textCol}>
+          <Text style={local.title}>{item.mode}</Text>
+          <Text style={local.subtitle}>{formatDate(item.timestamp)}</Text>
+        </View>
+
+        <Pressable
+          onPress={() => openDoc(item)}
+          hitSlop={12}
+          style={local.chevBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Open document"
+        >
+          <Text style={local.chev}>›</Text>
+        </Pressable>
       </Pressable>
-    </Pressable>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={dashStyles.dashSafe}>
@@ -67,10 +116,8 @@ export default function DocumentsScreen() {
       }]}>
         {items.length === 0 ? (
           <View style={local.empty}>
-            <Text style={local.emptyTitle}>No documents yet</Text>
-            <Text style={local.emptyText}>
-              Take a picture or upload one from your gallery.
-            </Text>
+            <Text style={local.emptyTitle}>{loading ? "Loading..." : "No documents yet"}</Text>
+            <Text style={local.emptyText}>Capture a picture or upload one from your gallery</Text>
           </View>
         ) : (
           <FlatList
@@ -101,8 +148,8 @@ const local = StyleSheet.create({
   },
 
   thumbWrap: {
-    width: 46,
-    height: 46,
+    width: 30,
+    height: 30,
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "rgba(255,255,255,0.06)",

@@ -2,6 +2,7 @@ import uuid
 from typing import Optional, List, Literal
 from fastapi_users import schemas
 from pydantic import BaseModel, Field
+from datetime import datetime
 
 class ActionItem(BaseModel):
     action_item: str
@@ -122,3 +123,19 @@ class SettingsUpdate(BaseModel):
     tts_rate: Optional[float] = None
     tts_pitch: Optional[float] = None
     
+class DocumentListItem(BaseModel):
+    id: uuid.UUID
+    mode: str
+    timestamp: datetime
+    thumb_uri: str
+    thumb_b64: Optional[str] = None
+    thumb_mime: Optional[str] = None
+    
+class DocumentDetail(BaseModel):
+    id: uuid.UUID
+    mode: str
+    timestamp: datetime
+    file_uri: str
+    thumb_uri: str
+    thumb_b64: Optional[str] = None
+    thumb_mime: Optional[str] = None

@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from fastapi import Depends
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase, SQLAlchemyBaseOAuthAccountTableUUID
-from sqlalchemy import DateTime, JSON, ForeignKey, String
+from sqlalchemy import Column, DateTime, JSON, ForeignKey, String, UniqueConstraint
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.orm import DeclarativeBase, Mapped, relationship, mapped_column
@@ -44,6 +44,12 @@ class UserSettings(Base):
 # Define Documents model
 class Document(Base):
     __tablename__ = "documents"
+    
+    source_asset_id = Column(String, nullable=True, index=True)
+    
+    __table_args__ = (
+        UniqueConstraint("user_id", "source_asset_id", name="doc_user_source_asset"),
+    )
     
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(

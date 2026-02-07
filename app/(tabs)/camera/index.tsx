@@ -24,6 +24,7 @@ function normalizeBaseUrl(url?: string) {
 async function uploadDocument(params: {
   imageUri: string;
   mode: string;
+  sourceAssetId?: string | null;
 }): Promise<void> {
   const baseUrl = normalizeBaseUrl(api_url);
   if (!baseUrl) throw new Error("EXPO_PUBLIC_API_URL is not set.");
@@ -55,6 +56,8 @@ async function uploadDocument(params: {
     name: "thumb.jpg",
     type: "image/jpeg",
   } as any);
+
+  form.append("source_asset_id", params.sourceAssetId ?? "");
 
   const res = await fetch(`${baseUrl}/documents`, {
     method: "POST",
@@ -112,9 +115,18 @@ export default function CameraScreen() {
 
       setLastCaptureUri(pic.uri)
 
+      try {
+          await uploadDocument({ imageUri: pic.uri, mode, sourceAssetId: null  });
+        } catch (e: any) {
+            console.warn("Camera capture uploadDocument failed:", e?.message ?? e);
+        }
+
       router.push({
         pathname: "/camera/reader", params: { imageUri: pic.uri, mode },
       });
+      (async () => {
+        
+      })();
     } catch (e: any) {
       console.error(e);
       Alert.alert("Failed to take picture", e?.message ?? "Capture failed");

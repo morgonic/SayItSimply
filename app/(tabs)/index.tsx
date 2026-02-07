@@ -20,7 +20,11 @@ function normalizeBaseUrl(url?: string) {
   return url.replace(/\/$/, "");
 }
 
-async function uploadDocument(params: { imageUri: string; mode: string }): Promise<void> {
+async function uploadDocument(params: {
+  imageUri: string;
+  mode: string;
+  sourceAssetId?: string | null
+}): Promise<void> {
   const baseUrl = normalizeBaseUrl(api_url);
   const token = await getAccessToken();
   const thumb = await manipulateAsync(
@@ -44,11 +48,11 @@ async function uploadDocument(params: { imageUri: string; mode: string }): Promi
     type: "image/jpeg",
   } as any);
 
+  form.append("source_asset_id", params.sourceAssetId ?? "");
+
   const res = await fetch(`${baseUrl}/documents`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers: { Authorization: `Bearer ${token}` },
     body: form,
   });
   if (!res.ok) {
@@ -103,10 +107,12 @@ export default function DashboardScreen() {
       });
       if (result.canceled) return;
 
-      const uri = result.assets?.[0]?.uri;
+      const asset = result.assets?.[0];
+      const uri = asset?.uri;
       if (!uri) throw new Error("No image selected");
+      const sourceAssetId: string | null = (asset as any)?.assetId ?? null;
 
-      const mode = "Auto-Detect";
+      const mode = "Auto-detect";
 
 
       router.push({
@@ -115,7 +121,7 @@ export default function DashboardScreen() {
       });
 
       try {
-        await uploadDocument({ imageUri: uri, mode });
+        await uploadDocument({ imageUri: uri, mode, sourceAssetId });
       } catch (e: any) {
         console.warn("Upload failed: ", e?.message ?? e);
       }

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
 from app.db import Document, User, get_async_session
 from app.schemas import DocumentDetail, DocumentListItem
 from app.users import current_active_user
@@ -88,11 +89,26 @@ async def get_document(
 @router.post("", response_model=DocumentDetail)
 async def upload_document(
     mode: str = Form("Document"),
+    source_asset_id: Optional[str] = Form(""),
     image: UploadFile = File(...),
     thumb: UploadFile = File(...),
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
 ):
+    source_asset_id = (source_asset_id or "").strip() or None
+    if source_asset_id:
+        res = await session.execute(
+            select(Document).where(
+                Document.user_id == user.id, Document.source_asset_id == source_asset_id
+            )
+        )
+        existing = res.scalars().first()
+        if existing:
+            return DocumentDetail(
+                id=existing.id, mode=existing.mode, timestamp=existing.timestamp,
+                file_uri=f"/documents/{existing.id}/file", thumb_uri=f"/documents/{existing.id}/thumb"
+            )
+            
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="image must be an image/* type")
     if not thumb.content_type or not thumb.content_type.startswith("image/"):
@@ -122,6 +138,7 @@ async def upload_document(
         image_uri=str(image_uri),
         thumb_uri=str(thumb_uri),
         mime_type=image.content_type or "image/jpeg",
+        source_asset_id=source_asset_id or None
     )
 
     session.add(d)

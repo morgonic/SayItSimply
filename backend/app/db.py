@@ -2,8 +2,9 @@ from collections.abc import AsyncGenerator
 import uuid
 from fastapi import Depends
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase, SQLAlchemyBaseOAuthAccountTableUUID
-from sqlalchemy import ForeignKey
+from sqlalchemy import JSON, ForeignKey
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.orm import DeclarativeBase, Mapped, relationship, mapped_column
 
 # SQLite database URL
@@ -56,6 +57,11 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
         uselist=False,
         cascade="all, delete-orphan",
         lazy="joined"
+    )
+    to_do: Mapped[list[dict[str, any]]] = mapped_column(
+        MutableList.as_mutable(JSON),
+        default=list,
+        server_default="[]"
     )
 
 # Create async engine and session maker

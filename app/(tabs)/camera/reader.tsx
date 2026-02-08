@@ -1,19 +1,23 @@
 import storage from '@/app/storage';
 import ActionItemModal from '@/components/ActionItemModal';
+import { readerStyles } from '@/constants/styles';
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
+import ISO6391 from "iso-639-1";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
   Modal,
   Pressable,
   ScrollView,
   Text,
+  TextInput,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {readerStyles} from '@/constants/styles';
 
 // reader screen tabs
 type ReaderTab = "Overview" | "Easy Read" | "Translate";
@@ -45,6 +49,11 @@ type DefinitionModalState = {
   definition: string;
 }
 
+type LanguageRow = {
+  code2: string;
+  name: string;
+}
+
 const calibScanCountKey = "calib_scan_count";
 const calibFreqKey = "calib_freq";
 const calibReadingLevelKey = "user_reading_level";
@@ -54,13 +63,10 @@ const api_url = process.env.EXPO_PUBLIC_API_URL;
 
 // takes in language code, returns full language name
 function langCodeToName(code: string): string {
-  const langMap: { [key: string]: string } = {
-    EN: "English",
-    ES: "Spanish",
-    FR: "French",
-    DE: "German"
-  }
-  return langMap[code] ?? code; // return code if not in map
+  const c = (code ?? "").trim().toLowerCase();
+  if (!c) return "Unknown";
+  const lang = ISO6391.getName(c);
+  return lang || code;
 }
 
 // convert image file uri to base64
@@ -156,7 +162,8 @@ export default function ReaderScreen() {
 
   const [userLang, setUserLang] = useState<string | null>(null);
 
-
+  const [langPickerVisible, setLangPickerVisible] = useState(false);
+  const [langSearch, setLangSearch] = useState("");
 
   // gemini request states
   const [geminiLoading, setGeminiLoading] = useState(false);
@@ -199,12 +206,38 @@ export default function ReaderScreen() {
     return () => { cancelled = true; };
   }, []);
 
+  const Languages: LanguageRow[] = useMemo(() => {
+    const codes = ISO6391.getAllCodes();
+    const rows = codes.map((c) => ({
+      code2: c.toUpperCase(),
+      name: ISO6391.getName(c) || c.toUpperCase(),
+    }))
+    .filter((r) => r.code2.length === 2 && !!r.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
+    return rows;
+  }, []);
+
+  const filteredLangs = useMemo(() => {
+    const q = langSearch.trim().toLowerCase();
+    if (!q) return Languages;
+    return Languages.filter((l) =>
+      l.name.toLowerCase().includes(q) || l.code2.toLowerCase().includes(q)
+    );
+  }, [langSearch, Languages]);
+
   // overall loading state
   const isLoading = ocrLoading || geminiLoading;
+
+  const badgeLang = useMemo(() => {
+    if (tab === "Translate") return (userLang ?? "EN").toUpperCase();
+    const o = (ocrLanguage ?? "unknown").toUpperCase();
+    return o === "UNKNOWN" ? "N/A" : o;
+  }, [tab, userLang, ocrLanguage]);
+
   // only show language label under these conditions
-  const showLangLabel = !isLoading && !ocrError && !!ocrText && ocrLanguage !== "unknown";
+  const showLangLabel = !isLoading && !ocrError && !!ocrText && badgeLang !== "N/A";
   // formatted language label (capitalized or N/A)
-  const langLabel = ocrLanguage && ocrLanguage !== "unknown" ? ocrLanguage.toUpperCase() : "N/A";
+  const langLabel = badgeLang;
 
   // simplify more states
   const [simplifyMoreText, setSimplifyMoreText] = useState<string | null>(null);
@@ -443,6 +476,93 @@ export default function ReaderScreen() {
       ...(token ? { Authorization: `${tokenType} ${token}` } : {}),
     };
   }
+
+  //update preferred language in db
+  async function patchUserLang(newLang2: string): Promise<boolean> {
+    const code2 = (newLang2 ?? "").trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(code2)) return false;
+
+    try {
+      const token = await storage.getItem("access_token");
+      const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+      if (!token) return false;
+
+      const res = await fetch(`${api_url}/users/me`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `${tokenType} ${token}`,
+        },
+        body: JSON.stringify({ language: code2 }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.warn("patchUserLang failed:", e);
+      return false;
+    }
+  }
+
+  //re-process gemini flow to refresh translation -- no OCR re-process
+  async function rerunGeminiWithNewLang(targetLang2: string) {
+    if (ocrLoading || geminiLoading) return;
+    if (!ocrText) return;
+
+    const code2 = (targetLang2 ?? "").trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(code2)) return;
+
+    setGeminiLoading(true);
+    setGeminiError(null);
+
+    try {
+      const token = await storage.getItem("access_token");
+      const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+
+      const normalizeMode =
+        typeof mode === "string" ? mode : Array.isArray(mode) ? mode[0] : geminiData?.mode ?? "Auto-detect";
+
+      const response = await fetch(`${api_url}/gemini`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `${tokenType} ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          text: ocrText,
+          mode: normalizeMode ?? "Document",
+          target_language: code2,
+          ...(sessionReadingLevel !== null ? { reading_level: sessionReadingLevel } : {}),
+        })
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Gemini response failed (HTTP ${response.status})`);
+      }
+      const json: GeminiResponse = await response.json();
+
+      setGeminiData((prev) => {
+        if (!prev) return json;
+        return {
+          ...prev,
+          ...json,
+          translation: (json.translation ?? prev.translation) ?? null,
+        };
+      });
+    } catch (e: any) {
+      setGeminiError(e?.message ?? "Request failed");
+    } finally {
+      setGeminiLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (tab !== "Translate") return;
+    if (!ocrText) return;
+    if (!userLang) return;
+    if (!geminiData?.translation) {
+      rerunGeminiWithNewLang(userLang);
+    }
+  }, [tab, userLang, ocrText]);
 
   // get calibration state from db
   async function dbGetCalibState(): Promise<{
@@ -966,6 +1086,21 @@ export default function ReaderScreen() {
     }
   }
 
+  async function onSelectLanguage(code2: string) {
+    const newCode2 = (code2 ?? "").trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(newCode2)) return;
+
+    setLangPickerVisible(false);
+    setLangSearch("");
+    setUserLang(newCode2);
+
+    const ok = await patchUserLang(newCode2);
+    if (!ok) {
+      console.warn("Failed to update user language in db");
+    }
+    await rerunGeminiWithNewLang(newCode2);
+  }
+
   return (
     <SafeAreaView style={readerStyles.safe}>
       <View style={readerStyles.container}>
@@ -1202,7 +1337,97 @@ export default function ReaderScreen() {
             />
           </View>
         )}
+
+        {/* Language picker */}
+        {tab === "Translate" && (
+          <View style={readerStyles.translateControlsWrap}>
+            <Pressable
+              style={readerStyles.langPickerBtn}
+              onPress={() => setLangPickerVisible(true)}
+              hitSlop={10}
+            >
+              <Ionicons name="language-outline" size={22} color="#1B1B1B"/>
+              <Text style={readerStyles.langPickerBtnText}>
+                {(userLang ?? "EN").toUpperCase()}
+              </Text>
+            </Pressable>
+          </View>
+        )}
       </View>
+
+      {/* Language Modal */}
+      <Modal
+        transparent
+        visible={langPickerVisible}
+        animationType="fade"
+        onRequestClose={() => setLangPickerVisible(false)}
+      >
+        <View style={readerStyles.langModalBg}>
+          <Pressable style={readerStyles.fullFill} onPress={() => setLangPickerVisible(false)} />
+
+          <KeyboardAvoidingView
+            style={readerStyles.langModalCenter}
+          >
+            <View style={readerStyles.langModalCard}>
+              <Text style={readerStyles.langModalTitle}>Choose Language</Text>
+
+              <View style={readerStyles.langSearchWrap}>
+                <Ionicons name="search-outline" size={18} color="#1B1B1B" />
+                <TextInput
+                  value={langSearch}
+                  onChangeText={setLangSearch}
+                  placeholder="Search language..."
+                  placeholderTextColor="rgba(0,0,0,0.45)"
+                  style={readerStyles.langSearchInput}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {!!langSearch && (
+                  <Pressable onPress={() => setLangSearch("")} hitSlop={10}>
+                    <Ionicons name="close-circle" size={18} color="rgba(0,0,0,0.55)" />
+                  </Pressable>
+                )}
+              </View>
+
+              <Text style={readerStyles.langCurrent}>
+                Current: <Text style={{ fontWeight: "900" }}>{(userLang ?? "EN").toUpperCase()}</Text>{" "}
+                ({langCodeToName((userLang ?? "EN").toUpperCase())})
+              </Text>
+
+              <FlatList
+                data={filteredLangs}
+                keyExtractor={(item) => item.code2}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 10 }}
+                renderItem={({ item }) => {
+                  const isSelected = (userLang ?? "EN").toUpperCase() === item.code2;
+                  return (
+                    <Pressable
+                      style={[readerStyles.langRow, isSelected && readerStyles.langRowSelected]}
+                      onPress={() => onSelectLanguage(item.code2)}
+                    >
+                      <View style={readerStyles.langRowLeft}>
+                        <Text style={readerStyles.langCode}>{item.code2}</Text>
+                        <Text style={readerStyles.langName}>{item.name}</Text>
+                      </View>
+                      {isSelected && (
+                        <Ionicons name="checkmark-circle" size={20} color="#2C9AA4" />
+                      )}
+                    </Pressable>
+                  );
+                }}
+              />
+
+              <Pressable
+                style={readerStyles.langCloseBtn}
+                onPress={() => setLangPickerVisible(false)}
+              >
+                <Text style={readerStyles.langCloseBtnText}>Close</Text>
+              </Pressable>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
 
       {/* Calibration Modal */}
       <Modal

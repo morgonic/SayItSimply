@@ -1,4 +1,4 @@
-import { StyleSheet, Dimensions } from 'react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 
 const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
@@ -352,6 +352,29 @@ export const readerStyles = StyleSheet.create({
     shadowRadius: 2
   },
 
+  langPickerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    height: 44,
+    width: "60%",
+    borderRadius: 12,
+    backgroundColor: TAB_ACTIVE,
+    borderWidth: 0.5,
+    borderColor: "rgba(0,0,0,0.25)",
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 6,
+    zIndex: 60
+  },
+  langPickerBtnText: {
+    fontWeight: "900",
+    color: "#1B1B1B",
+  },
+
   tabRow: {
     marginTop: Dimensions.get('window').height * 0.034,
     flexDirection: "row",
@@ -540,6 +563,114 @@ export const readerStyles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 10,
     color: "#1B1B1B",
+  },
+
+  translateControlsWrap: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 10,
+    paddingBottom: 10,
+    zIndex: 50,
+    elevation: 50
+  },
+  langModalBg: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: "center",
+    padding: 16
+  },
+  langModalCenter: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  langModalCard: {
+    width: "100%",
+    maxWidth: 420,
+    height: Dimensions.get("window").height * 0.72,
+    backgroundColor: PAPER,
+    borderRadius: 18,
+    borderWidth: 10,
+    borderColor: CARD_BORDER,
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+    overflow: "hidden",
+    padding: 14
+  },
+  langModalTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#1B1B1B",
+    marginBottom: 10
+  },
+  langSearchWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.18)",
+    paddingHorizontal: 10,
+    height: 44,
+    backgroundColor: "rgba(0,0,0,0.04)",
+    marginBottom: 10
+  },
+  langSearchInput: {
+    flex: 1,
+    fontWeight: "700",
+    color: "#1B1B1B"
+  },
+  langCurrent: {
+    fontWeight: "700",
+    color: "rgba(0,0,0,0.7)",
+    marginBottom: 10
+  },
+  langRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.10)",
+    backgroundColor: "rgba(0,0,0,0.02)",
+    marginBottom: 8
+  },
+  langRowSelected: {
+    borderColor: "rgba(44,154,164,0.6)",
+    backgroundColor: "rgba(44,154,164,0.08)"
+  },
+  langRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10
+  },
+  langCode: {
+    width: 40,
+    fontWeight: "900",
+    color: "#1B1B1B"
+  },
+  langName: {
+    fontWeight: "800",
+    color: "#1B1B1B"
+  },
+  langCloseBtn: {
+    marginTop: 6,
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: TAB_INACTIVE,
+    borderWidth: 1,
+    borderColor: "#1B1B1B",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  langCloseBtnText: {
+    fontWeight: "900",
+    color: "#1B1B1B"
   },
 
   calibBackground: {

@@ -667,3 +667,128 @@ export const readerStyles = StyleSheet.create({
     fontWeight: "900",
   }
 });
+
+const BG_CAMERA = "#0B1020";
+const ACCENT_CAMERA = "#E9C6A6";
+const PREVIEW_BG_CAMERA = "#C8D7F0";
+const TEXT_MUTED_CAMERA = "rgba(255,255,255,0.65)";
+
+export const cameraStyles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: BG_CAMERA },
+  container: { flex: 1, backgroundColor: BG_CAMERA, paddingHorizontal: 16 },
+
+  header: {
+    height: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerIconBtn: {
+    width: 44,
+    height: 44,
+    alignItems: "flex-start",
+    justifyContent: "center",
+  },
+  headerIcon: { color: "white", fontSize: 22 },
+  headerTitle: {
+    color: ACCENT_CAMERA,
+    fontSize: 28,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  avatarBtn: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" },
+  avatarPlaceholder: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.35)" },
+  avatar: { width: 32, height: 32, borderRadius: 16 },
+
+  thumbBtn: {
+  width: 52,
+  height: 52,
+  borderRadius: 14,
+  overflow: "hidden",
+  alignItems: "center",
+  justifyContent: "center",
+  backgroundColor: "rgba(255,255,255,0.06)",
+},
+thumbImage: { width: "100%", height: "100%" },
+
+  previewWrap: {
+    marginTop: 6,
+    borderRadius: 36,
+    overflow: "hidden",
+  },
+  preview: {
+    flex: 1,
+    backgroundColor: PREVIEW_BG_CAMERA,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  camera: { flex: 1, width: "100%", height: "100%", },
+  previewOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    backgroundColor: "rgba(255,255,255,0.35)",
+  },
+  previewHintDark: { color: "rgba(0,0,0,0.45)", fontWeight: "600" },
+  permissionBtn: {
+    marginTop: 12,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  permissionBtnText: { color: "white", fontWeight: "700" },
+
+  modeScrollContent: {
+    paddingHorizontal: 6,
+    paddingVertical: 10,
+    alignItems: "center",
+    gap: 22,
+  },
+  modeItem: {alignItems: "center", minWidth: 64,},
+  modeText: { color: TEXT_MUTED_CAMERA, fontSize: 16, fontWeight: "600" },
+  modeTextSelected: { color: "white" },
+  modeUnderline: {
+    height: 2,
+    width: 52,
+    borderRadius: 2,
+    backgroundColor: "transparent",
+  },
+  modeUnderlineSelected: { backgroundColor: "white" },
+
+  shutterRow: {
+    marginTop: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 8,
+  },
+  smallBtn: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  smallBtnIcon: { fontSize: 26, color: "white" },
+  smallBtnPlaceholder: { width: 52, height: 52 },
+
+  shutterBtn: { alignItems: "center", justifyContent: "center" },
+  shutterOuter: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    borderWidth: 4,
+    borderColor: "rgba(255,255,255,0.75)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shutterInner: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: "rgba(255,255,255,0.25)",
+  }
+});

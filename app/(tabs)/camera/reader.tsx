@@ -1306,8 +1306,44 @@ export default function ReaderScreen() {
         visible={actionItemsVisible}
         onClose={() => setActionItemsVisible(false)}
         actionItems={actionItems}
-        onAddItems={(selected) => {
+        onAddItems={async (selected) => {
           console.log("Add to To-Do:", selected);
+
+          try {
+            if (!api_url) {
+              return;
+            }
+            // get access token and token type
+            const token = await storage.getItem("access_token");
+            const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+            if (!token) {
+              return;
+            }
+            // post to todo endpoint selected action items
+            const response = await fetch(`${api_url}/users/me/todo`, {
+              method: "POST",
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `${tokenType} ${token}`
+              },
+              body: JSON.stringify({ action_items: selected})
+            });
+            // error if bad response
+            if (!response.ok) {
+              const text = await response.text();
+              throw new Error(text || `Failed to add to To-Do - HTTP ${response.status}`);
+            }
+            // capture updated to-do list
+            const updated = await response.json();
+            // log to console
+            console.log("Updated To-Do List:", updated);
+            // close the action items modal
+            setActionItemsVisible(false);
+          }
+          catch (e: any) {
+            // console warning if failure
+            console.warn("Failed to add to To-Do:", e?.message ?? e);
+          }
         }}
       />
 

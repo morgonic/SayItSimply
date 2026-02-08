@@ -20,7 +20,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import User, UserSettings, OAuthAccount, create_db_and_tables, engine, get_async_session
-from app.schemas import UserCreate, UserRead, UserUpdate, GeminiRequest, GeminiResponse, OCRRequest, OCRResponse, SettingsRead, SettingsUpdate
+from app.schemas import ActionItem, AddToDoRequest, UserCreate, UserRead, UserUpdate, GeminiRequest, GeminiResponse, OCRRequest, OCRResponse, SettingsRead, SettingsUpdate
 from app.users import auth_backend, current_active_user, fastapi_users, get_user_manager, google_oauth_client, SECRET
 
 from dotenv import load_dotenv
@@ -383,6 +383,38 @@ async def update_reading_level(
     await session.commit()
     # return reading level value
     return {"reading_level": user.reading_level}
+
+# endpoint for fetching to do list
+@app.get("/users/me/todo", response_model=list[ActionItem], tags=["users"])
+async def get_todo_list(user: User = Depends(current_active_user)):
+    todo_list = user.to_do or []
+    return [ActionItem.model_validate(item) for item in todo_list]
+
+# endpoint for adding items to to do list
+@app.post("/users/me/todo", response_model=list[ActionItem], tags=["users"])
+async def add_todo_items(payload: AddToDoRequest, user: User = Depends(current_active_user), session: AsyncSession = Depends(get_async_session)):
+    # current to do list, empty if none
+    current = list(user.to_do or [])
+    # add each action item from the payload request
+    for item in payload.action_items:
+        # grab action item text, strip it
+        text = (item.action_item or "").strip()
+        # if there is no text, continue
+        if not text:
+            continue
+        # append action item text and deadline to current to do list
+        current.append({
+            "action_item": text,
+            "deadline": item.deadline
+        })
+    # update user to do with current
+    user.to_do = current
+    # commit it
+    await session.commit()
+    # refresh attributes
+    await session.refresh(user)
+    # return ActionItem for each item in user's to do list, or empty list
+    return [ActionItem.model_validate(item) for item in (user.to_do or [])]
 
 
 ### OCR ###

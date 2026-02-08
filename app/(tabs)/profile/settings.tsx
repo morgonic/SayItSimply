@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { settingsStyles } from '@/constants/styles';
 
 // base api url from .env
 const api_url = process.env.EXPO_PUBLIC_API_URL;
@@ -65,21 +66,21 @@ function ToggleButton({
       accessibilityRole='switch'
       accessibilityState={{ checked: value, disabled }}
       onPress={() => !disabled && onChange(!value)}
-      style={[styles.toggle, value ? {backgroundColor: "#9DB17C"} : {backgroundColor: "#E65F5C"}]}
+      style={[settingsStyles.toggle, value ? {backgroundColor: "#9DB17C"} : {backgroundColor: "#E65F5C"}]}
       hitSlop={8}
     >
       {/* movable knob */}
       <View
         style={[
-          styles.toggleKnob,
-          value ? [styles.toggleKnobOn, {backgroundColor: "#9DB17C"}] 
-          : [styles.toggleKnobOff, {backgroundColor: "#E65F5C"}]
+          settingsStyles.toggleKnob,
+          value ? [settingsStyles.toggleKnobOn, {backgroundColor: "#9DB17C"}] 
+          : [settingsStyles.toggleKnobOff, {backgroundColor: "#E65F5C"}]
         ]}
       >
         {/* inner colored dot */}
         <View
           style={[
-            styles.toggleDot,
+            settingsStyles.toggleDot,
             { backgroundColor: value ? "#9DB17C" : "#E65F5C"}
           ]}
         />
@@ -188,7 +189,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={settingsStyles.safe} edges={['bottom']}>
       <Stack.Screen
         options={{
           title: "Settings",
@@ -199,11 +200,11 @@ export default function SettingsScreen() {
         }}
       />
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
-        <View style={styles.list}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={settingsStyles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+        <View style={settingsStyles.list}>
           {/* Challenge Mode */}
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Challenge Mode</Text>
+          <View style={settingsStyles.row}>
+            <Text style={settingsStyles.rowLabel}>Challenge Mode</Text>
             {loading ? (
               <ActivityIndicator />
             ) : (
@@ -214,13 +215,13 @@ export default function SettingsScreen() {
               />
             )}
           </View>
-          <Text style={styles.hint}>
+          <Text style={settingsStyles.hint}>
             When enabled, text will be simplified less than your current simplification level.
           </Text>
 
           {/* Highlight Difficult Words */}
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Highlight Difficult Words</Text>
+          <View style={settingsStyles.row}>
+            <Text style={settingsStyles.rowLabel}>Highlight Difficult Words</Text>
             {loading ? (
               <ActivityIndicator />
             ) : (
@@ -233,8 +234,8 @@ export default function SettingsScreen() {
           </View>
 
           {/* Dark Mode */}
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Dark Mode</Text>
+          <View style={settingsStyles.row}>
+            <Text style={settingsStyles.rowLabel}>Dark Mode</Text>
             {loading ? (
               <ActivityIndicator/>
             ) : (
@@ -247,25 +248,25 @@ export default function SettingsScreen() {
           </View>
 
           {/* Text Size */}
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Text Size</Text>
+          <View style={settingsStyles.row}>
+            <Text style={settingsStyles.rowLabel}>Text Size</Text>
             {loading ? (
               <ActivityIndicator/>
             ) : (
-              <View style={[styles.sizePill, isSaving("text_size") ? { opacity: 0.7 } : null]}>
+              <View style={[settingsStyles.sizePill, isSaving("text_size") ? { opacity: 0.7 } : null]}>
                 <Pressable
                   onPress={() => !isSaving("text_size") && updateTextSize(-1)}
-                  style={({ pressed }) => [styles.sizeBtn, pressed ? { opacity: 0.7 } : null]}
+                  style={({ pressed }) => [settingsStyles.sizeBtn, pressed ? { opacity: 0.7 } : null]}
                   hitSlop={10}
                 >
                   <Ionicons name="chevron-back" size={18} color="#000"/>
                 </Pressable>
 
-                <Text style={styles.sizeVal}>{settings.text_size}</Text>
+                <Text style={settingsStyles.sizeVal}>{settings.text_size}</Text>
 
                 <Pressable
                   onPress={() => !isSaving("text_size") && updateTextSize(1)}
-                  style={({ pressed }) => [styles.sizeBtn, pressed ? { opacity: 0.7 } : null]}
+                  style={({ pressed }) => [settingsStyles.sizeBtn, pressed ? { opacity: 0.7 } : null]}
                   hitSlop={10}
                 >
                   <Ionicons name="chevron-forward" size={18} color="#000"/>
@@ -275,8 +276,8 @@ export default function SettingsScreen() {
           </View>
 
           {/* Scan History (Save) */}
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Save Scans to History</Text>
+          <View style={settingsStyles.row}>
+            <Text style={settingsStyles.rowLabel}>Save Scans to History</Text>
             {loading ? (
               <ActivityIndicator />
             ) : (
@@ -289,29 +290,29 @@ export default function SettingsScreen() {
           </View>
 
           {/* Scan History (Delete) */}
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Auto-Delete History</Text>
+          <View style={settingsStyles.row}>
+            <Text style={settingsStyles.rowLabel}>Auto-Delete History</Text>
             {loading ? (
               <ActivityIndicator />
             ) : (
               <Pressable
                 onPress={() => !isSaving("scan_history_delete") && setScanHistoryDeleteModalVis(true)}
                 style={({ pressed }) => [
-                  styles.dropdownPill,
+                  settingsStyles.dropdownPill,
                   isSaving("scan_history_delete") ? { opacity: 0.7 } : null,
                   pressed ? { opacity: 0.85 } : null,
                 ]}
                 hitSlop={8}
               >
-                <Text style={styles.dropdownText}>{scanHistoryDeleteLabel}</Text>
+                <Text style={settingsStyles.dropdownText}>{scanHistoryDeleteLabel}</Text>
                 <Ionicons name="chevron-down" size={16} color="#000" />
               </Pressable>
             )}
           </View>
 
           {/* Save Photos */}
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Auto-Delete History</Text>
+          <View style={settingsStyles.row}>
+            <Text style={settingsStyles.rowLabel}>Auto-Delete History</Text>
             {loading ? (
               <ActivityIndicator />
             ) : (
@@ -324,8 +325,8 @@ export default function SettingsScreen() {
           </View>
 
           {/* Notifications */}
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Notifications</Text>
+          <View style={settingsStyles.row}>
+            <Text style={settingsStyles.rowLabel}>Notifications</Text>
             {loading ? (
               <ActivityIndicator />
             ) : (
@@ -338,8 +339,8 @@ export default function SettingsScreen() {
           </View>
 
           {/* Face ID */}
-          <View style={styles.row}>
-            <Text style={styles.rowLabel}>Sign in with Face ID</Text>
+          <View style={settingsStyles.row}>
+            <Text style={settingsStyles.rowLabel}>Sign in with Face ID</Text>
             {loading ? (
               <ActivityIndicator />
             ) : (
@@ -352,23 +353,23 @@ export default function SettingsScreen() {
           </View>
 
           {/* Permissions */}
-          <Pressable onPress={openPermissions} style={({ pressed }) => [styles.row, pressed ? { opacity: 0.85 } : null]}>
-            <Text style={styles.rowLabel}>Permissions</Text>
+          <Pressable onPress={openPermissions} style={({ pressed }) => [settingsStyles.row, pressed ? { opacity: 0.85 } : null]}>
+            <Text style={settingsStyles.rowLabel}>Permissions</Text>
             <Ionicons name="chevron-forward" size={20} color="#000" />
           </Pressable>
 
           {/* TTS Card */}
-          <View style={styles.ttsCard}>
-            <Text style={styles.ttsTitle}>Text-to-Speech Output Settings</Text>
+          <View style={settingsStyles.ttsCard}>
+            <Text style={settingsStyles.ttsTitle}>Text-to-Speech Output Settings</Text>
 
-            <View style={styles.ttsRow}>
-              <Text style={styles.ttsLabel}>Speech Rate</Text>
+            <View style={settingsStyles.ttsRow}>
+              <Text style={settingsStyles.ttsLabel}>Speech Rate</Text>
 
               {loading ? (
                 <ActivityIndicator />
               ) : (
                 <Slider
-                  style={styles.slider}
+                  style={settingsStyles.slider}
                   minimumValue={0.5}
                   maximumValue={2.0}
                   value={settings.tts_rate}
@@ -385,14 +386,14 @@ export default function SettingsScreen() {
               )}
             </View>
 
-            <View style={styles.ttsRow}>
-              <Text style={styles.ttsLabel}>Pitch</Text>
+            <View style={settingsStyles.ttsRow}>
+              <Text style={settingsStyles.ttsLabel}>Pitch</Text>
 
               {loading ? (
                 <ActivityIndicator />
               ) : (
                 <Slider
-                  style={styles.slider}
+                  style={settingsStyles.slider}
                   minimumValue={0.5}
                   maximumValue={2.0}
                   value={settings.tts_pitch}
@@ -418,9 +419,9 @@ export default function SettingsScreen() {
         animationType='fade'
         onRequestClose={() => setScanHistoryDeleteModalVis(false)}
       >
-        <Pressable style={styles.modOverlay} onPress={() => setScanHistoryDeleteModalVis(false)}>
-          <Pressable style={styles.modCard} onPress={() => {}}>
-            <Text style={styles.modTitle}>Auto-Delete History</Text>
+        <Pressable style={settingsStyles.modOverlay} onPress={() => setScanHistoryDeleteModalVis(false)}>
+          <Pressable style={settingsStyles.modCard} onPress={() => {}}>
+            <Text style={settingsStyles.modTitle}>Auto-Delete History</Text>
 
             {DELETE_HIST_VALS.map((opt) => {
               const selected = opt.value === settings.scan_history_delete;
@@ -432,12 +433,12 @@ export default function SettingsScreen() {
                     await updateSetting("scan_history_delete", opt.value);
                   }}
                   style={({ pressed }) => [
-                    styles.modOpt,
-                    selected ? styles.modOptSelected : null,
+                    settingsStyles.modOpt,
+                    selected ? settingsStyles.modOptSelected : null,
                     pressed ? { opacity: 0.85 } : null,
                   ]}
                 >
-                  <Text style={[styles.modOptText, selected ? { fontWeight: "800" } : null]}>{opt.label}</Text>
+                  <Text style={[settingsStyles.modOptText, selected ? { fontWeight: "800" } : null]}>{opt.label}</Text>
                     {selected ? <Ionicons name="checkmark" size={18} color="#000"/> : null}
                 </Pressable>
               );
@@ -445,9 +446,9 @@ export default function SettingsScreen() {
 
             <Pressable
               onPress={() => setScanHistoryDeleteModalVis(false)}
-              style={({ pressed }) => [styles.modClose, pressed ? { opacity: 0.85 } : null]}
+              style={({ pressed }) => [settingsStyles.modClose, pressed ? { opacity: 0.85 } : null]}
             >
-              <Text style={styles.modCloseText}>Close</Text>
+              <Text style={settingsStyles.modCloseText}>Close</Text>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -455,198 +456,3 @@ export default function SettingsScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: "#F3F4F6",
-  },
-  container: {
-    padding: 24,
-    justifyContent: "flex-start",
-    alignItems: "center",
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#111827",
-    marginBottom: 8,
-  },
-  list: {
-    width: '100%',
-    maxWidth: 420
-  },
-  row: {
-    minHeight: 44,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between'
-  },
-  rowLabel: {
-    fontSize: 18,
-    color: '#000000'
-  },
-  hint: {
-    marginTop: 8,
-    fontSize: 13,
-    color: "#604D53"
-  },
-
-  toggle: {
-    width: 54,
-    height: 28,
-    borderWidth: 4,
-    borderColor: '#000000',
-    borderRadius: 21,
-    backgroundColor: "#E8E1EF",
-    padding: 14
-  },
-  toggleKnob: {
-    width: 20,
-    height: 20,
-    borderRadius: 12,
-    backgroundColor: '#F8F4F9',
-    borderWidth: 4,
-    borderColor: '#000000',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'absolute',
-    top: 4
-  },
-  toggleKnobOn: { 
-    right: 4 
-  },
-  toggleKnobOff: { 
-    left: 4 
-  },
-  toggleDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 99
-  },
-  sizePill: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#000",
-    backgroundColor: "#EFE7F3",
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    height: 30,
-    gap: 10,
-    minWidth: 120,
-    justifyContent: "space-between",
-  },
-  sizeBtn: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  sizeVal: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#000",
-    minWidth: 22,
-    textAlign: "center",
-  },
-  dropdownPill: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderWidth: 2,
-    borderColor: "#000",
-    backgroundColor: "#EFE7F3",
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    height: 30,
-  },
-  dropdownText: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#000",
-  },
-  ttsCard: {
-    marginTop: 14,
-    backgroundColor: "#E8DFF0",
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#000",
-    padding: 14,
-    shadowColor: "#000",
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-  },
-  ttsTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#000",
-    marginBottom: 10,
-  },
-  ttsRow: {
-    marginBottom: 10,
-  },
-  ttsLabel: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#3B2F35",
-    marginBottom: 6,
-  },
-  slider: {
-    width: "100%",
-    height: 30,
-  },
-
-
-  modOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.35)",
-    justifyContent: "center",
-    padding: 22,
-  },
-  modCard: {
-    backgroundColor: "#F7F1FB",
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: "#000",
-    padding: 14,
-  },
-  modTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#000",
-    marginBottom: 10,
-  },
-  modOpt: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: "#000",
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-    backgroundColor: "#EFE7F3",
-  },
-  modOptSelected: {
-    backgroundColor: "#E2D7EC",
-  },
-  modOptText: {
-    fontSize: 15,
-    color: "#000",
-    fontWeight: "700",
-  },
-  modClose: {
-    marginTop: 6,
-    alignSelf: "flex-end",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  modCloseText: {
-    fontSize: 14,
-    fontWeight: "900",
-    color: "#000",
-  },
-  
-});

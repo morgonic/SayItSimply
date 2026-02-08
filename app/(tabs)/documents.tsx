@@ -1,10 +1,21 @@
+import storage from "@/app/storage";
+import { styles as dashStyles, localStyles } from "@/constants/styles";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
-import { Dimensions, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { Dimensions, FlatList, Image, Modal, Pressable, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { styles as dashStyles, documentStyles } from "@/constants/styles";
-import { CaptureItem, getCaptures } from "../doc-storage";
+const api_url = process.env.EXPO_PUBLIC_API_URL;
+
+type DocItem = {
+  id: string;
+  mode: string;
+  timestamp: string;
+  thumb_uri: string;
+  thumb_b64?: string | null;
+  thumb_mime?: string | null;
+};
 
 function formatDate(iso: string) {
   const d = new Date(iso);
@@ -12,14 +23,59 @@ function formatDate(iso: string) {
   return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
+async function getAccessToken(): Promise<string | null> {
+  const token = await storage.getItem("access_token");
+  return token ?? null;
+}
+
+function validateMode(raw: string): string | null {
+  const v = (raw ?? "").trim();
+  if (!v) return "Text is required";
+  if (v.length > 15) return "Input must be no longer than 15 characters";
+  if (!/^[A-Za-z ]+$/.test(v)) return "Input must only contain letters and spaces";
+  return null;
+}
+
 export default function DocumentsScreen() {
   const router = useRouter();
-  const [items, setItems] = useState<CaptureItem[]>([]);
+  const [items, setItems] = useState<DocItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editDocId, setEditDocId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [editErr, setEditErr] = useState<string | null>(null);
+  const [editBusy, setEditBusy] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
+  const [delDocId, setDelDocId] = useState<string | null>(null);
+  const [delBusy, setDelBusy] = useState(false);
+
+  const baseUrl = useMemo(() => {
+    if (!api_url) return "";
+    return api_url.replace(/\/$/, "");
+  }, []);
 
   const load = useCallback(async () => {
-    const list = await getCaptures();
-    setItems(list);
-  }, []);
+    try {
+      if (!baseUrl) return;
+
+      setLoading(true);
+      const token = await getAccessToken();
+      if (!token) return;
+
+      const res = await fetch(`${baseUrl}/documents`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) throw new Error("Could not load documents");
+
+      const data = (await res.json()) as DocItem[];
+      setItems(data);
+    } catch (e) {
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [baseUrl]);
 
   useFocusEffect(
     useCallback(() => {
@@ -27,37 +83,165 @@ export default function DocumentsScreen() {
     }, [load])
   );
 
-  const openDoc = (item: CaptureItem) => {
+  const openDoc = (item: DocItem) => {
+    const fileUri = `${baseUrl}/documents/${item.id}/file`;
+
     router.push({
       pathname: "/camera/reader",
-      params: { imageUri: item.uri, mode: item.mode },
+      params: { imageUri: fileUri, mode: item.mode },
     });
   };
 
-  const renderItem = ({ item }: { item: CaptureItem }) => (
-    <Pressable style={documentStyles.row} onPress={() => openDoc(item)}>
-      {/* thumbnail */}
-      <View style={documentStyles.thumbWrap}>
-        <Image source={{ uri: item.uri }} style={documentStyles.thumb} resizeMode="cover" />
-      </View>
+  const openEdit = (item: DocItem) => {
+    setEditErr(null);
+    setEditDocId(item.id);
+    setEditValue(item.mode ?? "");
+    setEditOpen(true);
+  };
 
-      {/* text */}
-      <View style={documentStyles.textCol}>
-        <Text style={documentStyles.title}>{item.mode}</Text>
-        <Text style={documentStyles.subtitle}>{formatDate(item.createdAt)}</Text>
-      </View>
+  const closeEdit = () => {
+    if (editBusy) return;
+    setEditOpen(false);
+    setEditDocId(null);
+    setEditValue("");
+    setEditErr(null);
+  };
 
-      <Pressable
-        onPress={() => openDoc(item)}
-        hitSlop={12}
-        style={documentStyles.chevBtn}
-        accessibilityRole="button"
-        accessibilityLabel="Open document"
-      >
-        <Text style={documentStyles.chev}>›</Text>
-      </Pressable>
-    </Pressable>
-  );
+  const saveEdit = async () => {
+    try {
+      if (!baseUrl || !editDocId) return;
+
+      const err = validateMode(editValue);
+      if (err) {
+        setEditErr(err);
+        return;
+      }
+
+      setEditBusy(true);
+      const token = await getAccessToken();
+      if (!token) return;
+
+      const res = await fetch(`${baseUrl}/documents/${editDocId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ mode: editValue.trim() }),
+      });
+
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(msg || "Could not update document");
+      }
+
+      const updated = (await res.json()) as { id: string; mode: string };
+
+      setItems((prev) => prev.map((x) => (x.id === updated.id ? { ...x, mode: updated.mode } : x)));
+      closeEdit();
+    } catch (e: any) {
+      setEditErr("Update failed. Try again.");
+    } finally {
+      setEditBusy(false);
+    }
+  };
+
+  const openDelete = (item: DocItem) => {
+    setDelDocId(item.id);
+    setDelOpen(true);
+  };
+
+  const closeDelete = () => {
+    if (delBusy) return;
+    setDelOpen(false);
+    setDelDocId(null);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      if (!baseUrl || !delDocId) return;
+
+      setDelBusy(true);
+      const token = await getAccessToken();
+      if (!token) return;
+
+      const res = await fetch(`${baseUrl}/documents/${delDocId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(msg || "Could not delete document");
+      }
+
+      setItems((prev) => prev.filter((x) => x.id !== delDocId));
+      closeDelete();
+    } catch (e) {
+    } finally {
+      setDelBusy(false);
+    }
+  };
+
+
+  const renderItem = ({ item }: { item: DocItem }) => {
+    const thumbUri = `${baseUrl}${item.thumb_uri}`;
+
+    const thumbSource =
+      item.thumb_b64 ? { uri: `data:${item.thumb_mime ?? "image/jpeg"};base64,${item.thumb_b64}` }
+      : require("@/assets/images/logo.png");
+
+    return (
+      <View style={localStyles.row}>
+        <Pressable style={localStyles.mainTap} onPress={() => openDoc(item)}>
+          {/* thumbnail */}
+          <View style={localStyles.thumbWrap}>
+            <Image source={thumbSource}
+            style={localStyles.thumb} resizeMode="cover"/>
+          </View>
+          {/* text */}
+          <View style={localStyles.textCol}>
+            <Text style={localStyles.title}>{item.mode}</Text>
+            <Text style={localStyles.subtitle}>{formatDate(item.timestamp)}</Text>
+          </View>
+        </Pressable>
+
+        <View style={localStyles.actions}>
+          <Pressable
+            onPress={() => openEdit(item)}
+            hitSlop={6}
+            style={({ pressed }) => [
+              localStyles.actionTile,
+              localStyles.editTile,
+              pressed && localStyles.tilePressed,
+            ]}
+          >
+            <Ionicons name="pencil" size={22} color="#111111"/>
+          </Pressable>
+
+          <Pressable
+            onPress={() => openDelete(item)}
+            hitSlop={6}
+            style={({ pressed }) => [
+              localStyles.actionTile,
+              localStyles.deleteTile,
+              pressed && localStyles.tilePressed,
+            ]}
+          >
+            <Ionicons name="trash" size={22} color="#FFFFFF"/>
+          </Pressable>
+
+          <Pressable
+            onPress={() => openDoc(item)}
+            hitSlop={12}
+            style={localStyles.chevBtn}
+          >
+            <Text style={localStyles.chev}>›</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={dashStyles.dashSafe}>
@@ -66,11 +250,9 @@ export default function DocumentsScreen() {
         marginRight: Dimensions.get('window').width * 0.1
       }]}>
         {items.length === 0 ? (
-          <View style={documentStyles.empty}>
-            <Text style={documentStyles.emptyTitle}>No documents yet</Text>
-            <Text style={documentStyles.emptyText}>
-              Take a picture or upload one from your gallery.
-            </Text>
+          <View style={localStyles.empty}>
+            <Text style={localStyles.emptyTitle}>{loading ? "Loading..." : "No documents yet"}</Text>
+            <Text style={localStyles.emptyText}>Capture a picture or upload one from your gallery</Text>
           </View>
         ) : (
           <FlatList
@@ -78,10 +260,66 @@ export default function DocumentsScreen() {
             keyExtractor={(x) => x.id}
             renderItem={renderItem}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={documentStyles.listContent}
+            contentContainerStyle={localStyles.listContent}
           />
         )}
       </View>
+
+      {/* Document Edit Modal */}
+      <Modal visible={editOpen} transparent animationType="fade" onRequestClose={closeEdit}>
+        <View style={localStyles.modalBackdrop}>
+          <View style={localStyles.modalCard}>
+            <Text style={localStyles.modalTitle}>Edit source type of text</Text>
+            <Text style={localStyles.modalHint}>Letters and spaces only; 15 characters or less.</Text>
+
+            <TextInput
+              value={editValue}
+              onChangeText={(t) => {
+                setEditValue(t);
+                setEditErr(null);
+              }}
+              placeholder="e.g. Receipt"
+              placeholderTextColor="rgba(255,255,255,0.45)"
+              style={localStyles.input}
+              autoCapitalize="words"
+              maxLength={20}
+              editable={!editBusy}
+            />
+
+            {!!editErr && <Text style={localStyles.errText}>{editErr}</Text>}
+
+            <View style={localStyles.modalBtns}>
+              <Pressable onPress={closeEdit} disabled={editBusy} style={[localStyles.btn, localStyles.btnGhost]}>
+                <Text style={localStyles.btnText}>Cancel</Text>
+              </Pressable>
+
+              <Pressable onPress={saveEdit} disabled={editBusy} style={[localStyles.btn, localStyles.btnPrimary]}>
+                <Text style={localStyles.btnText}>{editBusy ? "Saving..." : "Save"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      
+      {/* Document Delete Modal */}
+      <Modal visible={delOpen} transparent animationType="fade" onRequestClose={closeDelete}>
+        <View style={localStyles.modalBackdrop}>
+          <View style={localStyles.modalCard}>
+            <Text style={localStyles.modalTitle}>Are you sure you want to delete this document?</Text>
+            <Text style={localStyles.modalHint}>This is permanent and cannot be reversed.</Text>
+
+            <View style={localStyles.modalBtns}>
+              <Pressable onPress={closeDelete} disabled={delBusy} style={[localStyles.btn, localStyles.btnGhost]}>
+                <Text style={localStyles.btnText}>No</Text>
+              </Pressable>
+
+              <Pressable onPress={confirmDelete} disabled={delBusy} style={[localStyles.btn, localStyles.btnDanger]}>
+                <Text style={localStyles.btnText}>{delBusy ? "Deleting..." : "Yes"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

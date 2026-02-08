@@ -1,37 +1,69 @@
+import storage from '@/app/storage';
 import { styles } from "@/constants/styles";
 import { FontAwesome } from "@expo/vector-icons";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
-import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useState } from "react";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { addCapture, CaptureItem, getCaptures } from "../doc-storage";
-import storage from '../storage';
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
-export default function DashboardScreen() {
+async function getAccessToken(): Promise<string | null> {
+  const token = await storage.getItem("access_token");
+  return token ?? null;
+}
 
-  const router = useRouter();
-  const [latest, setLatest] = useState<CaptureItem | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+function normalizeBaseUrl(url?: string) {
+  if (!url) return "";
+  return url.replace(/\/$/, "");
+}
 
-  const loadLatest = useCallback(async () => {
-    const list = await getCaptures();
-    setLatest(list[0] ?? null);
-  }, []);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadLatest();
-    }, [loadLatest])
+async function uploadDocument(params: {
+  imageUri: string;
+  mode: string;
+  sourceAssetId?: string | null
+}): Promise<void> {
+  const baseUrl = normalizeBaseUrl(api_url);
+  const token = await getAccessToken();
+  const thumb = await manipulateAsync(
+    params.imageUri,
+    [{ resize: { width: 96 } }],
+    { compress: 0.6, format: SaveFormat.JPEG }
   );
 
-  function formatDate(iso: string) {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "Unknown date";
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  const form = new FormData();
+  form.append("mode", params.mode);
+
+  form.append("image", {
+    uri: params.imageUri,
+    name: "upload.jpg",
+    type: "image/jpeg",
+  } as any);
+
+  form.append("thumb", {
+    uri: thumb.uri,
+    name: "thumb.jpg",
+    type: "image/jpeg",
+  } as any);
+
+  form.append("source_asset_id", params.sourceAssetId ?? "");
+
+  const res = await fetch(`${baseUrl}/documents`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Upload failed (${res.status}). ${text}`.trim());
   }
+}
+
+export default function DashboardScreen() {
+  const router = useRouter();
+  const [isUploading, setIsUploading] = useState(false);
 
   async function handleLogout() {
     const token = await storage.getItem("access_token");
@@ -39,7 +71,7 @@ export default function DashboardScreen() {
 
     if (token && api_url) {
       try {
-        const response = await fetch(`${api_url}/auth/jwt/logout`, {
+        await fetch(`${api_url}/auth/jwt/logout`, {
           method: 'POST',
           headers: { Authorization: `${tokenType} ${token}` }
         });
@@ -51,7 +83,6 @@ export default function DashboardScreen() {
 
     await storage.deleteItem("access_token");
     await storage.deleteItem("token_type");
-
     await storage.deleteItem("onboarding");
 
     router.replace('/log-in');
@@ -76,21 +107,24 @@ export default function DashboardScreen() {
       });
       if (result.canceled) return;
 
-      const uri = result.assets?.[0]?.uri;
+      const asset = result.assets?.[0];
+      const uri = asset?.uri;
       if (!uri) throw new Error("No image selected");
+      const sourceAssetId: string | null = (asset as any)?.assetId ?? null;
 
-      const saved = await addCapture({
-        tempUri: uri,
-        mode: "Document",
-        source: "gallery",
-      });
+      const mode = "Auto-detect";
 
-      await loadLatest();
 
       router.push({
         pathname: "/camera/reader",
-        params: { imageUri: saved.uri, mode: saved.mode },
+        params: { imageUri: uri, mode: mode },
       });
+
+      try {
+        await uploadDocument({ imageUri: uri, mode, sourceAssetId });
+      } catch (e: any) {
+        console.warn("Upload failed: ", e?.message ?? e);
+      }
     } catch (e: any) {
       console.error(e);
       Alert.alert("Upload failed", e?.message ?? "Could not upload image");

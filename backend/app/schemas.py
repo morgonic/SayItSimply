@@ -2,6 +2,7 @@ import uuid
 from typing import Optional, List, Literal
 from fastapi_users import schemas
 from pydantic import BaseModel, Field
+from datetime import datetime
 
 class ActionItem(BaseModel):
     action_item: str
@@ -111,18 +112,36 @@ class SettingsRead(BaseModel):
     
 class SettingsUpdate(BaseModel):
     challenge_mode: Optional[bool] = None
-
     highlight_difficult_words: Optional[bool] = None
     dark_mode: Optional[bool] = None
     text_size: Optional[TextSizeVals] = None
-
     scan_history_save: Optional[bool] = None
     scan_history_delete: Optional[int] | None = None  # allow null
-
     save_photos: Optional[bool] = None
     notif: Optional[bool] = None
     face_id: Optional[bool] = None
-
     tts_rate: Optional[float] = None
     tts_pitch: Optional[float] = None
     
+class DocumentListItem(BaseModel):
+    id: uuid.UUID
+    mode: str
+    timestamp: datetime
+    thumb_uri: str
+    thumb_b64: Optional[str] = None
+    thumb_mime: Optional[str] = None
+    
+class DocumentDetail(BaseModel):
+    id: uuid.UUID
+    mode: str
+    timestamp: datetime
+    file_uri: str
+    thumb_uri: str
+    thumb_b64: Optional[str] = None
+    thumb_mime: Optional[str] = None
+    
+class DocumentUpdate(BaseModel):
+    mode: str = Field(description="A label for the source of the text")
+    
+class DocumentDelete(BaseModel):
+    ok: bool = True

@@ -3,6 +3,17 @@ import { StyleSheet, Dimensions } from 'react-native';
 const screenWidth = Dimensions.get('window').width;
 const screenHeight = Dimensions.get('window').height;
 
+const BG = "#0B1020";
+const ACCENT = "#E9C6A6";
+const TAB_ACTIVE = "#C97E6F";
+const TAB_INACTIVE = "#E9C6A6";
+const CARD_BORDER = "#2C9AA4";
+const PAPER = "#FFFFF2";
+const BADGE = "#B65A43";
+const CTA = "#2C9AA4";
+const PREVIEW_BG = "#C8D7F0";
+const TEXT_MUTED = "rgba(255,255,255,0.65)";
+
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -35,16 +46,16 @@ export const styles = StyleSheet.create({
     fontSize: 14
   },
   // dashboard specific
-  dashSafe: { 
-    flex: 1, 
+  dashSafe: {
+    flex: 1,
     backgroundColor: "#0D1321"
   },
-  dashContainer: { 
-    flex: 1, 
+  dashContainer: {
+    flex: 1,
     backgroundColor: "#0D1321",
     marginTop: screenHeight * 0.03,
     marginLeft: screenWidth * 0.05,
-    marginRight: screenWidth * 0.05 
+    marginRight: screenWidth * 0.05
   },
 
   dashHeader: {
@@ -283,14 +294,7 @@ export const styles = StyleSheet.create({
   }
 });
 
-const BG = "#0B1020";
-const ACCENT = "#E9C6A6";
-const TAB_ACTIVE = "#C97E6F";
-const TAB_INACTIVE = "#E9C6A6";
-const CARD_BORDER = "#2C9AA4";
-const PAPER = "#FFFFF2";
-const BADGE = "#B65A43";
-const CTA = "#2C9AA4";
+
 
 export const readerStyles = StyleSheet.create({
   safe: {
@@ -668,14 +672,11 @@ export const readerStyles = StyleSheet.create({
   }
 });
 
-const BG_CAMERA = "#0B1020";
-const ACCENT_CAMERA = "#E9C6A6";
-const PREVIEW_BG_CAMERA = "#C8D7F0";
-const TEXT_MUTED_CAMERA = "rgba(255,255,255,0.65)";
+
 
 export const cameraStyles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: BG_CAMERA },
-  container: { flex: 1, backgroundColor: BG_CAMERA, paddingHorizontal: 16 },
+  safe: { flex: 1, backgroundColor: BG },
+  container: { flex: 1, backgroundColor: BG, paddingHorizontal: 16 },
 
   header: {
     height: 56,
@@ -691,7 +692,7 @@ export const cameraStyles = StyleSheet.create({
   },
   headerIcon: { color: "white", fontSize: 22 },
   headerTitle: {
-    color: ACCENT_CAMERA,
+    color: ACCENT,
     fontSize: 28,
     fontWeight: "700",
     letterSpacing: 0.2,
@@ -701,15 +702,15 @@ export const cameraStyles = StyleSheet.create({
   avatar: { width: 32, height: 32, borderRadius: 16 },
 
   thumbBtn: {
-  width: 52,
-  height: 52,
-  borderRadius: 14,
-  overflow: "hidden",
-  alignItems: "center",
-  justifyContent: "center",
-  backgroundColor: "rgba(255,255,255,0.06)",
-},
-thumbImage: { width: "100%", height: "100%" },
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  thumbImage: { width: "100%", height: "100%" },
 
   previewWrap: {
     marginTop: 6,
@@ -718,7 +719,7 @@ thumbImage: { width: "100%", height: "100%" },
   },
   preview: {
     flex: 1,
-    backgroundColor: PREVIEW_BG_CAMERA,
+    backgroundColor: PREVIEW_BG,
     borderRadius: 36,
     alignItems: "center",
     justifyContent: "center",
@@ -747,8 +748,8 @@ thumbImage: { width: "100%", height: "100%" },
     alignItems: "center",
     gap: 22,
   },
-  modeItem: {alignItems: "center", minWidth: 64,},
-  modeText: { color: TEXT_MUTED_CAMERA, fontSize: 16, fontWeight: "600" },
+  modeItem: { alignItems: "center", minWidth: 64, },
+  modeText: { color: TEXT_MUTED, fontSize: 16, fontWeight: "600" },
   modeTextSelected: { color: "white" },
   modeUnderline: {
     height: 2,
@@ -831,11 +832,6 @@ export const documentStyles = StyleSheet.create({
   emptyText: { color: "rgba(255,255,255,0.7)", textAlign: "center" },
 });
 
-const TAB_INACTIVE_PROFILE = "#E9C6A6";
-const CARD_BORDER_PROFILE = "#2C9AA4";
-const PAPER_PROFILE = "#FFFFF2";
-const CTA_PROFILE = "#2C9AA4";
-
 export const profileStyles = StyleSheet.create({
   safe: {
     flex: 1,
@@ -879,28 +875,28 @@ export const profileStyles = StyleSheet.create({
     elevation: 6,
   },
   avatarImage: {
-  width: "100%",
-  height: "100%",
-  borderRadius: 46, // match avatarCircle borderRadius
-},
-pickProfileButton: {
-  position: "absolute",
-  right: -2,
-  bottom: -2,
-  width: 30,
-  height: 30,
-  borderRadius: 15,
-  backgroundColor: "#1F7A88",
-  alignItems: "center",
-  justifyContent: "center",
-  borderWidth: 2,
-  borderColor: "#F3F4F6",
-  shadowColor: "#000",
-  shadowOpacity: 0.15,
-  shadowRadius: 6,
-  shadowOffset: { width: 0, height: 3 },
-  elevation: 3,
-},
+    width: "100%",
+    height: "100%",
+    borderRadius: 46, // match avatarCircle borderRadius
+  },
+  pickProfileButton: {
+    position: "absolute",
+    right: -2,
+    bottom: -2,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "#1F7A88",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#F3F4F6",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
 
   section: {
     paddingHorizontal: 18,
@@ -934,7 +930,7 @@ pickProfileButton: {
     justifyContent: "space-between",
   },
   rowPressed: { opacity: 0.75 },
-  rowDisabled: { 
+  rowDisabled: {
     backgroundColor: "rgba(229,231,235,0.6)",
     opacity: 0.55
   },
@@ -983,9 +979,9 @@ pickProfileButton: {
   },
 
   accountModalCard: {
-  backgroundColor: "#FFFFFF",
-  borderRadius: 14,
-  padding: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 16,
   },
 
   accountModalTitle: {
@@ -1204,131 +1200,131 @@ pickProfileButton: {
     height: "100%",
   },
   calibBackground: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.55)',
-    },
-    calibModalCard: {
-      width: '100%',
-      maxWidth: 420,
-      height: "78%",
-      backgroundColor: PAPER_PROFILE,
-      borderRadius: 18,
-      borderWidth: 10,
-      borderColor: CARD_BORDER_PROFILE,
-      shadowOpacity: 0.22,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: 8,
-      overflow: "hidden",
-    },
-    calibTitle: {
-      fontSize: 18,
-      fontWeight: '900',
-      color: "#1B1B1B",
-      marginBottom: 4,
-    },
-    calibLoadRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 10,
-      paddingVertical: 18,
-    },
-    calibLoadTxt: {
-      fontWeight: "800",
-      color: "#1B1B1B",
-    },
-    calibCenter: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-      padding: 16,
-    },
-    calibBodyScroll: {
-      flex: 1,
-    },
-    calibBodyContent: {
-      padding: 14,
-      flexGrow: 1,
-    },
-    calibErrTxt: {
-      fontWeight: "800",
-      color: "#8C311C",
-      paddingVertical: 14,
-    },
-    calibOptsRow: {
-      flexDirection: "row",
-      gap: 10,
-      marginBottom: 12,
-    },
-    calibOpt: {
-      flex: 1,
-      borderRadius: 14,
-      borderWidth: 2,
-      borderColor: "rgba(0,0,0,0.15)",
-      backgroundColor: "rgba(0,0,0,0.03)",
-      overflow: "hidden",
-    },
-    calibOptHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      backgroundColor: "rgba(0,0,0,0.06)",
-    },
-    calibOptHeaderTxt: {
-      fontWeight: "900",
-      color: "#1B1B1B",
-      fontSize: 12,
-    },
-    calibOptScroll: {
-      flex: 1,
-      paddingHorizontal: 10,
-      paddingVertical: 10,
-    },
-    calibOptTxt: {
-      fontWeight: "600",
-      color: "#1B1B1B",
-      lineHeight: 20,
-      fontSize: 13,
-      paddingHorizontal: 10,
-      paddingVertical: 10,
-    },
-    calibBtnRow: {
-      flexDirection: "row",
-      gap: 10,
-    },
-    calibBtn: {
-      flex: 1,
-      minHeight: 52,
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 8,
-      paddingVertical: 8,
-    },
-    calibBtnLow: {
-      backgroundColor: CTA_PROFILE,
-    },
-    calibBtnHigh: {
-      backgroundColor: CTA_PROFILE,
-    },
-    calibBtnStay: {
-      backgroundColor: TAB_INACTIVE_PROFILE,
-      borderWidth: 1,
-      borderColor: "#1B1B1B",
-    },
-    calibChoiceTxt: {
-      color: "white",
-      fontWeight: "900",
-      fontSize: 12,
-      textAlign: "center",
-      lineHeight: 14,
-      flexWrap: "wrap",
-    },
-    calibChoiceDarkTxt: {
-      color: "#1B1B1B",
-      fontWeight: "900",
-    }
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  calibModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    height: "78%",
+    backgroundColor: PAPER,
+    borderRadius: 18,
+    borderWidth: 10,
+    borderColor: CARD_BORDER,
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+    overflow: "hidden",
+  },
+  calibTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: "#1B1B1B",
+    marginBottom: 4,
+  },
+  calibLoadRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 18,
+  },
+  calibLoadTxt: {
+    fontWeight: "800",
+    color: "#1B1B1B",
+  },
+  calibCenter: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  calibBodyScroll: {
+    flex: 1,
+  },
+  calibBodyContent: {
+    padding: 14,
+    flexGrow: 1,
+  },
+  calibErrTxt: {
+    fontWeight: "800",
+    color: "#8C311C",
+    paddingVertical: 14,
+  },
+  calibOptsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+  calibOpt: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "rgba(0,0,0,0.15)",
+    backgroundColor: "rgba(0,0,0,0.03)",
+    overflow: "hidden",
+  },
+  calibOptHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: "rgba(0,0,0,0.06)",
+  },
+  calibOptHeaderTxt: {
+    fontWeight: "900",
+    color: "#1B1B1B",
+    fontSize: 12,
+  },
+  calibOptScroll: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  calibOptTxt: {
+    fontWeight: "600",
+    color: "#1B1B1B",
+    lineHeight: 20,
+    fontSize: 13,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  calibBtnRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  calibBtn: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  calibBtnLow: {
+    backgroundColor: CTA,
+  },
+  calibBtnHigh: {
+    backgroundColor: CTA,
+  },
+  calibBtnStay: {
+    backgroundColor: TAB_INACTIVE,
+    borderWidth: 1,
+    borderColor: "#1B1B1B",
+  },
+  calibChoiceTxt: {
+    color: "white",
+    fontWeight: "900",
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 14,
+    flexWrap: "wrap",
+  },
+  calibChoiceDarkTxt: {
+    color: "#1B1B1B",
+    fontWeight: "900",
+  }
 });

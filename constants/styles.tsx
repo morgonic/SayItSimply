@@ -830,3 +830,505 @@ export const documentStyles = StyleSheet.create({
   emptyTitle: { color: "white", fontSize: 18, fontWeight: "800", marginBottom: 8 },
   emptyText: { color: "rgba(255,255,255,0.7)", textAlign: "center" },
 });
+
+const TAB_INACTIVE_PROFILE = "#E9C6A6";
+const CARD_BORDER_PROFILE = "#2C9AA4";
+const PAPER_PROFILE = "#FFFFF2";
+const CTA_PROFILE = "#2C9AA4";
+
+export const profileStyles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: "#F3F4F6",
+  },
+  scrollContent: {
+    paddingBottom: 8,
+  },
+
+  header: {
+    paddingTop: 8,
+    paddingBottom: 18,
+    alignItems: "center",
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#111827",
+    marginTop: 6,
+  },
+
+  avatarWrap: {
+    marginTop: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarCircle: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    backgroundColor: "#E5E7EB",
+    alignItems: "center",
+    justifyContent: "center",
+
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+  },
+  avatarImage: {
+  width: "100%",
+  height: "100%",
+  borderRadius: 46, // match avatarCircle borderRadius
+},
+pickProfileButton: {
+  position: "absolute",
+  right: -2,
+  bottom: -2,
+  width: 30,
+  height: 30,
+  borderRadius: 15,
+  backgroundColor: "#1F7A88",
+  alignItems: "center",
+  justifyContent: "center",
+  borderWidth: 2,
+  borderColor: "#F3F4F6",
+  shadowColor: "#000",
+  shadowOpacity: 0.15,
+  shadowRadius: 6,
+  shadowOffset: { width: 0, height: 3 },
+  elevation: 3,
+},
+
+  section: {
+    paddingHorizontal: 18,
+    marginTop: 14,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 10,
+    textAlign: "center",
+  },
+
+  card: {
+    backgroundColor: "#E9E6F4",
+    borderRadius: 14,
+    overflow: "hidden",
+    marginBottom: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 2,
+  },
+
+  row: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  rowPressed: { opacity: 0.75 },
+  rowDisabled: { 
+    backgroundColor: "rgba(229,231,235,0.6)",
+    opacity: 0.55
+  },
+  rowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  rowLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  rowLabelDisabled: {
+    color: "#6B7280",
+  },
+  rowRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  languageChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(17,24,39,0.15)",
+  },
+  languageChipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#111827",
+  },
+
+  oauthHint: {
+    textAlign: "center",
+    color: "#6B7280",
+    marginTop: -4,
+    marginBottom: 8,
+    fontWeight: "700",
+    paddingHorizontal: 18,
+  },
+
+  accountModalCard: {
+  backgroundColor: "#FFFFFF",
+  borderRadius: 14,
+  padding: 16,
+  },
+
+  accountModalTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#111827",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+
+  detailRow: {
+    paddingVertical: 10,
+  },
+
+  detailLabel: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: "#6B7280",
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+
+  detailValue: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#111827",
+  },
+
+  detailDivider: {
+    height: 1,
+    backgroundColor: "rgba(17,24,39,0.1)",
+  },
+
+  detailCloseButton: {
+    marginTop: 14,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#E5E7EB",
+  },
+
+  detailCloseButtonText: {
+    color: "#111827",
+    fontWeight: "900",
+  },
+
+  logoutButton: {
+    marginTop: 6,
+    marginHorizontal: 18,
+    borderRadius: 12,
+    paddingVertical: 14,
+    backgroundColor: "#1F7A88",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.14,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+  logoutButtonPressed: { opacity: 0.85 },
+  logoutText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+
+  dangerTitle: {
+    marginTop: 14,
+    textAlign: "center",
+    fontWeight: "900",
+    color: "#B42318",
+    letterSpacing: 0.7,
+  },
+  dangerWrap: {
+    marginTop: 10,
+    marginHorizontal: 18,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "rgba(180,35,24,0.55)",
+    borderStyle: "dashed",
+    backgroundColor: "rgba(255,255,255,0.55)",
+  },
+
+  deleteButton: {
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: "#8B2C1B",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  deleteButtonPressed: { opacity: 0.85 },
+  deleteText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  rowDanger: {},
+  rowLabelDanger: {
+    color: "#B42318",
+  },
+
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.25)",
+    justifyContent: "center",
+    paddingHorizontal: 18,
+  },
+
+  dropdownCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    paddingVertical: 10,
+    overflow: "hidden",
+  },
+  dropdownTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#111827",
+    textAlign: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(17,24,39,0.1)",
+  },
+  dropdownRow: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dropdownRowSelected: {
+    backgroundColor: "rgba(31, 122, 136, 0.08)",
+  },
+  dropdownRowText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#111827",
+  },
+
+  pwModalCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
+    padding: 16,
+  },
+  pwModalTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#111827",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  modalLabel: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#111827",
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderColor: "rgba(17,24,39,0.15)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: "#F9FAFB",
+  },
+  modalError: {
+    marginTop: 10,
+    color: "#B42318",
+    fontWeight: "800",
+  },
+
+  modalButtons: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+  },
+  modalButton: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalButtonPressed: {
+    opacity: 0.85,
+  },
+  modalCancelButton: {
+    backgroundColor: "#E5E7EB",
+  },
+  modalCancelButtonText: {
+    color: "#111827",
+    fontWeight: "900",
+  },
+  modalButtonPrimary: {
+    backgroundColor: "#1F7A88",
+  },
+  modalButtonPrimaryText: {
+    color: "#FFFFFF",
+    fontWeight: "900",
+  },
+
+  fullFill: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    width: "100%",
+    height: "100%",
+  },
+  calibBackground: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.55)',
+    },
+    calibModalCard: {
+      width: '100%',
+      maxWidth: 420,
+      height: "78%",
+      backgroundColor: PAPER_PROFILE,
+      borderRadius: 18,
+      borderWidth: 10,
+      borderColor: CARD_BORDER_PROFILE,
+      shadowOpacity: 0.22,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 8,
+      overflow: "hidden",
+    },
+    calibTitle: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: "#1B1B1B",
+      marginBottom: 4,
+    },
+    calibLoadRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 10,
+      paddingVertical: 18,
+    },
+    calibLoadTxt: {
+      fontWeight: "800",
+      color: "#1B1B1B",
+    },
+    calibCenter: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 16,
+    },
+    calibBodyScroll: {
+      flex: 1,
+    },
+    calibBodyContent: {
+      padding: 14,
+      flexGrow: 1,
+    },
+    calibErrTxt: {
+      fontWeight: "800",
+      color: "#8C311C",
+      paddingVertical: 14,
+    },
+    calibOptsRow: {
+      flexDirection: "row",
+      gap: 10,
+      marginBottom: 12,
+    },
+    calibOpt: {
+      flex: 1,
+      borderRadius: 14,
+      borderWidth: 2,
+      borderColor: "rgba(0,0,0,0.15)",
+      backgroundColor: "rgba(0,0,0,0.03)",
+      overflow: "hidden",
+    },
+    calibOptHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      backgroundColor: "rgba(0,0,0,0.06)",
+    },
+    calibOptHeaderTxt: {
+      fontWeight: "900",
+      color: "#1B1B1B",
+      fontSize: 12,
+    },
+    calibOptScroll: {
+      flex: 1,
+      paddingHorizontal: 10,
+      paddingVertical: 10,
+    },
+    calibOptTxt: {
+      fontWeight: "600",
+      color: "#1B1B1B",
+      lineHeight: 20,
+      fontSize: 13,
+      paddingHorizontal: 10,
+      paddingVertical: 10,
+    },
+    calibBtnRow: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    calibBtn: {
+      flex: 1,
+      minHeight: 52,
+      borderRadius: 12,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 8,
+      paddingVertical: 8,
+    },
+    calibBtnLow: {
+      backgroundColor: CTA_PROFILE,
+    },
+    calibBtnHigh: {
+      backgroundColor: CTA_PROFILE,
+    },
+    calibBtnStay: {
+      backgroundColor: TAB_INACTIVE_PROFILE,
+      borderWidth: 1,
+      borderColor: "#1B1B1B",
+    },
+    calibChoiceTxt: {
+      color: "white",
+      fontWeight: "900",
+      fontSize: 12,
+      textAlign: "center",
+      lineHeight: 14,
+      flexWrap: "wrap",
+    },
+    calibChoiceDarkTxt: {
+      color: "#1B1B1B",
+      fontWeight: "900",
+    }
+});

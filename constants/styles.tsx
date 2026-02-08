@@ -1328,3 +1328,198 @@ export const profileStyles = StyleSheet.create({
     fontWeight: "900",
   }
 });
+
+export const settingsStyles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: "#F3F4F6",
+  },
+  container: {
+    padding: 24,
+    justifyContent: "flex-start",
+    alignItems: "center",
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 8,
+  },
+  list: {
+    width: '100%',
+    maxWidth: 420
+  },
+  row: {
+    minHeight: 44,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  rowLabel: {
+    fontSize: 18,
+    color: '#000000'
+  },
+  hint: {
+    marginTop: 8,
+    fontSize: 13,
+    color: "#604D53"
+  },
+
+  toggle: {
+    width: 54,
+    height: 28,
+    borderWidth: 4,
+    borderColor: '#000000',
+    borderRadius: 21,
+    backgroundColor: "#E8E1EF",
+    padding: 14
+  },
+  toggleKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 12,
+    backgroundColor: '#F8F4F9',
+    borderWidth: 4,
+    borderColor: '#000000',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'absolute',
+    top: 4
+  },
+  toggleKnobOn: { 
+    right: 4 
+  },
+  toggleKnobOff: { 
+    left: 4 
+  },
+  toggleDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 99
+  },
+  sizePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#000",
+    backgroundColor: "#EFE7F3",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    height: 30,
+    gap: 10,
+    minWidth: 120,
+    justifyContent: "space-between",
+  },
+  sizeBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  sizeVal: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#000",
+    minWidth: 22,
+    textAlign: "center",
+  },
+  dropdownPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 2,
+    borderColor: "#000",
+    backgroundColor: "#EFE7F3",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    height: 30,
+  },
+  dropdownText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#000",
+  },
+  ttsCard: {
+    marginTop: 14,
+    backgroundColor: "#E8DFF0",
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#000",
+    padding: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  ttsTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#000",
+    marginBottom: 10,
+  },
+  ttsRow: {
+    marginBottom: 10,
+  },
+  ttsLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#3B2F35",
+    marginBottom: 6,
+  },
+  slider: {
+    width: "100%",
+    height: 30,
+  },
+
+
+  modOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.35)",
+    justifyContent: "center",
+    padding: 22,
+  },
+  modCard: {
+    backgroundColor: "#F7F1FB",
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: "#000",
+    padding: 14,
+  },
+  modTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#000",
+    marginBottom: 10,
+  },
+  modOpt: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: "#000",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    backgroundColor: "#EFE7F3",
+  },
+  modOptSelected: {
+    backgroundColor: "#E2D7EC",
+  },
+  modOptText: {
+    fontSize: 15,
+    color: "#000",
+    fontWeight: "700",
+  },
+  modClose: {
+    marginTop: 6,
+    alignSelf: "flex-end",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  modCloseText: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#000",
+  },
+  
+});

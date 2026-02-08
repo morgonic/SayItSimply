@@ -14,6 +14,7 @@ import {
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {readerStyles} from '@/constants/styles';
 
 // reader screen tabs
 type ReaderTab = "Overview" | "Easy Read" | "Translate";
@@ -348,7 +349,7 @@ export default function ReaderScreen() {
       return (
         <Text
           key={i}
-          style={match ? styles.complexWord : styles.bodyText}
+          style={match ? readerStyles.complexWord : readerStyles.bodyText}
           onPress={() => {
             if (match) {
               openDefinitionModal(clean_words);
@@ -383,7 +384,7 @@ export default function ReaderScreen() {
       return (
         <Text
           key={i}
-          style={match ? styles.complexWord : styles.bodyText}
+          style={match ? readerStyles.complexWord : readerStyles.bodyText}
           onPress={() => {
             if (match) {
               openDefinitionModal(clean_words);
@@ -961,18 +962,18 @@ export default function ReaderScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
+    <SafeAreaView style={readerStyles.safe}>
+      <View style={readerStyles.container}>
         {/* Header */}
-        <View style={styles.header}>
-          <Pressable style={styles.headerIconBtn} onPress={() => { }}>
-            <Text style={styles.headerIcon}>☰</Text>
+        <View style={readerStyles.header}>
+          <Pressable style={readerStyles.headerIconBtn} onPress={() => { }}>
+            <Text style={readerStyles.headerIcon}>☰</Text>
           </Pressable>
 
-          <Text style={styles.headerTitle}>SayItSimply</Text>
+          <Text style={readerStyles.headerTitle}>SayItSimply</Text>
 
-          <Pressable style={styles.avatarBtn} onPress={() => { }}>
-            <View style={styles.avatarPlaceholder} />
+          <Pressable style={readerStyles.avatarBtn} onPress={() => { }}>
+            <View style={readerStyles.avatarPlaceholder} />
           </Pressable>
         </View>
 
@@ -984,33 +985,33 @@ export default function ReaderScreen() {
         >
 
           {/* Top Tabs */}
-          <View style={styles.tabRow}>
+          <View style={readerStyles.tabRow}>
             <TopTab label="Overview" active={tab === "Overview"} onPress={() => setTab("Overview")} />
             <TopTab label="Easy Read" active={tab === "Easy Read"} onPress={() => setTab("Easy Read")} />
             <TopTab label="Translate" active={tab === "Translate"} onPress={() => setTab("Translate")} />
           </View>
 
           {/* Card Area */}
-          <View style={[styles.outerCard, { height: cardHeight }]}>
+          <View style={[readerStyles.outerCard, { height: cardHeight }]}>
             {/* Badge */}
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
+            <View style={readerStyles.badge}>
+              <Text style={readerStyles.badgeText}>
                 {badgeMode}
                 {showLangLabel ? "\n\n" : ""}
                 {showLangLabel ? (
-                  <Text style={[styles.badgeText, { fontSize: 16, color: '#F2D3AC', fontWeight: '900' }]}>
+                  <Text style={[readerStyles.badgeText, { fontSize: 16, color: '#F2D3AC', fontWeight: '900' }]}>
                     {langLabel}
                   </Text>
                 ) : null}
               </Text>
-              <View style={styles.badgeNotch} />
+              <View style={readerStyles.badgeNotch} />
             </View>
 
             {/* Inner "paper" */}
-            <View style={styles.innerPaper}>
+            <View style={readerStyles.innerPaper}>
               {/* action items icon */}
               <Pressable
-                style={[styles.actionItemBtn, {
+                style={[readerStyles.actionItemBtn, {
                   backgroundColor: actionItemsDisabled ? 'transparent' : '#ECC8AF',
                   borderColor: actionItemsDisabled ? 'transparent' : 'rgba(0,0,0,0.5)'
                 }]}
@@ -1064,14 +1065,14 @@ export default function ReaderScreen() {
 
               {/* Body text */}
               <ScrollView
-                style={styles.bodyScroll}
-                contentContainerStyle={styles.bodyScrollContent}
+                style={readerStyles.bodyScroll}
+                contentContainerStyle={readerStyles.bodyScrollContent}
                 showsVerticalScrollIndicator
                 keyboardShouldPersistTaps='handled'
                 indicatorStyle='black'
                 onScrollBeginDrag={closeDefinitionModal}
               >
-                <Text style={styles.bodyText}>
+                <Text style={readerStyles.bodyText}>
                   {tab === "Overview" && showOriginal
                     ? highlightedOriginal
                     : tab === "Easy Read"
@@ -1085,7 +1086,7 @@ export default function ReaderScreen() {
               {tab !== "Translate" && (
                 <Pressable
                   style={[
-                    styles.ctaBtn,
+                    readerStyles.ctaBtn,
                     (ocrLoading || geminiLoading || !ocrText || simplifiedMost) &&
                     { backgroundColor: '#6C6767', opacity: 0.5 }
                   ]}
@@ -1156,7 +1157,7 @@ export default function ReaderScreen() {
                   }}
                   disabled={ocrLoading || geminiLoading || !ocrText
                     || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1))}>
-                  <Text style={styles.ctaText}>
+                  <Text style={readerStyles.ctaText}>
                     {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
                       : (tab === "Overview" && !showOriginal) ? "See Original Text"
                         : (tab === "Overview" && showOriginal) ? "See Simplified Text"
@@ -1170,7 +1171,7 @@ export default function ReaderScreen() {
         </ScrollView>
 
         {tab === "Easy Read" && (
-          <View style={styles.levelControlsWrap}>
+          <View style={readerStyles.levelControlsWrap}>
             <DetailLevelTab
               label="Standard"
               hint="More detail"
@@ -1205,69 +1206,69 @@ export default function ReaderScreen() {
         animationType="fade"
         onRequestClose={closeCalibModal}
       >
-        <View style={styles.calibBackground}>
-          <Pressable style={styles.fullFill} onPress={closeCalibModal} />
-          <View style={styles.calibCenter} pointerEvents='box-none'>
-            <View style={styles.calibModalCard}>
-              <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.calibBodyContent}
+        <View style={readerStyles.calibBackground}>
+          <Pressable style={readerStyles.fullFill} onPress={closeCalibModal} />
+          <View style={readerStyles.calibCenter} pointerEvents='box-none'>
+            <View style={readerStyles.calibModalCard}>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={readerStyles.calibBodyContent}
                 showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
               >
-                <Text style={styles.calibTitle}>Calibrate Simplification</Text>
+                <Text style={readerStyles.calibTitle}>Calibrate Simplification</Text>
 
                 {calibLoad ? (
-                  <View style={styles.calibLoadRow}>
+                  <View style={readerStyles.calibLoadRow}>
                     <ActivityIndicator size={22} color={"black"} />
-                    <Text style={styles.calibLoadTxt}>Loading...</Text>
+                    <Text style={readerStyles.calibLoadTxt}>Loading...</Text>
                   </View>
                 ) : calibErr ? (
-                  <Text style={styles.calibErrTxt}>{calibErr}</Text>
+                  <Text style={readerStyles.calibErrTxt}>{calibErr}</Text>
                 ) : (
-                  <View style={styles.calibOptsRow}>
-                    <View style={styles.calibOpt}>
-                      <View style={styles.calibOptHeader}>
-                        <Text style={styles.calibOptHeaderTxt}> Option A - Lower</Text>
+                  <View style={readerStyles.calibOptsRow}>
+                    <View style={readerStyles.calibOpt}>
+                      <View style={readerStyles.calibOptHeader}>
+                        <Text style={readerStyles.calibOptHeaderTxt}> Option A - Lower</Text>
                       </View>
-                      <Text style={styles.calibOptTxt}>{calibLowerTxt}</Text>
+                      <Text style={readerStyles.calibOptTxt}>{calibLowerTxt}</Text>
                     </View>
 
-                    <View style={styles.calibOpt}>
-                      <View style={styles.calibOptHeader}>
-                        <Text style={styles.calibOptHeaderTxt}> Option B - Higher</Text>
+                    <View style={readerStyles.calibOpt}>
+                      <View style={readerStyles.calibOptHeader}>
+                        <Text style={readerStyles.calibOptHeaderTxt}> Option B - Higher</Text>
                       </View>
-                      <Text style={styles.calibOptTxt}>{calibHigherTxt}</Text>
+                      <Text style={readerStyles.calibOptTxt}>{calibHigherTxt}</Text>
                     </View>
                   </View>
                 )}
 
-                <View style={styles.calibBtnRow}>
+                <View style={readerStyles.calibBtnRow}>
                   <Pressable
-                    style={[styles.calibBtn, styles.calibBtnLow]}
+                    style={[readerStyles.calibBtn, readerStyles.calibBtnLow]}
                     disabled={calibLoad}
                     onPress={async () => {
                       await setCalibChoice("lower");
                     }}
                   >
-                    <Text style={styles.calibChoiceTxt}>Choose Option A</Text>
+                    <Text style={readerStyles.calibChoiceTxt}>Choose Option A</Text>
                   </Pressable>
 
                   <Pressable
-                    style={[styles.calibBtn, styles.calibBtnStay]}
+                    style={[readerStyles.calibBtn, readerStyles.calibBtnStay]}
                     disabled={calibLoad}
                     onPress={async () => {
                       await setCalibChoice("stay");
                     }}
                   >
-                    <Text style={styles.calibChoiceDarkTxt}>Neither - Don't change</Text>
+                    <Text style={readerStyles.calibChoiceDarkTxt}>Neither - Don't change</Text>
                   </Pressable>
 
                   <Pressable
-                    style={[styles.calibBtn, styles.calibBtnHigh]}
+                    style={[readerStyles.calibBtn, readerStyles.calibBtnHigh]}
                     disabled={calibLoad}
                     onPress={async () => {
                       await setCalibChoice("higher");
                     }}
                   >
-                    <Text style={styles.calibChoiceTxt}>Choose Option B</Text>
+                    <Text style={readerStyles.calibChoiceTxt}>Choose Option B</Text>
                   </Pressable>
                 </View>
               </ScrollView>
@@ -1284,17 +1285,17 @@ export default function ReaderScreen() {
         onRequestClose={closeDefinitionModal}
       >
         <Pressable
-          style={styles.definitionBackground}
+          style={readerStyles.definitionBackground}
           onPress={closeDefinitionModal}
         >
           <Pressable
-            style={styles.definitionModalCard}
+            style={readerStyles.definitionModalCard}
             onPress={() => { }}
           >
-            <Text style={styles.definitionModalWordText}>
+            <Text style={readerStyles.definitionModalWordText}>
               {definitionModal.word}
             </Text>
-            <Text style={styles.definitionModalDefinitionText}>
+            <Text style={readerStyles.definitionModalDefinitionText}>
               {definitionModal.definition}
             </Text>
           </Pressable>
@@ -1363,10 +1364,10 @@ function TopTab({
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.topTab, active ? styles.topTabActive : styles.topTabInactive]}
+      style={[readerStyles.topTab, active ? readerStyles.topTabActive : readerStyles.topTabInactive]}
       hitSlop={8}
     >
-      <Text style={[styles.topTabText, active ? styles.topTabTextActive : styles.topTabTextInactive]}>
+      <Text style={[readerStyles.topTabText, active ? readerStyles.topTabTextActive : readerStyles.topTabTextInactive]}>
         {label}
       </Text>
     </Pressable>
@@ -1390,24 +1391,24 @@ function DetailLevelTab({
     <Pressable
       onPress={onPress}
       style={[
-        styles.levelTab,
-        active ? styles.levelTabActive : styles.levelTabInactive,
+        readerStyles.levelTab,
+        active ? readerStyles.levelTabActive : readerStyles.levelTabInactive,
       ]}
       hitSlop={8}
     >
       {icon}
       <Text
         style={[
-          styles.levelTabText,
-          active ? styles.levelTabText : styles.levelTabText,
+          readerStyles.levelTabText,
+          active ? readerStyles.levelTabText : readerStyles.levelTabText,
         ]}
       >
         {label}
       </Text>
       <Text
         style={[
-          styles.levelTabHint,
-          active ? styles.levelTabHint : styles.levelTabHint,
+          readerStyles.levelTabHint,
+          active ? readerStyles.levelTabHint : readerStyles.levelTabHint,
         ]}
       >
         {hint}
@@ -1415,388 +1416,3 @@ function DetailLevelTab({
     </Pressable>
   );
 }
-
-const BG = "#0B1020";
-const ACCENT = "#E9C6A6";
-const TAB_ACTIVE = "#C97E6F";
-const TAB_INACTIVE = "#E9C6A6";
-const CARD_BORDER = "#2C9AA4";
-const PAPER = "#FFFFF2";
-const BADGE = "#B65A43";
-const CTA = "#2C9AA4";
-
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: BG
-  },
-  fullFill: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: '100%',
-    height: '100%',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: BG,
-    paddingHorizontal: 16
-  },
-
-  header: {
-    height: 56,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  headerIconBtn: {
-    width: 44,
-    height: 44,
-    justifyContent: "center",
-    marginRight: 8
-  },
-  headerIcon: { color: "white", fontSize: 36, marginTop: 8, marginLeft: 8 },
-  headerTitle: { color: ACCENT, fontSize: 26, fontWeight: "700" },
-  avatarBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "flex-end" },
-  avatarPlaceholder: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.35)",
-  },
-
-  actionItemBtn: {
-    width: 44,
-    height: 44,
-    justifyContent: "center",
-    alignItems: 'center',
-    borderRadius: 12,
-    borderColor: 'rgba(0,0,0,0.5)',
-    borderWidth: 0.5,
-    shadowColor: 'black',
-    shadowOpacity: 0.4,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 2
-  },
-
-  tabRow: {
-    marginTop: Dimensions.get('window').height * 0.034,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 10,
-    paddingHorizontal: 6
-  },
-  topTab: {
-    flex: 1,
-    height: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  topTabActive: { backgroundColor: TAB_ACTIVE },
-  topTabInactive: { backgroundColor: TAB_INACTIVE },
-  topTabText: { fontSize: 14, fontWeight: "800" },
-  topTabTextActive: { color: "#1B1B1B" },
-  topTabTextInactive: { color: "#1B1B1B" },
-
-  outerCard: {
-    marginTop: 15,
-    borderRadius: 24,
-    borderWidth: 12,
-    borderColor: TAB_INACTIVE,
-    backgroundColor: CARD_BORDER,
-    padding: 12,
-    position: "relative",
-  },
-
-  badge: {
-    position: "absolute",
-    right: 14,
-    top: -20,
-    width: 80,
-    height: 100,
-    borderRadius: 8,
-    backgroundColor: BADGE,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 5,
-    elevation: 3,
-  },
-  badgeText: {
-    color: "white",
-    fontWeight: "800",
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 24,
-    lineHeight: 14,
-  },
-  badgeNotch: {
-    position: 'absolute',
-    bottom: 0,
-    left: '50%',
-    transform: [{ translateX: -40 }],
-    width: 0,
-    height: 0,
-    borderLeftWidth: 40,
-    borderRightWidth: 40,
-    borderBottomWidth: 36,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: '#FFFFF2',
-  },
-
-  innerPaper: {
-    flex: 1,
-    backgroundColor: PAPER,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 18,
-  },
-
-  paperMenuBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: "rgba(0,0,0,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-  paperMenuIcon: { color: "#222", fontSize: 20, fontWeight: "900" },
-
-  bodyScroll: {
-    flex: 1
-  },
-  bodyScrollContent: {
-    paddingVertical: 24,
-    paddingHorizontal: 12,
-    width: '100%'
-  },
-  bodyText: {
-    color: "#1B1B1B",
-    fontSize: 16.67,
-    lineHeight: 24,
-    fontWeight: "600",
-    flexShrink: 1,
-    flexWrap: 'wrap'
-  },
-
-  ctaBtn: {
-    marginTop: 14,
-    alignSelf: "center",
-    width: "88%",
-    height: 46,
-    borderRadius: 12,
-    backgroundColor: CTA,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowOpacity: 0.16,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 6 },
-  },
-  ctaText: { color: "white", fontWeight: "900", fontSize: 16 },
-
-  complexWord: {
-    color: '#8C311C',
-    fontWeight: '800',
-    textDecorationLine: 'underline'
-  },
-
-  definitionBackground: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16
-  },
-  definitionModalCard: {
-    backgroundColor: PAPER,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 8,
-    borderColor: CARD_BORDER,
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-    width: '100%',
-    maxWidth: 340
-  },
-  definitionModalWordText: {
-    fontWeight: '900',
-    color: '#000000',
-    marginBottom: 6
-  },
-  definitionModalDefinitionText: {
-    fontWeight: '600',
-    color: '#000000',
-    lineHeight: 20
-  },
-
-  levelControlsWrap: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: -25,
-  },
-
-  levelTab: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    backgroundColor: "#1B1B1B",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#1B1B1B",
-  },
-
-  levelTabActive: { backgroundColor: TAB_ACTIVE },
-  levelTabInactive: { backgroundColor: TAB_INACTIVE },
-
-  levelTabText: {
-    marginTop: 4,
-    fontWeight: "900",
-    fontSize: 12,
-    color: "#1B1B1B",
-  },
-
-  levelTabHint: {
-    marginTop: 2,
-    fontWeight: "700",
-    fontSize: 10,
-    color: "#1B1B1B",
-  },
-
-  calibBackground: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  calibModalCard: {
-    width: '100%',
-    maxWidth: 420,
-    height: Dimensions.get("window").height * 0.72,
-    backgroundColor: PAPER,
-    borderRadius: 18,
-    borderWidth: 10,
-    borderColor: CARD_BORDER,
-    shadowOpacity: 0.22,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
-    overflow: "hidden",
-  },
-  calibTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: "#1B1B1B",
-    marginBottom: 4,
-  },
-  calibLoadRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    paddingVertical: 18,
-  },
-  calibLoadTxt: {
-    fontWeight: "800",
-    color: "#1B1B1B",
-  },
-  calibCenter: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
-  },
-  calibBodyScroll: {
-    flex: 1,
-  },
-  calibBodyContent: {
-    padding: 14,
-    flexGrow: 1,
-  },
-  calibErrTxt: {
-    fontWeight: "800",
-    color: "#8C311C",
-    paddingVertical: 14,
-  },
-  calibOptsRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 12,
-  },
-  calibOpt: {
-    flex: 1,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: "rgba(0,0,0,0.15)",
-    backgroundColor: "rgba(0,0,0,0.03)",
-    overflow: "hidden",
-  },
-  calibOptHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: "rgba(0,0,0,0.06)",
-  },
-  calibOptHeaderTxt: {
-    fontWeight: "900",
-    color: "#1B1B1B",
-    fontSize: 12,
-  },
-  calibOptScroll: {
-    flex: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-  },
-  calibOptTxt: {
-    fontWeight: "600",
-    color: "#1B1B1B",
-    lineHeight: 20,
-    fontSize: 13,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-  },
-  calibBtnRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  calibBtn: {
-    flex: 1,
-    minHeight: 52,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-  },
-  calibBtnLow: {
-    backgroundColor: CTA,
-  },
-  calibBtnHigh: {
-    backgroundColor: CTA,
-  },
-  calibBtnStay: {
-    backgroundColor: TAB_INACTIVE,
-    borderWidth: 1,
-    borderColor: "#1B1B1B",
-  },
-  calibChoiceTxt: {
-    color: "white",
-    fontWeight: "900",
-    fontSize: 12,
-    textAlign: "center",
-    lineHeight: 14,
-    flexWrap: "wrap",
-  },
-  calibChoiceDarkTxt: {
-    color: "#1B1B1B",
-    fontWeight: "900",
-  }
-});

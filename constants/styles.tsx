@@ -282,3 +282,388 @@ export const styles = StyleSheet.create({
     alignItems: 'center'
   }
 });
+
+const BG = "#0B1020";
+const ACCENT = "#E9C6A6";
+const TAB_ACTIVE = "#C97E6F";
+const TAB_INACTIVE = "#E9C6A6";
+const CARD_BORDER = "#2C9AA4";
+const PAPER = "#FFFFF2";
+const BADGE = "#B65A43";
+const CTA = "#2C9AA4";
+
+export const readerStyles = StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: BG
+  },
+  fullFill: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: BG,
+    paddingHorizontal: 16
+  },
+
+  header: {
+    height: 56,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerIconBtn: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    marginRight: 8
+  },
+  headerIcon: { color: "white", fontSize: 36, marginTop: 8, marginLeft: 8 },
+  headerTitle: { color: ACCENT, fontSize: 26, fontWeight: "700" },
+  avatarBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "flex-end" },
+  avatarPlaceholder: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.35)",
+  },
+
+  actionItemBtn: {
+    width: 44,
+    height: 44,
+    justifyContent: "center",
+    alignItems: 'center',
+    borderRadius: 12,
+    borderColor: 'rgba(0,0,0,0.5)',
+    borderWidth: 0.5,
+    shadowColor: 'black',
+    shadowOpacity: 0.4,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 2
+  },
+
+  tabRow: {
+    marginTop: Dimensions.get('window').height * 0.034,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+    paddingHorizontal: 6
+  },
+  topTab: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  topTabActive: { backgroundColor: TAB_ACTIVE },
+  topTabInactive: { backgroundColor: TAB_INACTIVE },
+  topTabText: { fontSize: 14, fontWeight: "800" },
+  topTabTextActive: { color: "#1B1B1B" },
+  topTabTextInactive: { color: "#1B1B1B" },
+
+  outerCard: {
+    marginTop: 15,
+    borderRadius: 24,
+    borderWidth: 12,
+    borderColor: TAB_INACTIVE,
+    backgroundColor: CARD_BORDER,
+    padding: 12,
+    position: "relative",
+  },
+
+  badge: {
+    position: "absolute",
+    right: 14,
+    top: -20,
+    width: 80,
+    height: 100,
+    borderRadius: 8,
+    backgroundColor: BADGE,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 5,
+    elevation: 3,
+  },
+  badgeText: {
+    color: "white",
+    fontWeight: "800",
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 14,
+  },
+  badgeNotch: {
+    position: 'absolute',
+    bottom: 0,
+    left: '50%',
+    transform: [{ translateX: -40 }],
+    width: 0,
+    height: 0,
+    borderLeftWidth: 40,
+    borderRightWidth: 40,
+    borderBottomWidth: 36,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderBottomColor: '#FFFFF2',
+  },
+
+  innerPaper: {
+    flex: 1,
+    backgroundColor: PAPER,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 18,
+  },
+
+  paperMenuBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: "rgba(0,0,0,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  paperMenuIcon: { color: "#222", fontSize: 20, fontWeight: "900" },
+
+  bodyScroll: {
+    flex: 1
+  },
+  bodyScrollContent: {
+    paddingVertical: 24,
+    paddingHorizontal: 12,
+    width: '100%'
+  },
+  bodyText: {
+    color: "#1B1B1B",
+    fontSize: 16.67,
+    lineHeight: 24,
+    fontWeight: "600",
+    flexShrink: 1,
+    flexWrap: 'wrap'
+  },
+
+  ctaBtn: {
+    marginTop: 14,
+    alignSelf: "center",
+    width: "88%",
+    height: 46,
+    borderRadius: 12,
+    backgroundColor: CTA,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 6 },
+  },
+  ctaText: { color: "white", fontWeight: "900", fontSize: 16 },
+
+  complexWord: {
+    color: '#8C311C',
+    fontWeight: '800',
+    textDecorationLine: 'underline'
+  },
+
+  definitionBackground: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16
+  },
+  definitionModalCard: {
+    backgroundColor: PAPER,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 8,
+    borderColor: CARD_BORDER,
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 6,
+    width: '100%',
+    maxWidth: 340
+  },
+  definitionModalWordText: {
+    fontWeight: '900',
+    color: '#000000',
+    marginBottom: 6
+  },
+  definitionModalDefinitionText: {
+    fontWeight: '600',
+    color: '#000000',
+    lineHeight: 20
+  },
+
+  levelControlsWrap: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: -25,
+  },
+
+  levelTab: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    backgroundColor: "#1B1B1B",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#1B1B1B",
+  },
+
+  levelTabActive: { backgroundColor: TAB_ACTIVE },
+  levelTabInactive: { backgroundColor: TAB_INACTIVE },
+
+  levelTabText: {
+    marginTop: 4,
+    fontWeight: "900",
+    fontSize: 12,
+    color: "#1B1B1B",
+  },
+
+  levelTabHint: {
+    marginTop: 2,
+    fontWeight: "700",
+    fontSize: 10,
+    color: "#1B1B1B",
+  },
+
+  calibBackground: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  calibModalCard: {
+    width: '100%',
+    maxWidth: 420,
+    height: Dimensions.get("window").height * 0.72,
+    backgroundColor: PAPER,
+    borderRadius: 18,
+    borderWidth: 10,
+    borderColor: CARD_BORDER,
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+    overflow: "hidden",
+  },
+  calibTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: "#1B1B1B",
+    marginBottom: 4,
+  },
+  calibLoadRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 18,
+  },
+  calibLoadTxt: {
+    fontWeight: "800",
+    color: "#1B1B1B",
+  },
+  calibCenter: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  calibBodyScroll: {
+    flex: 1,
+  },
+  calibBodyContent: {
+    padding: 14,
+    flexGrow: 1,
+  },
+  calibErrTxt: {
+    fontWeight: "800",
+    color: "#8C311C",
+    paddingVertical: 14,
+  },
+  calibOptsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
+  calibOpt: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "rgba(0,0,0,0.15)",
+    backgroundColor: "rgba(0,0,0,0.03)",
+    overflow: "hidden",
+  },
+  calibOptHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: "rgba(0,0,0,0.06)",
+  },
+  calibOptHeaderTxt: {
+    fontWeight: "900",
+    color: "#1B1B1B",
+    fontSize: 12,
+  },
+  calibOptScroll: {
+    flex: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  calibOptTxt: {
+    fontWeight: "600",
+    color: "#1B1B1B",
+    lineHeight: 20,
+    fontSize: 13,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  calibBtnRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  calibBtn: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  calibBtnLow: {
+    backgroundColor: CTA,
+  },
+  calibBtnHigh: {
+    backgroundColor: CTA,
+  },
+  calibBtnStay: {
+    backgroundColor: TAB_INACTIVE,
+    borderWidth: 1,
+    borderColor: "#1B1B1B",
+  },
+  calibChoiceTxt: {
+    color: "white",
+    fontWeight: "900",
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 14,
+    flexWrap: "wrap",
+  },
+  calibChoiceDarkTxt: {
+    color: "#1B1B1B",
+    fontWeight: "900",
+  }
+});

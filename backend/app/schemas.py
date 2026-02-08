@@ -7,6 +7,10 @@ class ActionItem(BaseModel):
     action_item: str
     deadline: Optional[str] = None
 
+# request model for users/me/todo
+class AddToDoRequest(BaseModel):
+    action_items: List[ActionItem]
+
 class UserRead(schemas.BaseUser[uuid.UUID]):
     language: str
     reading_level: int

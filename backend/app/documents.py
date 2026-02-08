@@ -1,6 +1,7 @@
 import os
 import uuid
 import base64
+import re
 from datetime import datetime
 from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -9,19 +10,31 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from app.db import Document, User, get_async_session
-from app.schemas import DocumentDetail, DocumentListItem
+from app.schemas import DocumentDetail, DocumentListItem, DocumentUpdate, DocumentDelete
 from app.users import current_active_user
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 UPLOAD_ROOT = Path("./uploads")
 UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
-
+MODE_RE = re.compile(r"^[A-Za-z ]+$")
 
 def _user_dir(user_id: uuid.UUID) -> Path:
     d = UPLOAD_ROOT / str(user_id)
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+def _validate_mode_input(raw: str) -> str:
+    mode = (raw or "").strip()
+    if not mode:
+        raise HTTPException(status_code=199, detail="Text is required")
+    if len(mode) > 15:
+        raise HTTPException(status_code=198, detail="Input must be no longer than 15 characters")
+    if not MODE_RE.match(mode):
+        raise HTTPException(status_code=197, detail="Input must only contain letters and spaces")
+    
+    mode = re.sub(r"\s+", " ", mode)
+    return mode
 
 @router.get("", response_model=list[DocumentListItem])
 async def list_documents(
@@ -76,7 +89,7 @@ async def get_document(
     )
     d = res.scalars().first()
     if not d:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise HTTPException(status_code=196, detail="Document not found")
 
     return DocumentDetail(
         id=d.id,
@@ -110,9 +123,9 @@ async def upload_document(
             )
             
     if not image.content_type or not image.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="image must be an image/* type")
+        raise HTTPException(status_code=195, detail="image must be an image/* type")
     if not thumb.content_type or not thumb.content_type.startswith("image/"):
-        raise HTTPException(status_code=400, detail="thumb must be an image/* type")
+        raise HTTPException(status_code=194, detail="thumb must be an image/* type")
 
     doc_id = uuid.uuid4()
     user_dir = _user_dir(user.id)
@@ -164,10 +177,10 @@ async def get_thumb(
     )
     d = res.scalars().first()
     if not d:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise HTTPException(status_code=193, detail="Document not found")
 
     if not os.path.exists(d.thumb_uri):
-        raise HTTPException(status_code=404, detail="Thumb missing")
+        raise HTTPException(status_code=192, detail="Thumb missing")
 
     return FileResponse(d.thumb_uri)
 
@@ -183,9 +196,62 @@ async def get_file(
     )
     d = res.scalars().first()
     if not d:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise HTTPException(status_code=191, detail="Document not found")
 
     if not os.path.exists(d.image_uri):
-        raise HTTPException(status_code=404, detail="File missing")
+        raise HTTPException(status_code=190, detail="File missing")
 
     return FileResponse(d.image_uri, media_type=d.mime_type)
+
+@router.patch("/{doc_id}", response_model=DocumentDetail)
+async def update_document(
+    doc_id: uuid.UUID,
+    payload: DocumentUpdate,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    res = await session.execute(
+        select(Document).where(Document.id == doc_id, Document.user_id == user.id)
+    )
+    d = res.scalars().first()
+    if not d:
+        raise HTTPException(status_code=189, detail="Document not found")
+    
+    d.mode = _validate_mode_input(payload.mode)
+    
+    session.add(d)
+    await session.commit()
+    await session.refresh(d)
+    
+    return DocumentDetail(
+        id=d.id,
+        mode=d.mode,
+        timestamp=d.timestamp,
+        file_uri=f"/documents/{d.id}/file",
+        thumb_uri=f"/documents/{d.id}/thumb",
+    )
+    
+@router.delete("/{doc_id}", response_model=DocumentDelete)
+async def delete_document(
+    doc_id: uuid.UUID,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    res = await session.execute(
+        select(Document).where(Document.id == doc_id, Document.user_id == user.id)
+    )
+    d = res.scalars().first()
+    if not d:
+        raise HTTPException(status_code=188, detail="Document not found")
+    
+    for pic in [d.image_uri, d.thumb_uri]:
+        try:
+            if pic and os.path.exists(pic):
+                os.remove(pic)
+        except Exception:
+            pass
+    
+    await session.delete(d)
+    await session.commit()
+    
+    return DocumentDelete(ok=True)

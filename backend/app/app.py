@@ -29,6 +29,7 @@ load_dotenv()
 from app.gemini_flash import get_gemini_response
 from app.calibration import router as calibration_router
 from app.detectlang import detect_language
+from app.documents import router as documents_router
 
 print("GOOGLE_OAUTH_CLIENT_ID loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_ID")))
 print("GOOGLE_OAUTH_CLIENT_SECRET loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")))
@@ -183,6 +184,8 @@ app.include_router(
 )
 
 app.include_router(calibration_router)
+
+app.include_router(documents_router)
 
 @app.delete("/users/me", tags=["users"])
 async def delete_me(

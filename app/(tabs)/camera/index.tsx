@@ -1,14 +1,78 @@
+import storage from "@/app/storage";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Dimensions, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { addCapture } from "../../doc-storage";
+
+const api_url = process.env.EXPO_PUBLIC_API_URL;
 
 const MODES = ["Auto-detect", "Sign", "Menu", "Form", "Label", "Receipt", "Document",  "Medical", "Instructions", "Article", "Book", "Board"] as const;
 type Mode = (typeof MODES)[number];
 
+async function getAccessToken(): Promise<string | null> {
+  const token = await storage.getItem("access_token");
+  return token ?? null;
+}
 
+function normalizeBaseUrl(url?: string) {
+  if (!url) return "";
+  return url.replace(/\/$/, "");
+}
+
+async function uploadDocument(params: {
+  imageUri: string;
+  mode: string;
+  sourceAssetId?: string | null;
+}): Promise<void> {
+  const baseUrl = normalizeBaseUrl(api_url);
+  if (!baseUrl) throw new Error("EXPO_PUBLIC_API_URL is not set.");
+
+  const token = await getAccessToken();
+  if (!token) throw new Error("Not logged in.");
+
+  const thumb = await manipulateAsync(
+    params.imageUri,
+    [{ resize: { width: 96 } }],
+    { compress: 0.6, format: SaveFormat.JPEG }
+  );
+
+  const form = new FormData();
+
+  // mode
+  form.append("mode", params.mode);
+
+  // full image
+  form.append("image", {
+    uri: params.imageUri,
+    name: "capture.jpg",
+    type: "image/jpeg",
+  } as any);
+
+  // thumb
+  form.append("thumb", {
+    uri: thumb.uri,
+    name: "thumb.jpg",
+    type: "image/jpeg",
+  } as any);
+
+  form.append("source_asset_id", params.sourceAssetId ?? "");
+
+  const res = await fetch(`${baseUrl}/documents`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      // DO NOT set Content-Type manually for FormData in RN
+    },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Upload failed (${res.status}). ${text}`.trim());
+  }
+}
 
 export default function CameraScreen() {
   const [mode, setMode] = useState<Mode>("Auto-detect");
@@ -49,15 +113,20 @@ export default function CameraScreen() {
       });
       if (!pic?.uri) throw new Error("Photo path not returned");
 
-      const saved = await addCapture({
-        tempUri: pic.uri, mode, source: "camera",
-      });
+      setLastCaptureUri(pic.uri)
 
-      setLastCaptureUri(saved.uri)
+      try {
+          await uploadDocument({ imageUri: pic.uri, mode, sourceAssetId: null  });
+        } catch (e: any) {
+            console.warn("Camera capture uploadDocument failed:", e?.message ?? e);
+        }
 
       router.push({
-        pathname: "/camera/reader", params: { imageUri: saved.uri, mode },
+        pathname: "/camera/reader", params: { imageUri: pic.uri, mode },
       });
+      (async () => {
+        
+      })();
     } catch (e: any) {
       console.error(e);
       Alert.alert("Failed to take picture", e?.message ?? "Capture failed");

@@ -3,7 +3,7 @@ import React, { useCallback, useState } from "react";
 import { Dimensions, FlatList, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { styles as dashStyles } from "@/constants/styles";
+import { styles as dashStyles, documentStyles } from "@/constants/styles";
 import { CaptureItem, getCaptures } from "../doc-storage";
 
 function formatDate(iso: string) {
@@ -35,26 +35,26 @@ export default function DocumentsScreen() {
   };
 
   const renderItem = ({ item }: { item: CaptureItem }) => (
-    <Pressable style={local.row} onPress={() => openDoc(item)}>
+    <Pressable style={documentStyles.row} onPress={() => openDoc(item)}>
       {/* thumbnail */}
-      <View style={local.thumbWrap}>
-        <Image source={{ uri: item.uri }} style={local.thumb} resizeMode="cover" />
+      <View style={documentStyles.thumbWrap}>
+        <Image source={{ uri: item.uri }} style={documentStyles.thumb} resizeMode="cover" />
       </View>
 
       {/* text */}
-      <View style={local.textCol}>
-        <Text style={local.title}>{item.mode}</Text>
-        <Text style={local.subtitle}>{formatDate(item.createdAt)}</Text>
+      <View style={documentStyles.textCol}>
+        <Text style={documentStyles.title}>{item.mode}</Text>
+        <Text style={documentStyles.subtitle}>{formatDate(item.createdAt)}</Text>
       </View>
 
       <Pressable
         onPress={() => openDoc(item)}
         hitSlop={12}
-        style={local.chevBtn}
+        style={documentStyles.chevBtn}
         accessibilityRole="button"
         accessibilityLabel="Open document"
       >
-        <Text style={local.chev}>›</Text>
+        <Text style={documentStyles.chev}>›</Text>
       </Pressable>
     </Pressable>
   );
@@ -66,9 +66,9 @@ export default function DocumentsScreen() {
         marginRight: Dimensions.get('window').width * 0.1
       }]}>
         {items.length === 0 ? (
-          <View style={local.empty}>
-            <Text style={local.emptyTitle}>No documents yet</Text>
-            <Text style={local.emptyText}>
+          <View style={documentStyles.empty}>
+            <Text style={documentStyles.emptyTitle}>No documents yet</Text>
+            <Text style={documentStyles.emptyText}>
               Take a picture or upload one from your gallery.
             </Text>
           </View>
@@ -78,48 +78,10 @@ export default function DocumentsScreen() {
             keyExtractor={(x) => x.id}
             renderItem={renderItem}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={local.listContent}
+            contentContainerStyle={documentStyles.listContent}
           />
         )}
       </View>
     </SafeAreaView>
   );
 }
-
-const local = StyleSheet.create({
-  listContent: {
-    paddingVertical: 8,
-  },
-
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 12,
-    gap: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "rgba(255,255,255,0.15)",
-  },
-
-  thumbWrap: {
-    width: 46,
-    height: 46,
-    borderRadius: 8,
-    overflow: "hidden",
-    backgroundColor: "rgba(255,255,255,0.06)",
-  },
-  thumb: {
-    width: "100%",
-    height: "100%",
-  },
-
-  textCol: { flex: 1 },
-  title: { color: "white", fontSize: 15, fontWeight: "800" },
-  subtitle: { color: "rgba(255,255,255,0.65)", marginTop: 2 },
-
-  chevBtn: { paddingLeft: 10, paddingVertical: 6 },
-  chev: { color: "rgba(255,255,255,0.75)", fontSize: 28, lineHeight: 28 },
-
-  empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
-  emptyTitle: { color: "white", fontSize: 18, fontWeight: "800", marginBottom: 8 },
-  emptyText: { color: "rgba(255,255,255,0.7)", textAlign: "center" },
-});

@@ -792,3 +792,41 @@ thumbImage: { width: "100%", height: "100%" },
     backgroundColor: "rgba(255,255,255,0.25)",
   }
 });
+
+export const documentStyles = StyleSheet.create({
+  listContent: {
+    paddingVertical: 8,
+  },
+
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    gap: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(255,255,255,0.15)",
+  },
+
+  thumbWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  thumb: {
+    width: "100%",
+    height: "100%",
+  },
+
+  textCol: { flex: 1 },
+  title: { color: "white", fontSize: 15, fontWeight: "800" },
+  subtitle: { color: "rgba(255,255,255,0.65)", marginTop: 2 },
+
+  chevBtn: { paddingLeft: 10, paddingVertical: 6 },
+  chev: { color: "rgba(255,255,255,0.75)", fontSize: 28, lineHeight: 28 },
+
+  empty: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24 },
+  emptyTitle: { color: "white", fontSize: 18, fontWeight: "800", marginBottom: 8 },
+  emptyText: { color: "rgba(255,255,255,0.7)", textAlign: "center" },
+});

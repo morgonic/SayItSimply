@@ -1,5 +1,6 @@
 import storage from '@/app/storage';
 import ActionItemModal from '@/components/ActionItemModal';
+import HelpModal from '@/components/HelpModal';
 import { readerStyles } from '@/constants/styles';
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
@@ -262,6 +263,9 @@ export default function ReaderScreen() {
   const actionItemsDisabled = (
     isLoading || actionItems.length === 0
   );
+
+  // help modal states
+  const [helpVisible, setHelpVisible] = useState(false);
 
   // Calibration states
   const [calibVis, setCalibVis] = useState(false);
@@ -1181,26 +1185,27 @@ export default function ReaderScreen() {
                 </Pressable>
 
                 {/*lang code fab*/}
-                <Pressable
-                  style={{
-                    backgroundColor: 'white',
-                    borderColor: 'black',
-                    width: 40,
-                    height: 40,
-                    borderRadius: 24,
-                    borderWidth: 2,
-                    justifyContent: 'center',
-                    alignContent: 'center',
-                    alignItems: 'center'
-                  }}
-                  onPress={() => {}}
-                >
-                  <Ionicons
-                    name="help"
-                    color={'black'}
-                    size={32}
-                  />
-                </Pressable>
+                {!isLoading && (  
+                  <Pressable
+                    style={{
+                      backgroundColor: 'white',
+                      borderColor: 'black',
+                      width: 40,
+                      height: 40,
+                      borderRadius: 24,
+                      borderWidth: 2,
+                      justifyContent: 'center',
+                      alignContent: 'center',
+                      alignItems: 'center'
+                    }}
+                    onPress={() => setHelpVisible(true)}
+                  >
+                    <Ionicons
+                      name="help"
+                      color={'black'}
+                      size={32}
+                    />
+                  </Pressable>)}
               </View>
 
               {/* Loading state + activity indicator */}
@@ -1604,6 +1609,11 @@ export default function ReaderScreen() {
             console.warn("Failed to add to To-Do:", e?.message ?? e);
           }
         }}
+      />
+
+      <HelpModal
+        visible={helpVisible}
+        onClose={() => setHelpVisible(false)}
       />
 
     </SafeAreaView>

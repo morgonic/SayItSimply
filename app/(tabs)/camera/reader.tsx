@@ -1,5 +1,6 @@
 import storage from '@/app/storage';
 import ActionItemModal from '@/components/ActionItemModal';
+import HelpModal from '@/components/HelpModal';
 import { readerStyles } from '@/constants/styles';
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
@@ -262,6 +263,9 @@ export default function ReaderScreen() {
   const actionItemsDisabled = (
     isLoading || actionItems.length === 0
   );
+
+  // help modal states
+  const [helpVisible, setHelpVisible] = useState(false);
 
   // Calibration states
   const [calibVis, setCalibVis] = useState(false);
@@ -1149,31 +1153,60 @@ export default function ReaderScreen() {
 
             {/* Inner "paper" */}
             <View style={readerStyles.innerPaper}>
-              {/* action items icon */}
-              <Pressable
-                style={[readerStyles.actionItemBtn, {
-                  backgroundColor: actionItemsDisabled ? 'transparent' : '#ECC8AF',
-                  borderColor: actionItemsDisabled ? 'transparent' : 'rgba(0,0,0,0.5)'
-                }]}
-                onPress={() => {
-                  closeDefinitionModal();
-                  setActionItemsVisible(true);
-                }}
-                disabled={actionItemsDisabled}
-                hitSlop={10}
-                accessibilityRole='button'
-                accessibilityLabel="Open Action Items"
-              >
-                <Ionicons
-                  name="menu-outline"
-                  size={30}
-                  color={actionItemsDisabled ? 'transparent' : 'black'}
-                  style={{
-                    justifyContent: 'center',
-                    alignItems: 'center'
+              <View style={{
+                flexDirection: 'row', 
+                justifyContent: 'space-between', 
+                maxWidth: '75%'
+              }}>
+                {/* action items icon */}
+                <Pressable
+                  style={[readerStyles.actionItemBtn, {
+                    backgroundColor: actionItemsDisabled ? 'transparent' : '#ECC8AF',
+                    borderColor: actionItemsDisabled ? 'transparent' : 'rgba(0,0,0,0.5)'
+                  }]}
+                  onPress={() => {
+                    closeDefinitionModal();
+                    setActionItemsVisible(true);
                   }}
-                />
-              </Pressable>
+                  disabled={actionItemsDisabled}
+                  hitSlop={10}
+                  accessibilityRole='button'
+                  accessibilityLabel="Open Action Items"
+                >
+                  <Ionicons
+                    name="menu-outline"
+                    size={30}
+                    color={actionItemsDisabled ? 'transparent' : 'black'}
+                    style={{
+                      justifyContent: 'center',
+                      alignItems: 'center'
+                    }}
+                  />
+                </Pressable>
+
+                {/*lang code fab*/}
+                {!isLoading && (  
+                  <Pressable
+                    style={{
+                      backgroundColor: 'white',
+                      borderColor: 'black',
+                      width: 40,
+                      height: 40,
+                      borderRadius: 24,
+                      borderWidth: 2,
+                      justifyContent: 'center',
+                      alignContent: 'center',
+                      alignItems: 'center'
+                    }}
+                    onPress={() => setHelpVisible(true)}
+                  >
+                    <Ionicons
+                      name="help"
+                      color={'black'}
+                      size={32}
+                    />
+                  </Pressable>)}
+              </View>
 
               {/* Loading state + activity indicator */}
               {(ocrLoading || geminiLoading) && (
@@ -1576,6 +1609,11 @@ export default function ReaderScreen() {
             console.warn("Failed to add to To-Do:", e?.message ?? e);
           }
         }}
+      />
+
+      <HelpModal
+        visible={helpVisible}
+        onClose={() => setHelpVisible(false)}
       />
 
     </SafeAreaView>

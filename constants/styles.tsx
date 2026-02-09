@@ -14,6 +14,8 @@ const CTA = "#2C9AA4";
 const PREVIEW_BG = "#C8D7F0";
 const TEXT_MUTED = "rgba(255,255,255,0.65)";
 
+//========= GENERAL STYLES =========//
+
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -294,7 +296,7 @@ export const styles = StyleSheet.create({
   }
 });
 
-
+//========= READER SCREEN STYLES =========//
 
 export const readerStyles = StyleSheet.create({
   safe: {
@@ -800,10 +802,17 @@ export const readerStyles = StyleSheet.create({
   calibChoiceDarkTxt: {
     color: "#1B1B1B",
     fontWeight: "900",
+  },
+
+  helpHeaderText: {
+    fontWeight: '800',
+    fontSize: 20,
+    justifyContent: 'center',
+    textAlign: 'center'
   }
 });
 
-
+//========= CAMERA SCREEN STYLES =========//
 
 export const cameraStyles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: BG },
@@ -925,6 +934,8 @@ export const cameraStyles = StyleSheet.create({
   }
 });
 
+//========= DOCUMENTS SCREEN STYLES =========//
+
 export const documentStyles = StyleSheet.create({
   listContent: {
     paddingVertical: 8,
@@ -962,6 +973,8 @@ export const documentStyles = StyleSheet.create({
   emptyTitle: { color: "white", fontSize: 18, fontWeight: "800", marginBottom: 8 },
   emptyText: { color: "rgba(255,255,255,0.7)", textAlign: "center" },
 });
+
+//========= PROFILE SCREEN STYLES =========//
 
 export const profileStyles = StyleSheet.create({
   safe: {
@@ -1460,6 +1473,8 @@ export const profileStyles = StyleSheet.create({
   }
 });
 
+//========= SETTINGS SCREEN STYLES =========//
+
 export const settingsStyles = StyleSheet.create({
   safe: {
     flex: 1,
@@ -1654,6 +1669,8 @@ export const settingsStyles = StyleSheet.create({
   },
   
 });
+
+//========= MORE DOCUMENTS SCREEN STYLES =========//
 
 export const localStyles = StyleSheet.create({
   listContent: {

@@ -1149,31 +1149,59 @@ export default function ReaderScreen() {
 
             {/* Inner "paper" */}
             <View style={readerStyles.innerPaper}>
-              {/* action items icon */}
-              <Pressable
-                style={[readerStyles.actionItemBtn, {
-                  backgroundColor: actionItemsDisabled ? 'transparent' : '#ECC8AF',
-                  borderColor: actionItemsDisabled ? 'transparent' : 'rgba(0,0,0,0.5)'
-                }]}
-                onPress={() => {
-                  closeDefinitionModal();
-                  setActionItemsVisible(true);
-                }}
-                disabled={actionItemsDisabled}
-                hitSlop={10}
-                accessibilityRole='button'
-                accessibilityLabel="Open Action Items"
-              >
-                <Ionicons
-                  name="menu-outline"
-                  size={30}
-                  color={actionItemsDisabled ? 'transparent' : 'black'}
+              <View style={{
+                flexDirection: 'row', 
+                justifyContent: 'space-between', 
+                maxWidth: '75%'
+              }}>
+                {/* action items icon */}
+                <Pressable
+                  style={[readerStyles.actionItemBtn, {
+                    backgroundColor: actionItemsDisabled ? 'transparent' : '#ECC8AF',
+                    borderColor: actionItemsDisabled ? 'transparent' : 'rgba(0,0,0,0.5)'
+                  }]}
+                  onPress={() => {
+                    closeDefinitionModal();
+                    setActionItemsVisible(true);
+                  }}
+                  disabled={actionItemsDisabled}
+                  hitSlop={10}
+                  accessibilityRole='button'
+                  accessibilityLabel="Open Action Items"
+                >
+                  <Ionicons
+                    name="menu-outline"
+                    size={30}
+                    color={actionItemsDisabled ? 'transparent' : 'black'}
+                    style={{
+                      justifyContent: 'center',
+                      alignItems: 'center'
+                    }}
+                  />
+                </Pressable>
+
+                {/*lang code fab*/}
+                <Pressable
                   style={{
+                    backgroundColor: 'white',
+                    borderColor: 'black',
+                    width: 40,
+                    height: 40,
+                    borderRadius: 24,
+                    borderWidth: 2,
                     justifyContent: 'center',
+                    alignContent: 'center',
                     alignItems: 'center'
                   }}
-                />
-              </Pressable>
+                  onPress={() => {}}
+                >
+                  <Ionicons
+                    name="help"
+                    color={'black'}
+                    size={32}
+                  />
+                </Pressable>
+              </View>
 
               {/* Loading state + activity indicator */}
               {(ocrLoading || geminiLoading) && (

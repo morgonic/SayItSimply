@@ -6,7 +6,7 @@ from datetime import datetime
 from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from app.db import Document, User, get_async_session
@@ -230,6 +230,28 @@ async def update_document(
         file_uri=f"/documents/{d.id}/file",
         thumb_uri=f"/documents/{d.id}/thumb",
     )
+    
+@router.delete("", response_model=DocumentDelete)
+async def delete_all_documents(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    res = res = await session.execute(select(Document).where(Document.user_id == user.id))
+    docs = res.scalars().all()
+    
+    for d in docs:
+        for pic in [d.image_uri, d.thumb_uri]:
+            try:
+                if pic and os.path.exists(pic):
+                    os.remove(pic)
+            except Exception:
+                pass
+            
+    for d in docs:
+        await session.delete(d)
+        
+    await session.commit()
+    return DocumentDelete(ok=True)
     
 @router.delete("/{doc_id}", response_model=DocumentDelete)
 async def delete_document(

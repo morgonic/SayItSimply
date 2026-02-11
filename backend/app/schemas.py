@@ -99,13 +99,14 @@ class SettingsRead(BaseModel):
     highlight_difficult_words: bool
     dark_mode: bool
     text_size: TextSizeVals
-    scan_history_save: bool
-    scan_history_delete: Optional[int] = Field(
+    scan_doc_save: bool
+    scan_doc_delete: Optional[int] = Field(
         default=30,
         description="Days before deleting history. Null = never."
     )
     save_photos: bool
     notif: bool
+    face_id_supported: bool
     face_id: bool
     tts_rate: float
     tts_pitch: float
@@ -115,10 +116,11 @@ class SettingsUpdate(BaseModel):
     highlight_difficult_words: Optional[bool] = None
     dark_mode: Optional[bool] = None
     text_size: Optional[TextSizeVals] = None
-    scan_history_save: Optional[bool] = None
-    scan_history_delete: Optional[int] | None = None  # allow null
+    scan_doc_save: Optional[bool] = None
+    scan_doc_delete: Optional[int] | None = None  # allow null
     save_photos: Optional[bool] = None
     notif: Optional[bool] = None
+    face_id_supported: Optional[bool] = None
     face_id: Optional[bool] = None
     tts_rate: Optional[float] = None
     tts_pitch: Optional[float] = None

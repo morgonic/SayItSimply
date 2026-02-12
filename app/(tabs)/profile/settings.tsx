@@ -1,4 +1,6 @@
+import { TextSizeValues, useTextSize } from "@/app/context/TextSizeContext";
 import storage from '@/app/storage';
+import AppText from '@/components/TextSize';
 import { settingsStyles } from '@/constants/styles';
 import { Ionicons } from '@expo/vector-icons';
 import Slider from "@react-native-community/slider";
@@ -7,13 +9,12 @@ import * as IntentLauncher from "expo-intent-launcher";
 import * as LocalAuth from "expo-local-authentication";
 import { Stack } from 'expo-router';
 import React, { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // base api url from .env
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
-type TextSizeValues = "XS" | "S" | "M" | "L" | "XL";
 const TEXT_SIZE_VALS: TextSizeValues[] = ["XS", "S", "M", "L", "XL"];
 
 type DeleteDocValues = | { label: string; value: null } | { label: string; value: 30 | 90 | 180 | 365 };
@@ -136,6 +137,7 @@ async function deleteAllDocScans(): Promise<void> {
 
 // settings screen
 export default function SettingsScreen() {
+  const { setTextSize } = useTextSize();
 
   // loading state for initial settings
   const [loading, setLoading] = useState(true);
@@ -177,11 +179,19 @@ export default function SettingsScreen() {
     setSettings((cur) => ({ ...cur, [key]: next }));
     setSaving((cur) => ({ ...cur, [String(key)]: true }));
 
+    if (key === "text_size") {
+      await setTextSize(next as TextSizeValues);
+    }
+
     try {
       await patchSettings({ [key]: next } as Partial<UserSettings>);
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Unknown error");
       setSettings((cur) => ({ ...cur, [key]: prev }));
+
+      if (key === "text_size") {
+        await setTextSize(prev as TextSizeValues);
+      }
     } finally {
       setSaving((cur) => ({ ...cur, [String(key)]: false }));
     }
@@ -291,7 +301,7 @@ export default function SettingsScreen() {
         <View style={settingsStyles.list}>
           {/* Challenge Mode */}
           <View style={settingsStyles.row}>
-            <Text style={settingsStyles.rowLabel}>Challenge Mode</Text>
+            <AppText style={settingsStyles.rowLabel}>Challenge Mode</AppText>
             {loading ? (
               <ActivityIndicator />
             ) : (
@@ -302,13 +312,13 @@ export default function SettingsScreen() {
               />
             )}
           </View>
-          <Text style={settingsStyles.hint}>
+          <AppText style={settingsStyles.hint}>
             When enabled, text will be simplified less than your current simplification level.
-          </Text>
+          </AppText>
 
           {/* Highlight Difficult Words */}
           <View style={settingsStyles.row}>
-            <Text style={settingsStyles.rowLabel}>Highlight Difficult Words</Text>
+            <AppText style={settingsStyles.rowLabel}>Highlight Difficult Words</AppText>
             {loading ? (
               <ActivityIndicator />
             ) : (
@@ -319,13 +329,13 @@ export default function SettingsScreen() {
               />
             )}
           </View>
-          <Text style={settingsStyles.hint}>
+          <AppText style={settingsStyles.hint}>
             When enabled, complex words will be highlighted, and when pressed, will show a definition of the word.
-          </Text>
+          </AppText>
 
           {/* Dark Mode */}
           <View style={settingsStyles.row}>
-            <Text style={settingsStyles.rowLabel}>Dark Mode</Text>
+            <AppText style={settingsStyles.rowLabel}>Dark Mode</AppText>
             {loading ? (
               <ActivityIndicator/>
             ) : (
@@ -336,13 +346,13 @@ export default function SettingsScreen() {
               />
             )}
           </View>
-          <Text style={settingsStyles.hint}>
+          <AppText style={settingsStyles.hint}>
             When enabled, the app will display in "Dark Mode" -- the background is darker and font is lighter
-          </Text>
+          </AppText>
 
           {/* Text Size */}
           <View style={settingsStyles.row}>
-            <Text style={settingsStyles.rowLabel}>Text Size</Text>
+            <AppText style={settingsStyles.rowLabel}>Text Size</AppText>
             {loading ? (
               <ActivityIndicator/>
             ) : (
@@ -355,7 +365,7 @@ export default function SettingsScreen() {
                   <Ionicons name="chevron-back" size={18} color="#000"/>
                 </Pressable>
 
-                <Text style={settingsStyles.sizeVal}>{settings.text_size}</Text>
+                <AppText style={settingsStyles.sizeVal}>{settings.text_size}</AppText>
 
                 <Pressable
                   onPress={() => !isSaving("text_size") && updateTextSize(1)}
@@ -367,13 +377,13 @@ export default function SettingsScreen() {
               </View>
             )}
           </View>
-          <Text style={settingsStyles.hint}>
+          <AppText style={settingsStyles.hint}>
             This setting changes the font size for the entire app
-          </Text>
+          </AppText>
 
           {/* Scan Documents (Save) */}
           <View style={settingsStyles.row}>
-            <Text style={settingsStyles.rowLabel}>Save Scans to App</Text>
+            <AppText style={settingsStyles.rowLabel}>Save Scans to App</AppText>
             {loading ? (
               <ActivityIndicator />
             ) : (
@@ -384,13 +394,13 @@ export default function SettingsScreen() {
               />
             )}
           </View>
-          <Text style={settingsStyles.hint}>
+          <AppText style={settingsStyles.hint}>
             When enabled, captured and uploaded pictures will be saved to the "Documents" tab
-          </Text>
+          </AppText>
 
           {/* Scan Documents (Delete) */}
           <View style={settingsStyles.row}>
-            <Text style={settingsStyles.rowLabel}>Auto-Delete Document Scans</Text>
+            <AppText style={settingsStyles.rowLabel}>Auto-Delete Document Scans</AppText>
             {loading ? (
               <ActivityIndicator />
             ) : (
@@ -403,27 +413,27 @@ export default function SettingsScreen() {
                 ]}
                 hitSlop={8}
               >
-                <Text style={settingsStyles.dropdownText}>{scanDocDeleteLabel}</Text>
+                <AppText style={settingsStyles.dropdownText}>{scanDocDeleteLabel}</AppText>
                 <Ionicons name="chevron-down" size={16} color="#000" />
               </Pressable>
             )}
           </View>
-          <Text style={settingsStyles.hint}>
+          <AppText style={settingsStyles.hint}>
             This enables saved scans to be deleted automatically after the specified amount of days have passed
-          </Text>
+          </AppText>
 
           {/* Delete All Scans */}
           <Pressable onPress={confirmDeleteAllDocScans} style={({ pressed }) => [settingsStyles.row, pressed ? { opacity: 0.85 } : null]}>
-            <Text style={settingsStyles.rowLabel}>Delete All Document Scans</Text>
+            <AppText style={settingsStyles.rowLabel}>Delete All Document Scans</AppText>
               <Ionicons name="chevron-forward" size={20} color="#000"/>
           </Pressable>
-          <Text style={settingsStyles.hint}>
+          <AppText style={settingsStyles.hint}>
             This deletes all items in the Documents tab
-          </Text>
+          </AppText>
 
           {/* Save Photos */}
           <View style={settingsStyles.row}>
-            <Text style={settingsStyles.rowLabel}>Save Photos to Gallery</Text>
+            <AppText style={settingsStyles.rowLabel}>Save Photos to Gallery</AppText>
             {loading ? (
               <ActivityIndicator />
             ) : (
@@ -434,13 +444,13 @@ export default function SettingsScreen() {
               />
             )}
           </View>
-          <Text style={settingsStyles.hint}>
+          <AppText style={settingsStyles.hint}>
             When enabled, captured photos to also be saved to the device's photo gallery
-          </Text>
+          </AppText>
 
           {/* Face ID --grayed out & disabled if device cant support */}
           <View style={[settingsStyles.row, !settings.face_id_supported ? { opacity: 0.45 } : null]}>
-            <Text style={settingsStyles.rowLabel}>Sign in with Face ID</Text>
+            <AppText style={settingsStyles.rowLabel}>Sign in with Face ID</AppText>
             {loading ? (
               <ActivityIndicator />
             ) : (
@@ -451,34 +461,34 @@ export default function SettingsScreen() {
               />
             )}
           </View>
-          <Text style={settingsStyles.hint}>
+          <AppText style={settingsStyles.hint}>
             This enables login using FaceId. If grayed out, device does not have this capability
-          </Text>
+          </AppText>
 
           {/* Permissions */}
           <Pressable onPress={openPermissions} style={({ pressed }) => [settingsStyles.row, pressed ? { opacity: 0.85 } : null]}>
-            <Text style={settingsStyles.rowLabel}>Permissions</Text>
+            <AppText style={settingsStyles.rowLabel}>Permissions</AppText>
             <Ionicons name="chevron-forward" size={20} color="#000" />
           </Pressable>
-          <Text style={settingsStyles.hint}>
+          <AppText style={settingsStyles.hint}>
             This opens the app's permissions settings from device settings
-          </Text>
+          </AppText>
 
           {/* Notifications */}
           <Pressable onPress={openNotif} style={({ pressed }) => [settingsStyles.row, pressed ? { opacity: 0.85 } : null]}>
-            <Text style={settingsStyles.rowLabel}>Notifications</Text>
+            <AppText style={settingsStyles.rowLabel}>Notifications</AppText>
             <Ionicons name="chevron-forward" size={20} color="#000"/>
           </Pressable>
-          <Text style={settingsStyles.hint}>
+          <AppText style={settingsStyles.hint}>
             This opens the app's notification settings from device settings
-          </Text>
+          </AppText>
 
           {/* TTS Card */}
           <View style={settingsStyles.ttsCard}>
-            <Text style={settingsStyles.ttsTitle}>Text-to-Speech Output Settings</Text>
+            <AppText style={settingsStyles.ttsTitle}>Text-to-Speech Output Settings</AppText>
 
             <View style={settingsStyles.ttsRow}>
-              <Text style={settingsStyles.ttsLabel}>Speech Rate</Text>
+              <AppText style={settingsStyles.ttsLabel}>Speech Rate</AppText>
 
               {loading ? (
                 <ActivityIndicator />
@@ -502,7 +512,7 @@ export default function SettingsScreen() {
             </View>
 
             <View style={settingsStyles.ttsRow}>
-              <Text style={settingsStyles.ttsLabel}>Pitch</Text>
+              <AppText style={settingsStyles.ttsLabel}>Pitch</AppText>
 
               {loading ? (
                 <ActivityIndicator />
@@ -536,7 +546,7 @@ export default function SettingsScreen() {
       >
         <Pressable style={settingsStyles.modOverlay} onPress={() => setScanDocDeleteModalVis(false)}>
           <Pressable style={settingsStyles.modCard} onPress={() => {}}>
-            <Text style={settingsStyles.modTitle}>Auto-Delete History</Text>
+            <AppText style={settingsStyles.modTitle}>Auto-Delete History</AppText>
 
             {DELETE_DOC_VALS.map((opt) => {
               const selected = opt.value === settings.scan_doc_delete;
@@ -553,7 +563,7 @@ export default function SettingsScreen() {
                     pressed ? { opacity: 0.85 } : null,
                   ]}
                 >
-                  <Text style={[settingsStyles.modOptText, selected ? { fontWeight: "800" } : null]}>{opt.label}</Text>
+                  <AppText style={[settingsStyles.modOptText, selected ? { fontWeight: "800" } : null]}>{opt.label}</AppText>
                     {selected ? <Ionicons name="checkmark" size={18} color="#000"/> : null}
                 </Pressable>
               );
@@ -563,7 +573,7 @@ export default function SettingsScreen() {
               onPress={() => setScanDocDeleteModalVis(false)}
               style={({ pressed }) => [settingsStyles.modClose, pressed ? { opacity: 0.85 } : null]}
             >
-              <Text style={settingsStyles.modCloseText}>Close</Text>
+              <AppText style={settingsStyles.modCloseText}>Close</AppText>
             </Pressable>
           </Pressable>
         </Pressable>

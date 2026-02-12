@@ -1,12 +1,13 @@
 import storage from "@/app/storage";
+import AppText from "@/components/TextSize";
+import { profileStyles } from "@/constants/styles";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, Image, Modal, Pressable, ScrollView, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { profileStyles } from "@/constants/styles";
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
@@ -37,9 +38,9 @@ function Row({
       android_ripple={disabled ? undefined : { color: "rgba(0,0,0,0.08)" }}
     >
       <View style={profileStyles.rowLeft}>
-        <Text style={[profileStyles.rowLabel, disabled && profileStyles.rowLabelDisabled]}>
+        <AppText style={[profileStyles.rowLabel, disabled && profileStyles.rowLabelDisabled]}>
           {label}
-        </Text>
+        </AppText>
       </View>
 
       <View style={profileStyles.rowRight}>
@@ -169,7 +170,7 @@ type GeminiResponse = {
           pressed && { opacity: 0.85 },
         ]}
       >
-        <Text style={profileStyles.languageChipText}>{preferredLanguage}</Text>
+        <AppText style={profileStyles.languageChipText}>{preferredLanguage}</AppText>
         <Ionicons name="chevron-down" size={14} color="#111827" />
       </Pressable>
     );
@@ -454,7 +455,7 @@ type GeminiResponse = {
     <SafeAreaView style={profileStyles.safe}>
       <ScrollView contentContainerStyle={profileStyles.scrollContent} showsVerticalScrollIndicator={false}>
         <LinearGradient colors={["#B7D7E3", "#F3F4F6"]} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={profileStyles.header}>
-          <Text style={profileStyles.headerTitle}>Profile</Text>
+          <AppText style={profileStyles.headerTitle}>Profile</AppText>
 
           <View style={profileStyles.avatarWrap}>
             <View style={profileStyles.avatarCircle}>
@@ -483,7 +484,7 @@ type GeminiResponse = {
         </LinearGradient>
 
         <View style={profileStyles.section}>
-          <Text style={profileStyles.sectionTitle}>Reading &amp; Language</Text>
+          <AppText style={profileStyles.sectionTitle}>Reading &amp; Language</AppText>
 
           <View style={profileStyles.card}>
             <Row
@@ -500,7 +501,7 @@ type GeminiResponse = {
         </View>
 
         <View style={profileStyles.section}>
-          <Text style={profileStyles.sectionTitle}>Account &amp; Security</Text>
+          <AppText style={profileStyles.sectionTitle}>Account &amp; Security</AppText>
 
           <View style={profileStyles.card}>
             <Row label="Account Details" onPress={onAccountDetails} />
@@ -511,9 +512,9 @@ type GeminiResponse = {
           </View>
 
           {isOAuthUser ? (
-            <Text style={profileStyles.oauthHint}>
+            <AppText style={profileStyles.oauthHint}>
               Password changes are managed through your sign in provider.
-            </Text>
+            </AppText>
           ) : null}
 
           <View style={profileStyles.card}>
@@ -533,10 +534,10 @@ type GeminiResponse = {
           ]}
           android_ripple={{ color: "rgba(255,255,255,0.18)" }}
         >
-          <Text style={profileStyles.logoutText}>Log Out</Text>
+          <AppText style={profileStyles.logoutText}>Log Out</AppText>
         </Pressable>
 
-        <Text style={profileStyles.dangerTitle}>DANGER ZONE</Text>
+        <AppText style={profileStyles.dangerTitle}>DANGER ZONE</AppText>
         <View style={profileStyles.dangerWrap}>
           <Pressable
             onPress={onDeleteAccount}
@@ -546,7 +547,7 @@ type GeminiResponse = {
             ]}
             android_ripple={{ color: "rgba(255,255,255,0.14)" }}
           >
-            <Text style={profileStyles.deleteText}>Delete Account</Text>
+            <AppText style={profileStyles.deleteText}>Delete Account</AppText>
             <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
           </Pressable>
         </View>
@@ -558,20 +559,20 @@ type GeminiResponse = {
       <Modal visible={accountModalVisible} transparent animationType="fade" onRequestClose={() => setAccountModalVisible(false)}>
         <View style={profileStyles.modalBackdrop}>
           <View style={profileStyles.accountModalCard}>
-            <Text style={profileStyles.accountModalTitle}>Account Details</Text>
+            <AppText style={profileStyles.accountModalTitle}>Account Details</AppText>
 
             <View style={profileStyles.detailRow}>
-              <Text style={profileStyles.detailLabel}>Email</Text>
-              <Text style={profileStyles.detailValue}>{accountEmail || "—"}</Text>
+              <AppText style={profileStyles.detailLabel}>Email</AppText>
+              <AppText style={profileStyles.detailValue}>{accountEmail || "—"}</AppText>
             </View>
 
             <View style={profileStyles.detailDivider} />
 
             <View style={profileStyles.detailRow}>
-              <Text style={profileStyles.detailLabel}>Account Type</Text>
-              <Text style={profileStyles.detailValue}>
+              <AppText style={profileStyles.detailLabel}>Account Type</AppText>
+              <AppText style={profileStyles.detailValue}>
                 {isOAuthUser ? "Google" : "Email"}
-              </Text>
+              </AppText>
             </View>
 
             <Pressable
@@ -582,7 +583,7 @@ type GeminiResponse = {
               ]}
               android_ripple={{ color: "rgba(0,0,0,0.08)" }}
             >
-              <Text style={profileStyles.detailCloseButtonText}>Close</Text>
+              <AppText style={profileStyles.detailCloseButtonText}>Close</AppText>
             </Pressable>
           </View>
         </View>
@@ -592,7 +593,7 @@ type GeminiResponse = {
       <Modal visible={langModalVisible} transparent animationType="fade" onRequestClose={() => setLangModalVisible(false)}>
         <Pressable style={profileStyles.modalBackdrop} onPress={() => setLangModalVisible(false)}>
           <Pressable style={profileStyles.dropdownCard} onPress={() => {}}>
-            <Text style={profileStyles.dropdownTitle}>Select Preferred Language</Text>
+            <AppText style={profileStyles.dropdownTitle}>Select Preferred Language</AppText>
 
             {langOptions.map((opt) => {
               const selected = opt.label === preferredLanguage;
@@ -600,7 +601,7 @@ type GeminiResponse = {
                 <Pressable key={opt.code} style={[profileStyles.dropdownRow, selected && profileStyles.dropdownRowSelected,]}
                   onPress={() => onSelectLanguage(opt.label)}
                 >
-                  <Text style={profileStyles.dropdownRowText}>{opt.label}</Text>
+                  <AppText style={profileStyles.dropdownRowText}>{opt.label}</AppText>
                   {selected ? (
                     <Ionicons name="checkmark" size={18} color="#111827" />
                   ) : null
@@ -616,9 +617,9 @@ type GeminiResponse = {
       <Modal visible={pwModalVisible} transparent animationType="fade" onRequestClose={() => setPwModalVisible(false)}>
         <View style={profileStyles.modalBackdrop}>
           <View style={profileStyles.pwModalCard}>
-            <Text style={profileStyles.pwModalTitle}>Change Password</Text>
+            <AppText style={profileStyles.pwModalTitle}>Change Password</AppText>
 
-            <Text style={profileStyles.modalLabel}>New Password</Text>
+            <AppText style={profileStyles.modalLabel}>New Password</AppText>
             <TextInput
               value={pw1}
               onChangeText={setPw1}
@@ -629,7 +630,7 @@ type GeminiResponse = {
               style={profileStyles.modalInput}
             />
 
-            <Text style={profileStyles.modalLabel}>Confirm Password</Text>
+            <AppText style={profileStyles.modalLabel}>Confirm Password</AppText>
             <TextInput
               value={pw2}
               onChangeText={setPw2}
@@ -639,7 +640,7 @@ type GeminiResponse = {
               placeholder="re-type password"
               style={profileStyles.modalInput}
             />
-            {pwError ? <Text style={profileStyles.modalError}>{pwError}</Text> : null}
+            {pwError ? <AppText style={profileStyles.modalError}>{pwError}</AppText> : null}
 
             <View style={profileStyles.modalButtons}>
               <Pressable
@@ -652,7 +653,7 @@ type GeminiResponse = {
                 android_ripple={{ color: "rgba(0,0,0,0.08)" }}
                 disabled={pwSubmitting}
               >
-                <Text style={profileStyles.modalCancelButtonText}>Cancel</Text>
+                <AppText style={profileStyles.modalCancelButtonText}>Cancel</AppText>
               </Pressable>
 
               <Pressable
@@ -665,7 +666,7 @@ type GeminiResponse = {
                   pwSubmitting && { opacity: 0.6 },
                 ]}
               >
-                <Text style={profileStyles.modalButtonPrimaryText}>{pwSubmitting ? "Saving..." : "Submit"}</Text>
+                <AppText style={profileStyles.modalButtonPrimaryText}>{pwSubmitting ? "Saving..." : "Submit"}</AppText>
               </Pressable>
             </View>
           </View>
@@ -685,28 +686,28 @@ type GeminiResponse = {
               <ScrollView style={{ flex: 1 }} contentContainerStyle={profileStyles.calibBodyContent}
                 showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
               >
-                <Text style={profileStyles.calibTitle}>Calibrate Simplification</Text>
+                <AppText style={profileStyles.calibTitle}>Calibrate Simplification</AppText>
 
                 {calibLoad ? (
                   <View style={profileStyles.calibLoadRow}>
-                    <Text style={profileStyles.calibLoadTxt}>Loading...</Text>
+                    <AppText style={profileStyles.calibLoadTxt}>Loading...</AppText>
                   </View>
                 ) : calibErr ? (
-                  <Text style={profileStyles.calibErrTxt}>{calibErr}</Text>
+                  <AppText style={profileStyles.calibErrTxt}>{calibErr}</AppText>
                 ) : (
                   <View style={profileStyles.calibOptsRow}>
                     <View style={profileStyles.calibOpt}>
                       <View style={profileStyles.calibOptHeader}>
-                        <Text style={profileStyles.calibOptHeaderTxt}> Option A - Lower</Text>
+                        <AppText style={profileStyles.calibOptHeaderTxt}> Option A - Lower</AppText>
                       </View>
-                      <Text style={profileStyles.calibOptTxt}>{calibLowerTxt}</Text>
+                      <AppText style={profileStyles.calibOptTxt}>{calibLowerTxt}</AppText>
                     </View>
 
                     <View style={profileStyles.calibOpt}>
                       <View style={profileStyles.calibOptHeader}>
-                        <Text style={profileStyles.calibOptHeaderTxt}> Option B - Higher</Text>
+                        <AppText style={profileStyles.calibOptHeaderTxt}> Option B - Higher</AppText>
                       </View>
-                      <Text style={profileStyles.calibOptTxt}>{calibHigherTxt}</Text>
+                      <AppText style={profileStyles.calibOptTxt}>{calibHigherTxt}</AppText>
                     </View>
                   </View>
                 )}
@@ -719,7 +720,7 @@ type GeminiResponse = {
                       await setCalibChoice("lower");
                     }}
                   >
-                    <Text style={profileStyles.calibChoiceTxt}>Choose Option A</Text>
+                    <AppText style={profileStyles.calibChoiceTxt}>Choose Option A</AppText>
                   </Pressable>
 
                   <Pressable
@@ -729,7 +730,7 @@ type GeminiResponse = {
                       await setCalibChoice("stay");
                     }}
                   >
-                    <Text style={profileStyles.calibChoiceDarkTxt}>Neither - Don't change</Text>
+                    <AppText style={profileStyles.calibChoiceDarkTxt}>Neither - Don't change</AppText>
                   </Pressable>
 
                   <Pressable
@@ -739,7 +740,7 @@ type GeminiResponse = {
                       await setCalibChoice("higher");
                     }}
                   >
-                    <Text style={profileStyles.calibChoiceTxt}>Choose Option B</Text>
+                    <AppText style={profileStyles.calibChoiceTxt}>Choose Option B</AppText>
                   </Pressable>
                 </View>
               </ScrollView>

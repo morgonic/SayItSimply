@@ -1,11 +1,12 @@
+import storage from "@/app/storage";
+import AppText from "@/components/TextSize";
 import DisplayLogoWithStyle from "@/components/ui/DisplayLogoWithStyle";
 import { styles } from "@/constants/styles";
-import { Pressable, Text, TextInput, View, Image, Alert } from "react-native";
-import { useRouter } from "expo-router";
-import { useState } from "react";
-import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
-import storage from './storage';
+import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
+import { useState } from "react";
+import { Alert, Image, Pressable, TextInput, View } from "react-native";
 
 WebBrowser.maybeCompleteAuthSession()
 
@@ -124,7 +125,7 @@ export default function LogInScreen() {
         backgroundColor: '#0D1321'
       }}
     >
-      <Text
+      <AppText
         style={{
           fontSize: 34.56,
           fontWeight: "700",
@@ -134,11 +135,11 @@ export default function LogInScreen() {
         }}
       >
         SayItSimply
-      </Text>
+      </AppText>
 
       <DisplayLogoWithStyle />
 
-      <Text
+      <AppText
         style={{
           fontSize: 16,
           fontWeight: "600",
@@ -149,7 +150,7 @@ export default function LogInScreen() {
         }}
       >
         Read, Translate, Simplify
-      </Text>
+      </AppText>
 
       <TextInput
         placeholder="Email Address"
@@ -191,7 +192,7 @@ export default function LogInScreen() {
           borderRadius: 8,
         }}
       >
-        <Text
+        <AppText
           style={{
             color: "white",
             fontWeight: "700",
@@ -200,7 +201,7 @@ export default function LogInScreen() {
           }}
         >
           Log In
-        </Text>
+        </AppText>
       </Pressable>
 
       <Pressable
@@ -209,7 +210,7 @@ export default function LogInScreen() {
           marginTop: 12
         }}
       >
-        <Text
+        <AppText
           style={{
             color: "white",
             fontWeight: "600",
@@ -218,12 +219,12 @@ export default function LogInScreen() {
           }}
         >
           Forgot Password?
-        </Text>
+        </AppText>
       </Pressable>
 
       <View style={styles.separatorContainer}>
         <View style={styles.separatorLine} />
-        <Text style={styles.separatorText}>or</Text>
+        <AppText style={styles.separatorText}>or</AppText>
         <View style={styles.separatorLine} />
       </View>
 
@@ -245,7 +246,7 @@ export default function LogInScreen() {
             marginRight: 8
           }}
           />
-          <Text
+          <AppText
             style={{
               color: "#000000",
               fontWeight: "600",
@@ -254,7 +255,7 @@ export default function LogInScreen() {
             }}
           >
             Continue with Google
-          </Text>
+          </AppText>
         </View>
       </Pressable>
 
@@ -266,7 +267,7 @@ export default function LogInScreen() {
           borderRadius: 8,
         }}
       >
-        <Text
+        <AppText
           style={{
             color: "white",
             fontWeight: "700",
@@ -275,10 +276,10 @@ export default function LogInScreen() {
           }}
         >
           Sign Up with Email
-        </Text>
+        </AppText>
       </Pressable>
 
-      <Text
+      <AppText
         style={{
           color: '#F8F4F9',
           fontSize: 12,
@@ -286,8 +287,8 @@ export default function LogInScreen() {
           marginTop: 24
         }}
       >
-        By logging in, you agree to our <Text style={{color: '#7F7F7F'}}>Terms of Service</Text> and <Text style={{color: '#7F7F7F'}}>Privacy Policy</Text>
-      </Text>
+        By logging in, you agree to our <AppText style={{color: '#7F7F7F'}}>Terms of Service</AppText> and <AppText style={{color: '#7F7F7F'}}>Privacy Policy</AppText>
+      </AppText>
     </View>
   );
 }

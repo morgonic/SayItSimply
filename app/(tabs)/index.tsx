@@ -1,11 +1,12 @@
 import storage from '@/app/storage';
+import AppText from "@/components/TextSize";
 import { styles } from "@/constants/styles";
 import { FontAwesome } from "@expo/vector-icons";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
@@ -139,10 +140,10 @@ export default function DashboardScreen() {
         {/* Header */}
         <View style={styles.dashHeader}>
           <Pressable style={styles.dashHeaderIconBtn} onPress={() => { }}>
-            <Text style={styles.dashHeaderIcon}>☰</Text>
+            <AppText style={styles.dashHeaderIcon}>☰</AppText>
           </Pressable>
 
-          <Text style={styles.dashHeaderTitle}>SayItSimply</Text>
+          <AppText style={styles.dashHeaderTitle}>SayItSimply</AppText>
 
           <Pressable style={styles.dashAvatarBtn} onPress={() => { }}>
             <View style={styles.dashAvatarPlaceholder} />
@@ -160,7 +161,7 @@ export default function DashboardScreen() {
         >
           <View style={styles.dashContent}>
             {/* Scan New Text */}
-            <Text style={styles.dashSectionTitle}>Scan New Text</Text>
+            <AppText style={styles.dashSectionTitle}>Scan New Text</AppText>
 
             <View style={styles.dashScanRow}>
               <Pressable style={styles.dashScanBtn} onPress={() => router.replace("/camera")}>
@@ -178,35 +179,35 @@ export default function DashboardScreen() {
                 <View style={styles.dashBookmarkNotch} />
               </View>
               <View style={styles.dashContinueCard}>
-                <Text style={styles.dashContinueTitle}>Phone Bill - Dec 2025</Text>
+                <AppText style={styles.dashContinueTitle}>Phone Bill - Dec 2025</AppText>
 
                 <Pressable style={styles.dashContinueBtn} onPress={() => router.replace("/(tabs)/camera/reader")}>
-                  <Text style={styles.dashContinueBtnText}>Continue Reading</Text>
-                  <Text style={styles.dashContinueBtnArrow}>›</Text>
+                  <AppText style={styles.dashContinueBtnText}>Continue Reading</AppText>
+                  <AppText style={styles.dashContinueBtnArrow}>›</AppText>
                 </Pressable>
               </View>
             </View>
 
             {/* Shortcuts */}
-            <Text style={[styles.dashSectionTitle, styles.dashShortcutsTitleSpacing]}>
+            <AppText style={[styles.dashSectionTitle, styles.dashShortcutsTitleSpacing]}>
               Shortcuts
-            </Text>
+            </AppText>
 
             <View style={styles.dashShortcutRow}>
               {/* Urgent Tasks */}
               <View style={styles.dashShortcutCardOuter}>
                 <View style={styles.dashShortcutCardInnerOuter}>
                   <View style={styles.dashShortcutCard}>
-                    <Text style={styles.dashShortcutTitle}>Urgent Tasks</Text>
+                    <AppText style={styles.dashShortcutTitle}>Urgent Tasks</AppText>
 
                     <View style={styles.dashBulletGroup}>
-                      <Text style={styles.dashBullet}>• Pay $52.50 to AT&amp;T</Text>
-                      <Text style={styles.dashBullet}>• Call Dr. Smith</Text>
+                      <AppText style={styles.dashBullet}>• Pay $52.50 to AT&amp;T</AppText>
+                      <AppText style={styles.dashBullet}>• Call Dr. Smith</AppText>
                     </View>
 
                     <Pressable style={styles.dashViewAllBtn} onPress={() => router.replace("/(tabs)/todo-list")}>
-                      <Text style={styles.dashViewAllText}>View All</Text>
-                      <Text style={styles.dashViewAllArrow}>›</Text>
+                      <AppText style={styles.dashViewAllText}>View All</AppText>
+                      <AppText style={styles.dashViewAllArrow}>›</AppText>
                     </Pressable>
                   </View>
                 </View>
@@ -216,18 +217,18 @@ export default function DashboardScreen() {
               <View style={styles.dashShortcutCardOuter}>
                 <View style={styles.dashShortcutCardInnerOuter}>
                   <View style={styles.dashShortcutCard}>
-                    <Text style={styles.dashShortcutTitle}>Recent Scans</Text>
+                    <AppText style={styles.dashShortcutTitle}>Recent Scans</AppText>
 
                     <View style={styles.dashBulletGroup}>
-                      <Text style={styles.dashBullet}>• Medical Bill - Yesterday</Text>
-                      <Text style={styles.dashBullet}>
+                      <AppText style={styles.dashBullet}>• Medical Bill - Yesterday</AppText>
+                      <AppText style={styles.dashBullet}>
                         • Parking Ticket - 3 days ago
-                      </Text>
+                      </AppText>
                     </View>
 
                     <Pressable style={styles.dashViewAllBtn} onPress={() => router.push("/(tabs)/documents")}>
-                      <Text style={styles.dashViewAllText}>View All</Text>
-                      <Text style={styles.dashViewAllArrow}>›</Text>
+                      <AppText style={styles.dashViewAllText}>View All</AppText>
+                      <AppText style={styles.dashViewAllArrow}>›</AppText>
                     </Pressable>
                   </View>
                 </View>
@@ -243,7 +244,7 @@ export default function DashboardScreen() {
               onPress={handleLogout}
               style={styles.dashLoginBtn}
             >
-              <Text style={styles.dashLoginText}>Log Out</Text>
+              <AppText style={styles.dashLoginText}>Log Out</AppText>
             </Pressable>
           </View>
         </ScrollView>

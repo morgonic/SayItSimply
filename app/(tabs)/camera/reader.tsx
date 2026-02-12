@@ -1,6 +1,7 @@
 import storage from '@/app/storage';
 import ActionItemModal from '@/components/ActionItemModal';
 import HelpModal from '@/components/HelpModal';
+import AppText from "@/components/TextSize";
 import { readerStyles } from '@/constants/styles';
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
@@ -14,7 +15,6 @@ import {
   Modal,
   Pressable,
   ScrollView,
-  Text,
   TextInput,
   View
 } from "react-native";
@@ -389,7 +389,7 @@ export default function ReaderScreen() {
 
       // render original token with highlights applied to matching words
       return (
-        <Text
+        <AppText
           key={i}
           style={match ? readerStyles.complexWord : readerStyles.bodyText}
           onPress={() => {
@@ -399,7 +399,7 @@ export default function ReaderScreen() {
           }}
         >
           {part}
-        </Text>
+        </AppText>
       );
     });
   }, [ocrText, geminiData?.complex_words]) // update when ocr text or complex_words list change
@@ -424,7 +424,7 @@ export default function ReaderScreen() {
 
       // render text component with highlighted complex words
       return (
-        <Text
+        <AppText
           key={i}
           style={match ? readerStyles.complexWord : readerStyles.bodyText}
           onPress={() => {
@@ -434,7 +434,7 @@ export default function ReaderScreen() {
           }}
         >
           {part}
-        </Text>
+        </AppText>
       );
     });
   }, [simplifyMoreText, geminiData?.simplification, geminiData?.simple_words, tab]); // update when simplification text/words or tab state changes
@@ -1111,10 +1111,10 @@ export default function ReaderScreen() {
         {/* Header */}
         <View style={readerStyles.header}>
           <Pressable style={readerStyles.headerIconBtn} onPress={() => { }}>
-            <Text style={readerStyles.headerIcon}>☰</Text>
+            <AppText style={readerStyles.headerIcon}>☰</AppText>
           </Pressable>
 
-          <Text style={readerStyles.headerTitle}>SayItSimply</Text>
+          <AppText style={readerStyles.headerTitle}>SayItSimply</AppText>
 
           <Pressable style={readerStyles.avatarBtn} onPress={() => { }}>
             <View style={readerStyles.avatarPlaceholder} />
@@ -1139,15 +1139,15 @@ export default function ReaderScreen() {
           <View style={[readerStyles.outerCard, { height: cardHeight }]}>
             {/* Badge */}
             <View style={readerStyles.badge}>
-              <Text style={readerStyles.badgeText}>
+              <AppText style={readerStyles.badgeText}>
                 {badgeMode}
                 {showLangLabel ? "\n\n" : ""}
                 {showLangLabel ? (
-                  <Text style={[readerStyles.badgeText, { fontSize: 16, color: '#F2D3AC', fontWeight: '900' }]}>
+                  <AppText style={[readerStyles.badgeText, { fontSize: 16, color: '#F2D3AC', fontWeight: '900' }]}>
                     {langLabel}
-                  </Text>
+                  </AppText>
                 ) : null}
-              </Text>
+              </AppText>
               <View style={readerStyles.badgeNotch} />
             </View>
 
@@ -1223,7 +1223,7 @@ export default function ReaderScreen() {
                     size={28}
                     color={'black'}
                   />
-                  <Text style={{
+                  <AppText style={{
                     fontWeight: '600',
                     fontSize: 24,
                     textAlign: 'center',
@@ -1232,7 +1232,7 @@ export default function ReaderScreen() {
                   >
                     {ocrLoading ? "Reading your text..."
                       : "Rewriting your text..."}
-                  </Text>
+                  </AppText>
                 </View>
               )}
 
@@ -1245,14 +1245,14 @@ export default function ReaderScreen() {
                 indicatorStyle='black'
                 onScrollBeginDrag={closeDefinitionModal}
               >
-                <Text style={readerStyles.bodyText}>
+                <AppText style={readerStyles.bodyText}>
                   {tab === "Overview" && showOriginal
                     ? highlightedOriginal
                     : tab === "Easy Read"
                       ? highlightedSimplified
                       : content
                   }
-                </Text>
+                </AppText>
               </ScrollView>
 
               {/* Bottom CTA */}
@@ -1330,13 +1330,13 @@ export default function ReaderScreen() {
                   }}
                   disabled={ocrLoading || geminiLoading || !ocrText
                     || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1))}>
-                  <Text style={readerStyles.ctaText}>
+                  <AppText style={readerStyles.ctaText}>
                     {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
                       : (tab === "Overview" && !showOriginal) ? "See Original Text"
                         : (tab === "Overview" && showOriginal) ? "See Simplified Text"
                           : (tab != "Overview") ? "Simplify More"
                             : "Simplify More"}
-                  </Text>
+                  </AppText>
                 </Pressable>
               )}
             </View>
@@ -1380,9 +1380,9 @@ export default function ReaderScreen() {
               hitSlop={10}
             >
               <Ionicons name="language-outline" size={22} color="#1B1B1B"/>
-              <Text style={readerStyles.langPickerBtnText}>
+              <AppText style={readerStyles.langPickerBtnText}>
                 {(userLang ?? "EN").toUpperCase()}
-              </Text>
+              </AppText>
             </Pressable>
           </View>
         )}
@@ -1402,7 +1402,7 @@ export default function ReaderScreen() {
             style={readerStyles.langModalCenter}
           >
             <View style={readerStyles.langModalCard}>
-              <Text style={readerStyles.langModalTitle}>Choose Language</Text>
+              <AppText style={readerStyles.langModalTitle}>Choose Language</AppText>
 
               <View style={readerStyles.langSearchWrap}>
                 <Ionicons name="search-outline" size={18} color="#1B1B1B" />
@@ -1422,10 +1422,10 @@ export default function ReaderScreen() {
                 )}
               </View>
 
-              <Text style={readerStyles.langCurrent}>
-                Current: <Text style={{ fontWeight: "900" }}>{(userLang ?? "EN").toUpperCase()}</Text>{" "}
+              <AppText style={readerStyles.langCurrent}>
+                Current: <AppText style={{ fontWeight: "900" }}>{(userLang ?? "EN").toUpperCase()}</AppText>{" "}
                 ({langCodeToName((userLang ?? "EN").toUpperCase())})
-              </Text>
+              </AppText>
 
               <FlatList
                 data={filteredLangs}
@@ -1440,8 +1440,8 @@ export default function ReaderScreen() {
                       onPress={() => onSelectLanguage(item.code2)}
                     >
                       <View style={readerStyles.langRowLeft}>
-                        <Text style={readerStyles.langCode}>{item.code2}</Text>
-                        <Text style={readerStyles.langName}>{item.name}</Text>
+                        <AppText style={readerStyles.langCode}>{item.code2}</AppText>
+                        <AppText style={readerStyles.langName}>{item.name}</AppText>
                       </View>
                       {isSelected && (
                         <Ionicons name="checkmark-circle" size={20} color="#2C9AA4" />
@@ -1455,7 +1455,7 @@ export default function ReaderScreen() {
                 style={readerStyles.langCloseBtn}
                 onPress={() => setLangPickerVisible(false)}
               >
-                <Text style={readerStyles.langCloseBtnText}>Close</Text>
+                <AppText style={readerStyles.langCloseBtnText}>Close</AppText>
               </Pressable>
             </View>
           </KeyboardAvoidingView>
@@ -1476,29 +1476,29 @@ export default function ReaderScreen() {
               <ScrollView style={{ flex: 1 }} contentContainerStyle={readerStyles.calibBodyContent}
                 showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
               >
-                <Text style={readerStyles.calibTitle}>Calibrate Simplification</Text>
+                <AppText style={readerStyles.calibTitle}>Calibrate Simplification</AppText>
 
                 {calibLoad ? (
                   <View style={readerStyles.calibLoadRow}>
                     <ActivityIndicator size={22} color={"black"} />
-                    <Text style={readerStyles.calibLoadTxt}>Loading...</Text>
+                    <AppText style={readerStyles.calibLoadTxt}>Loading...</AppText>
                   </View>
                 ) : calibErr ? (
-                  <Text style={readerStyles.calibErrTxt}>{calibErr}</Text>
+                  <AppText style={readerStyles.calibErrTxt}>{calibErr}</AppText>
                 ) : (
                   <View style={readerStyles.calibOptsRow}>
                     <View style={readerStyles.calibOpt}>
                       <View style={readerStyles.calibOptHeader}>
-                        <Text style={readerStyles.calibOptHeaderTxt}> Option A - Lower</Text>
+                        <AppText style={readerStyles.calibOptHeaderTxt}> Option A - Lower</AppText>
                       </View>
-                      <Text style={readerStyles.calibOptTxt}>{calibLowerTxt}</Text>
+                      <AppText style={readerStyles.calibOptTxt}>{calibLowerTxt}</AppText>
                     </View>
 
                     <View style={readerStyles.calibOpt}>
                       <View style={readerStyles.calibOptHeader}>
-                        <Text style={readerStyles.calibOptHeaderTxt}> Option B - Higher</Text>
+                        <AppText style={readerStyles.calibOptHeaderTxt}> Option B - Higher</AppText>
                       </View>
-                      <Text style={readerStyles.calibOptTxt}>{calibHigherTxt}</Text>
+                      <AppText style={readerStyles.calibOptTxt}>{calibHigherTxt}</AppText>
                     </View>
                   </View>
                 )}
@@ -1511,7 +1511,7 @@ export default function ReaderScreen() {
                       await setCalibChoice("lower");
                     }}
                   >
-                    <Text style={readerStyles.calibChoiceTxt}>Choose Option A</Text>
+                    <AppText style={readerStyles.calibChoiceTxt}>Choose Option A</AppText>
                   </Pressable>
 
                   <Pressable
@@ -1521,7 +1521,7 @@ export default function ReaderScreen() {
                       await setCalibChoice("stay");
                     }}
                   >
-                    <Text style={readerStyles.calibChoiceDarkTxt}>Neither - Don't change</Text>
+                    <AppText style={readerStyles.calibChoiceDarkTxt}>Neither - Don't change</AppText>
                   </Pressable>
 
                   <Pressable
@@ -1531,7 +1531,7 @@ export default function ReaderScreen() {
                       await setCalibChoice("higher");
                     }}
                   >
-                    <Text style={readerStyles.calibChoiceTxt}>Choose Option B</Text>
+                    <AppText style={readerStyles.calibChoiceTxt}>Choose Option B</AppText>
                   </Pressable>
                 </View>
               </ScrollView>
@@ -1555,12 +1555,12 @@ export default function ReaderScreen() {
             style={readerStyles.definitionModalCard}
             onPress={() => { }}
           >
-            <Text style={readerStyles.definitionModalWordText}>
+            <AppText style={readerStyles.definitionModalWordText}>
               {definitionModal.word}
-            </Text>
-            <Text style={readerStyles.definitionModalDefinitionText}>
+            </AppText>
+            <AppText style={readerStyles.definitionModalDefinitionText}>
               {definitionModal.definition}
-            </Text>
+            </AppText>
           </Pressable>
         </Pressable>
       </Modal>
@@ -1635,9 +1635,9 @@ function TopTab({
       style={[readerStyles.topTab, active ? readerStyles.topTabActive : readerStyles.topTabInactive]}
       hitSlop={8}
     >
-      <Text style={[readerStyles.topTabText, active ? readerStyles.topTabTextActive : readerStyles.topTabTextInactive]}>
+      <AppText style={[readerStyles.topTabText, active ? readerStyles.topTabTextActive : readerStyles.topTabTextInactive]}>
         {label}
-      </Text>
+      </AppText>
     </Pressable>
   );
 }
@@ -1665,22 +1665,22 @@ function DetailLevelTab({
       hitSlop={8}
     >
       {icon}
-      <Text
+      <AppText
         style={[
           readerStyles.levelTabText,
           active ? readerStyles.levelTabText : readerStyles.levelTabText,
         ]}
       >
         {label}
-      </Text>
-      <Text
+      </AppText>
+      <AppText
         style={[
           readerStyles.levelTabHint,
           active ? readerStyles.levelTabHint : readerStyles.levelTabHint,
         ]}
       >
         {hint}
-      </Text>
+      </AppText>
     </Pressable>
   );
 }

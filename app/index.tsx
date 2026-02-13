@@ -1,7 +1,7 @@
+import storage from "@/app/storage";
+import { useRouter } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
-import { useRouter } from "expo-router";
-import storage from "./storage";
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
@@ -33,7 +33,7 @@ export default function Index() {
             router.replace(onboarded ? '/(tabs)' : '/onboarding')
         })();
     }, []);
-
+    
     return(
         <View style={{ flex: 1, justifyContent: 'center' }}>
             <ActivityIndicator />

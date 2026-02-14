@@ -1,9 +1,10 @@
 import storage from "@/app/storage";
+import AppText from "@/components/TextSize";
 import { styles as dashStyles, localStyles } from "@/constants/styles";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
-import { Dimensions, FlatList, Image, Modal, Pressable, Text, TextInput, View } from "react-native";
+import { Dimensions, FlatList, Image, Modal, Pressable, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
@@ -186,7 +187,6 @@ export default function DocumentsScreen() {
 
   const renderItem = ({ item }: { item: DocItem }) => {
     const thumbUri = `${baseUrl}${item.thumb_uri}`;
-
     const thumbSource =
       item.thumb_b64 ? { uri: `data:${item.thumb_mime ?? "image/jpeg"};base64,${item.thumb_b64}` }
       : require("@/assets/images/logo.png");
@@ -201,8 +201,8 @@ export default function DocumentsScreen() {
           </View>
           {/* text */}
           <View style={localStyles.textCol}>
-            <Text style={localStyles.title}>{item.mode}</Text>
-            <Text style={localStyles.subtitle}>{formatDate(item.timestamp)}</Text>
+            <AppText style={localStyles.title}>{item.mode}</AppText>
+            <AppText style={localStyles.subtitle}>{formatDate(item.timestamp)}</AppText>
           </View>
         </Pressable>
 
@@ -236,7 +236,7 @@ export default function DocumentsScreen() {
             hitSlop={12}
             style={localStyles.chevBtn}
           >
-            <Text style={localStyles.chev}>›</Text>
+            <AppText style={localStyles.chev}>›</AppText>
           </Pressable>
         </View>
       </View>
@@ -251,8 +251,8 @@ export default function DocumentsScreen() {
       }]}>
         {items.length === 0 ? (
           <View style={localStyles.empty}>
-            <Text style={localStyles.emptyTitle}>{loading ? "Loading..." : "No documents yet"}</Text>
-            <Text style={localStyles.emptyText}>Capture a picture or upload one from your gallery</Text>
+            <AppText style={localStyles.emptyTitle}>{loading ? "Loading..." : "No documents yet"}</AppText>
+            <AppText style={localStyles.emptyText}>Capture a picture or upload one from your gallery</AppText>
           </View>
         ) : (
           <FlatList
@@ -269,8 +269,8 @@ export default function DocumentsScreen() {
       <Modal visible={editOpen} transparent animationType="fade" onRequestClose={closeEdit}>
         <View style={localStyles.modalBackdrop}>
           <View style={localStyles.modalCard}>
-            <Text style={localStyles.modalTitle}>Edit source type of text</Text>
-            <Text style={localStyles.modalHint}>Letters and spaces only; 15 characters or less.</Text>
+            <AppText style={localStyles.modalTitle}>Edit source type of text</AppText>
+            <AppText style={localStyles.modalHint}>Letters and spaces only; 15 characters or less.</AppText>
 
             <TextInput
               value={editValue}
@@ -286,15 +286,15 @@ export default function DocumentsScreen() {
               editable={!editBusy}
             />
 
-            {!!editErr && <Text style={localStyles.errText}>{editErr}</Text>}
+            {!!editErr && <AppText style={localStyles.errText}>{editErr}</AppText>}
 
             <View style={localStyles.modalBtns}>
               <Pressable onPress={closeEdit} disabled={editBusy} style={[localStyles.btn, localStyles.btnGhost]}>
-                <Text style={localStyles.btnText}>Cancel</Text>
+                <AppText style={localStyles.btnText}>Cancel</AppText>
               </Pressable>
 
               <Pressable onPress={saveEdit} disabled={editBusy} style={[localStyles.btn, localStyles.btnPrimary]}>
-                <Text style={localStyles.btnText}>{editBusy ? "Saving..." : "Save"}</Text>
+                <AppText style={localStyles.btnText}>{editBusy ? "Saving..." : "Save"}</AppText>
               </Pressable>
             </View>
           </View>
@@ -305,16 +305,16 @@ export default function DocumentsScreen() {
       <Modal visible={delOpen} transparent animationType="fade" onRequestClose={closeDelete}>
         <View style={localStyles.modalBackdrop}>
           <View style={localStyles.modalCard}>
-            <Text style={localStyles.modalTitle}>Are you sure you want to delete this document?</Text>
-            <Text style={localStyles.modalHint}>This is permanent and cannot be reversed.</Text>
+            <AppText style={localStyles.modalTitle}>Are you sure you want to delete this document?</AppText>
+            <AppText style={localStyles.modalHint}>This is permanent and cannot be reversed.</AppText>
 
             <View style={localStyles.modalBtns}>
               <Pressable onPress={closeDelete} disabled={delBusy} style={[localStyles.btn, localStyles.btnGhost]}>
-                <Text style={localStyles.btnText}>No</Text>
+                <AppText style={localStyles.btnText}>No</AppText>
               </Pressable>
 
               <Pressable onPress={confirmDelete} disabled={delBusy} style={[localStyles.btn, localStyles.btnDanger]}>
-                <Text style={localStyles.btnText}>{delBusy ? "Deleting..." : "Yes"}</Text>
+                <AppText style={localStyles.btnText}>{delBusy ? "Deleting..." : "Yes"}</AppText>
               </Pressable>
             </View>
           </View>

@@ -692,6 +692,7 @@ export const readerStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
     overflow: "hidden",
+    zIndex: 2
   },
   calibTitle: {
     fontSize: 18,
@@ -710,11 +711,16 @@ export const readerStyles = StyleSheet.create({
     fontWeight: "800",
     color: "#1B1B1B",
   },
+  calibBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0
+  },
   calibCenter: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 16,
+    zIndex: 1
   },
   calibBodyScroll: {
     flex: 1,
@@ -1360,6 +1366,7 @@ export const profileStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     elevation: 8,
     overflow: "hidden",
+    zIndex: 2
   },
   calibTitle: {
     fontSize: 18,
@@ -1378,11 +1385,16 @@ export const profileStyles = StyleSheet.create({
     fontWeight: "800",
     color: "#1B1B1B",
   },
+  calibBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0
+  },
   calibCenter: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 16,
+    zIndex: 1
   },
   calibBodyScroll: {
     flex: 1,

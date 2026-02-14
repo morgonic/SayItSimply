@@ -1,13 +1,14 @@
 import storage from "@/app/storage";
+import AppText from "@/components/TextSize";
+import { cameraStyles } from '@/constants/styles';
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Dimensions, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Dimensions, Image, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
-import { cameraStyles } from '@/constants/styles';
 
 const MODES = ["Auto-detect", "Sign", "Menu", "Form", "Label", "Receipt", "Document",  "Medical", "Instructions", "Article", "Book", "Board"] as const;
 type Mode = (typeof MODES)[number];
@@ -143,10 +144,10 @@ export default function CameraScreen() {
         <View style={cameraStyles.container}>
           <View style={cameraStyles.header}>
             <Pressable style={cameraStyles.headerIconBtn} onPress={() => {}}>
-              <Text style={cameraStyles.headerIcon}>☰</Text>
+              <AppText style={cameraStyles.headerIcon}>☰</AppText>
             </Pressable>
 
-            <Text style={cameraStyles.headerTitle}>SayItSimply</Text>
+            <AppText style={cameraStyles.headerTitle}>SayItSimply</AppText>
 
             <Pressable style={cameraStyles.avatarBtn} onPress={() => {}}>
               <View style={cameraStyles.avatarPlaceholder} />
@@ -159,7 +160,7 @@ export default function CameraScreen() {
               {!permission && (
                 <View style={cameraStyles.previewOverlay}>
                   <ActivityIndicator />
-                  <Text style={cameraStyles.previewHintDark}>Checking permissions</Text>
+                  <AppText style={cameraStyles.previewHintDark}>Checking permissions</AppText>
                 </View>
               )}
               {showPermissionUI && (
@@ -177,7 +178,7 @@ export default function CameraScreen() {
                 {!cameraReady && (
                   <View style={cameraStyles.previewOverlay}>
                     <ActivityIndicator />
-                    <Text style={cameraStyles.previewHintDark}>Activating camera</Text>
+                    <AppText style={cameraStyles.previewHintDark}>Activating camera</AppText>
                   </View>
                   )}
                 </>
@@ -201,9 +202,9 @@ export default function CameraScreen() {
                   hitSlop={10}
                   disabled={isCapturing}
                 >
-                  <Text style={[cameraStyles.modeText, selected && cameraStyles.modeTextSelected]}>
+                  <AppText style={[cameraStyles.modeText, selected && cameraStyles.modeTextSelected]}>
                     {m}
-                  </Text>
+                  </AppText>
                   <View style={[cameraStyles.modeUnderline, selected && cameraStyles.modeUnderlineSelected]} />
                 </Pressable>
               );

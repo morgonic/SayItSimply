@@ -64,14 +64,15 @@ export default function toDoListScreen() {
           'Content-Type': 'application/json',
           Authorization: `${tokenType} ${token}`
         },
-        body: JSON.stringify({completed: next}) // patch item's completed bool
+        body: JSON.stringify({ completed: next }) // patch item's completed bool
       });
-      // logging patch details for debug
-      console.log("PATCH status:", response.status)
-      console.log("PATCH body:", await response.text());
+      // read body text from json response
+      const bodyText = await response.text();
+      console.log("PATCH status:", response.status);
+      console.log("PATCH body:", bodyText);
       // bad response, error text
       if (!response.ok) {
-        throw new Error(await response.text());
+        throw new Error(bodyText || "PATCH failed");
       }
     }
     catch (e) {
@@ -80,7 +81,7 @@ export default function toDoListScreen() {
       setItems(prev =>
         prev.map(i => (
           i.id === item.id ? {
-            ...i, 
+            ...i,
             completed: item.completed
           } : i))
       );
@@ -93,7 +94,7 @@ export default function toDoListScreen() {
   const makeKey = (it: ActionItem) => it.id;
   // async callback to fetch full to do list (get)
   const fetchToDoList = useCallback(async () => {
-    
+
     try {
       // set loading and error states
       setLoading(true);
@@ -147,7 +148,7 @@ export default function toDoListScreen() {
   // CONSOLE LOGS FOR DEVELOPMENT/DEBUGGING PURPOSES
   useEffect(() => {
     const ids = items.map(i => i.id);
-    const dupes = ids.filter((id, index) => 
+    const dupes = ids.filter((id, index) =>
       ids.indexOf(id) !== index
     )
 
@@ -158,10 +159,27 @@ export default function toDoListScreen() {
       console.warn("Missing IDs in to_do list items")
     }
   }, [items]); // logs when items state is updated
-  
-  // redner list memoized so only rebuild when items change
+
+  // filter items by active tab
+  const filteredItems = useMemo(() => {
+    if (tab === "All") {
+      return items;
+    }
+    if (tab === "Completed") {
+      return items.filter(i => i.completed);
+    }
+    // else "To Do"
+    return items.filter(i => !i.completed);
+  }, [items, tab]);
+
+  // filtered items is empty
+  const emptyFiltered = !loading && !error && filteredItems.length === 0;
+  // all items empty
+  const emptyAll = !loading && !error && items.length === 0;
+
+  // redner list memoized so only rebuild when filtered items change
   const rendered = useMemo(() => {
-    return items.map((item) => {
+    return filteredItems.map((item) => {
       // key for to do list
       const key = makeKey(item);
       // storing display data (checked boxes, deadline text)
@@ -189,11 +207,11 @@ export default function toDoListScreen() {
             name={isChecked ? "checkbox-outline" : "square-outline"}
             size={36}
             color='black'
-            style={{marginTop: 4}}
+            style={{ marginTop: 4 }}
           />
 
-          
-          <View style={{flex: 1}}>
+
+          <View style={{ flex: 1 }}>
             {/*action item text*/}
             <Text
               style={{
@@ -220,26 +238,40 @@ export default function toDoListScreen() {
         </Pressable>
       );
     });
-  }, [items]);
+  }, [filteredItems]);
+
+  // filtered tab styles using bool flags
+  const tabPill = (active: boolean) => ({ // actual tab pill
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 36,
+    backgroundColor: active ? 'black' : 'rgba(0,0,0,0.05)',
+    marginRight: 12,
+    alignSelf: 'flex-start' as const,
+    justifyContent: 'center' as const
+  });
+  const tabText = (active: boolean) => ({ // text in the tab pill
+    fontWeight: '800' as const,
+    fontSize: 16.67,
+    color: active ? 'white' : 'rgba(0,0,0,0.75)'
+  });
 
   return (
     <SafeAreaView style={[styles.dashSafe, {
       backgroundColor: '#F8F4F9'
     }]}>
 
-      <View style={[styles.dashHeader, {
-        flexDirection: 'column',
-        alignItems: 'flex-start',
-        marginTop: '10%',
-        marginBottom: 12
-      }]}>
+      <View style={{
+        paddingTop: '10%',
+        paddingHorizontal: 24
+      }}>
 
         <Text style={[styles.dashHeaderTitle, {
           color: '#000000'
         }]}>To-Do List</Text>
 
         <Text style={[styles.dashSectionTitle, {
-          textAlign: 'left', 
+          textAlign: 'left',
           marginTop: 12,
           fontSize: 16,
           fontWeight: '600',
@@ -250,66 +282,141 @@ export default function toDoListScreen() {
 
       </View>
 
-      {loading && (
-        <View style={{
-          paddingTop: 18,
+      <ScrollView
+        horizontal={true}
+        showsHorizontalScrollIndicator={false}
+        style={{
+          flexGrow: 0,
+          maxHeight: 64
+        }}
+        contentContainerStyle={{
+          paddingHorizontal: 36,
+          paddingBottom: 12,
           alignItems: 'center'
-        }}>
-          <ActivityIndicator/>
-          <Text style={{color: 'white', marginTop: 12, fontWeight: '700'}}>
-            Loading to-do list...
+        }}
+      >
+        <Pressable
+          onPress={() => setTab("To Do")}
+          style={tabPill(tab === "To Do")}
+        >
+          <Text style={tabText(tab === "To Do")}>
+            To Do
           </Text>
-        </View>
-      )}
+        </Pressable>
 
-      {!!error && !loading && (
-        <Text style={{
-          color: 'white',
-          marginHorizontal: 16,
-          marginTop: 16,
-          fontWeight: '700'
-        }}>
-          {error}
-        </Text>
-      )}
-
-      {!loading && !error && items.length === 0 && (
-        <View style={{
-          alignItems: 'center',
-          alignSelf: 'center',
-          marginVertical: 24,
-          backgroundColor: 'rgba(0,0,0,0.065)',
-          maxWidth: '80%',
-          borderRadius: 24
-        }}>
-          <Text style={{
-            color: 'rgba(0,0,0,0.8)',
-            marginHorizontal: 24,
-            marginVertical: 12,
-            fontWeight: '600',
-            fontSize: 22
-          }}>
-            No to-do list items yet.
+        <Pressable
+          onPress={() => setTab("Completed")}
+          style={tabPill(tab === "Completed")}
+        >
+          <Text style={tabText(tab === "Completed")}>
+            Completed
           </Text>
-          <Text style={{
-            color: 'rgba(0,0,0,0.5)',
-            marginHorizontal: 36,
-            marginVertical: 24,
-            fontWeight: '500',
-            fontSize: 18,
-            textAlign: 'center',
-            lineHeight: 28
-          }}>
-            Add to-do list items by taking images of real-world text like notices, bills, letters, and more!
-          </Text>
-        </View>
-      )}
+        </Pressable>
 
-      <ScrollView style={{marginBottom: 24}}>
-        {/*list of action items from to_do in user table db*/}
-        {rendered}
+        <Pressable
+          onPress={() => setTab("All")}
+          style={tabPill(tab === "All")}
+        >
+          <Text style={tabText(tab === "All")}>
+            All Tasks
+          </Text>
+        </Pressable>
       </ScrollView>
-      
+
+      <View style={{ flex: 1, minHeight: 0 }}>
+
+        {loading && (
+          <View style={{
+            paddingTop: 18,
+            alignItems: 'center'
+          }}>
+            <ActivityIndicator color={'black'} />
+            <Text style={{ color: 'black', marginTop: 12, fontWeight: '700' }}>
+              Loading to-do list...
+            </Text>
+          </View>
+        )}
+
+        {!!error && !loading && (
+          <Text style={{
+            color: 'black',
+            marginHorizontal: 16,
+            marginTop: 16,
+            fontWeight: '700'
+          }}>
+            {error}
+          </Text>
+        )}
+
+        {emptyAll && (
+          <View style={{
+            alignItems: 'center',
+            alignSelf: 'center',
+            marginVertical: 24,
+            backgroundColor: 'rgba(0,0,0,0.065)',
+            maxWidth: '80%',
+            borderRadius: 24
+          }}>
+            <Text style={{
+              color: 'rgba(0,0,0,0.8)',
+              marginHorizontal: 24,
+              marginVertical: 12,
+              fontWeight: '600',
+              fontSize: 22
+            }}>
+              No to-do list items yet.
+            </Text>
+            <Text style={{
+              color: 'rgba(0,0,0,0.5)',
+              marginHorizontal: 36,
+              marginVertical: 24,
+              fontWeight: '500',
+              fontSize: 18,
+              textAlign: 'center',
+              lineHeight: 28
+            }}>
+              Add to-do list items by taking images of real-world text like notices, bills, letters, and more!
+            </Text>
+          </View>
+        )}
+
+        {!emptyAll && emptyFiltered && (
+          <View style={{
+            alignItems: 'center',
+            alignSelf: 'center',
+            marginVertical: 24,
+            backgroundColor: 'rgba(0,0,0,0.07)',
+            maxWidth: '80%',
+            borderRadius: 24
+          }}>
+            <Text style={{
+              color: 'rgba(0,0,0,0.8)',
+              marginHorizontal: 24,
+              marginVertical: 12,
+              fontWeight: '600',
+              fontSize: 22
+            }}>
+              {tab === "Completed" ? "No completed items yet."
+                : tab === "To Do" ? "No active to-do items." : "No items to show."}
+            </Text>
+          </View>
+        )}
+
+        <ScrollView
+          style={{
+            flex: 1
+          }}
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingBottom: 24,
+            justifyContent: 'flex-start'
+          }}
+        >
+          {/*list of action items from to_do in user table db*/}
+          {rendered}
+        </ScrollView>
+      </View>
+
     </SafeAreaView>
   );
 }

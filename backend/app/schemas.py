@@ -5,12 +5,18 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 
 class ActionItem(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4))
     action_item: str
     deadline: Optional[str] = None
+    completed: bool = False
 
 # request model for users/me/todo
 class AddToDoRequest(BaseModel):
     action_items: List[ActionItem]
+
+# request model to patch completed flag for action items in to_do
+class CompleteItemRequest(BaseModel):
+    completed: bool
 
 class UserRead(schemas.BaseUser[uuid.UUID]):
     language: str

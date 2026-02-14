@@ -498,7 +498,11 @@ export const readerStyles = StyleSheet.create({
   complexWord: {
     color: '#8C311C',
     fontWeight: '800',
-    textDecorationLine: 'underline'
+    textDecorationLine: 'underline',
+    fontSize: 16.67,
+    lineHeight: 24,
+    flexShrink: 1,
+    flexWrap: 'wrap'
   },
 
   definitionBackground: {

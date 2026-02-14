@@ -5,6 +5,7 @@ import { Modal, View, Text, Pressable, ScrollView } from "react-native";
 type ActionItem = {
     action_item: string;
     deadline?: string | null;
+    completed: boolean;
 }
 
 // properties for action item modal

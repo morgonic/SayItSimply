@@ -25,8 +25,10 @@ type ReaderTab = "Overview" | "Easy Read" | "Translate";
 
 // custom action item type to match gemini output
 type ActionItem = {
+  id?: string;
   action_item: string;
   deadline: string | null; // null if no deadline
+  completed: boolean;
 }
 
 // structured gemini output
@@ -263,6 +265,20 @@ export default function ReaderScreen() {
   const actionItemsDisabled = (
     isLoading || actionItems.length === 0
   );
+
+  // normalize action items from gemini
+  function normalizeActionItems(input: any): ActionItem[] {
+    if (!Array.isArray(input)) {
+      return [];
+    }
+    // return normalized action items
+    return input.map((i) => ({
+      id: String(i.id ?? undefined),
+      action_item: String(i?.action_item ?? "").trim(),
+      deadline: i?.deadline ? String(i.deadline) : null,
+      completed: false // forcing completed to always be false at first
+    })).filter((i) => i.action_item.length > 0); // no empty items
+  }
 
   // help modal states
   const [helpVisible, setHelpVisible] = useState(false);
@@ -885,7 +901,13 @@ export default function ReaderScreen() {
           throw new Error(text || `Gemini response failed (HTTP ${geminiResponse.status})`);
         }
         // grab and set json data
-        const geminiJson: GeminiResponse = await geminiResponse.json();
+        const raw = await geminiResponse.json();
+        const geminiJson: GeminiResponse = {
+          ...raw,
+          action_items: normalizeActionItems(raw.action_items)
+        };
+        setGeminiData(geminiJson);
+
         console.log("\n---[ORIGINAL TEXT] COMPLEX WORDS/DEFS---\n")
         if (geminiJson.complex_words && geminiJson.complex_definitions) {
           for (const i in geminiJson.complex_words) {
@@ -1069,9 +1091,14 @@ export default function ReaderScreen() {
         throw new Error(text || `Gemini response failed (HTTP ${response.status})`);
       }
 
-      const json: GeminiResponse = await response.json();
-
+      // noramlize action items in gemini data
+      const raw = await response.json();
+      const json: GeminiResponse = {
+        ...raw,
+        action_items: normalizeActionItems(raw.action_items)
+      }
       setGeminiData(json);
+
       setSimplifyMoreText(json.simplification);
       setSimplifiedReadingLevel(json.reading_level ?? level);
       setSimplifiedMost((json.reading_level ?? level) === 1);

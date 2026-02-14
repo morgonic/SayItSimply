@@ -1,9 +1,10 @@
 import base64
-import math
 import os, json
+import uuid
+
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -16,11 +17,12 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse, Response
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import User, UserSettings, OAuthAccount, create_db_and_tables, engine, get_async_session
-from app.schemas import ActionItem, AddToDoRequest, UserCreate, UserRead, UserUpdate, GeminiRequest, GeminiResponse, OCRRequest, OCRResponse, SettingsRead, SettingsUpdate
+from app.schemas import ActionItem, CompleteItemRequest, AddToDoRequest, UserCreate, UserRead, UserUpdate, GeminiRequest, OCRRequest, OCRResponse, SettingsRead, SettingsUpdate
 from app.users import auth_backend, current_active_user, fastapi_users, get_user_manager, google_oauth_client, SECRET
 
 from dotenv import load_dotenv
@@ -389,13 +391,47 @@ async def update_reading_level(
 
 # endpoint for fetching to do list
 @app.get("/users/me/todo", response_model=list[ActionItem], tags=["users"])
-async def get_todo_list(user: User = Depends(current_active_user)):
-    todo_list = user.to_do or []
-    return [ActionItem.model_validate(item) for item in todo_list]
+async def get_todo_list(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    # start with what is currently stored in user table
+    current = [dict(i) for i in (user.to_do or [])]
+    # track which ids have already been seen, no dupes
+    seen: set[str] = set()
+    # bool flag to track whether list has been changed/mutated/updated
+    updated = False
+
+    # iterate through stored items
+    for item in current:
+        # normalize item id
+        item_id = str(item.get("id") or "").strip()
+        # missing or dupe id, generate new uuid
+        if not item_id or item_id in seen:
+            item["id"] = str(uuid.uuid4())
+            item_id = item["id"]
+            updated = True
+        # record id as seen
+        seen.add(item_id)
+
+    # if anything was updated, write the updated list to the user table in db
+    if updated:
+        user.to_do = current
+        flag_modified(user, "to_do") # have sqlalchemy flag instance as modfiied
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+    # validate each dict into actionitem modal and return
+    return [ActionItem.model_validate(i) for i in current]
 
 # endpoint for adding items to to do list
 @app.post("/users/me/todo", response_model=list[ActionItem], tags=["users"])
-async def add_todo_items(payload: AddToDoRequest, user: User = Depends(current_active_user), session: AsyncSession = Depends(get_async_session)):
+async def add_todo_items(
+    payload: AddToDoRequest, 
+    user: User = Depends(current_active_user), 
+    session: AsyncSession = Depends(get_async_session)
+):
     # current to do list, empty if none
     current = list(user.to_do or [])
     # add each action item from the payload request
@@ -407,17 +443,56 @@ async def add_todo_items(payload: AddToDoRequest, user: User = Depends(current_a
             continue
         # append action item text and deadline to current to do list
         current.append({
+            "id": str(uuid.uuid4()),
             "action_item": text,
-            "deadline": item.deadline
+            "deadline": item.deadline,
+            "completed": item.completed
         })
     # update user to do with current
     user.to_do = current
+    session.add(user)
     # commit it
     await session.commit()
     # refresh attributes
     await session.refresh(user)
     # return ActionItem for each item in user's to do list, or empty list
     return [ActionItem.model_validate(item) for item in (user.to_do or [])]
+
+
+# endpoint for patching to do list item
+@app.patch("/users/me/todo/{item_id}", response_model=ActionItem, tags=["users"])
+async def patch_todo_list(
+    item_id: str,
+    payload: CompleteItemRequest,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    # current to do list from user table in db as copy of every dict
+    current = [dict(i) for i in (user.to_do or [])]
+    # will store updated dict if match is found
+    found = None
+
+    # iterate through to do list and patch completed flag
+    for index, item in enumerate(current):
+        if str(item.get("id")) == item_id:
+            # replace item with new dict
+            current[index] = {**item, "completed": payload.completed}
+            # found item at index
+            found = current[index]
+            break
+    # no match, error 404 not found
+    if not found:
+        raise HTTPException(status_code=404, detail="To-do item not found.")
+    # persist patched list to user table in db
+    user.to_do = current
+    # make sqlalchemy flag the instance as modified
+    flag_modified(user, "to_do")
+
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    # return updated item as validated actionitem model
+    return ActionItem.model_validate(found)
 
 
 ### OCR ###

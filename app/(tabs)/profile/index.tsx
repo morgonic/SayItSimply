@@ -126,6 +126,10 @@ type GeminiResponse = {
   const [calibLowerTxt, setCalibLowerTxt] = useState<string>("");
   const [calibHigherTxt, setCalibHigherTxt] = useState<string>("");
 
+  const [calibExpandVis, setCalibExpandVis] = useState(false);
+  const [calibExpandTitle, setCalibExpandTitle] = useState<string>("");
+  const [calibExpandText, setCalibExpandText] = useState<string>("");
+
   const getTokenOrRedirect = async (): Promise<string | null> => {
     const token = await storage.getItem("access_token");
     return token;
@@ -400,6 +404,7 @@ type GeminiResponse = {
   }
 
   function closeCalibModal() {
+    setCalibExpandVis(false);
     setCalibVis(false);
     setCalibLoad(false);
     setCalibErr(null);
@@ -428,6 +433,28 @@ type GeminiResponse = {
     } finally {
       setCalibLoad(false);
     }
+  }
+
+  function openCalibExpanded(which: "lower" | "higher") {
+    if (calibLoad) return;
+    if (calibErr) return;
+
+    if (which === "lower") {
+      setCalibExpandTitle("Option A - Lower");
+      setCalibExpandText(calibLowerTxt || "");
+    } else {
+      setCalibExpandTitle("Option B - Higher");
+      setCalibExpandText(calibHigherTxt || "");
+    }
+    setCalibVis(false);
+    setTimeout(() => {
+      setCalibExpandVis(true);
+    }, 0);
+  }
+
+  function closeCalibExpanded() {
+    setCalibExpandVis(false);
+    setCalibVis(true);
   }
 
   async function setCalibChoice(choice: "lower" | "stay" | "higher") {
@@ -673,6 +700,7 @@ type GeminiResponse = {
         </View>
       </Modal>
 
+      {/* Calibration Modal */}
       <Modal
         transparent
         visible={calibVis}
@@ -680,8 +708,8 @@ type GeminiResponse = {
         onRequestClose={closeCalibModal}
       >
         <View style={profileStyles.calibBackground}>
-          <Pressable style={profileStyles.fullFill} onPress={closeCalibModal}/>
-          <View style={profileStyles.calibCenter} pointerEvents='box-none'>
+          <Pressable style={profileStyles.calibBackdrop} onPress={closeCalibModal}/>
+          <View style={profileStyles.calibCenter} pointerEvents="box-none">
             <View style={profileStyles.calibModalCard}>
               <ScrollView style={{ flex: 1 }} contentContainerStyle={profileStyles.calibBodyContent}
                 showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
@@ -696,19 +724,27 @@ type GeminiResponse = {
                   <AppText style={profileStyles.calibErrTxt}>{calibErr}</AppText>
                 ) : (
                   <View style={profileStyles.calibOptsRow}>
-                    <View style={profileStyles.calibOpt}>
+                    <Pressable
+                      style={profileStyles.calibOpt}
+                      onPress={() => openCalibExpanded("lower")}
+                      disabled={calibLoad || !!calibErr}
+                    >
                       <View style={profileStyles.calibOptHeader}>
                         <AppText style={profileStyles.calibOptHeaderTxt}> Option A - Lower</AppText>
                       </View>
                       <AppText style={profileStyles.calibOptTxt}>{calibLowerTxt}</AppText>
-                    </View>
+                    </Pressable>
 
-                    <View style={profileStyles.calibOpt}>
+                    <Pressable
+                      style={profileStyles.calibOpt}
+                      onPress={() => openCalibExpanded("higher")}
+                      disabled={calibLoad || !!calibErr}
+                    >
                       <View style={profileStyles.calibOptHeader}>
                         <AppText style={profileStyles.calibOptHeaderTxt}> Option B - Higher</AppText>
                       </View>
                       <AppText style={profileStyles.calibOptTxt}>{calibHigherTxt}</AppText>
-                    </View>
+                    </Pressable>
                   </View>
                 )}
 
@@ -743,6 +779,46 @@ type GeminiResponse = {
                     <AppText style={profileStyles.calibChoiceTxt}>Choose Option B</AppText>
                   </Pressable>
                 </View>
+              </ScrollView>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Option Expander Modal */}
+      <Modal
+        transparent
+        visible={calibExpandVis}
+        animationType="fade"
+        onRequestClose={closeCalibExpanded}
+      >
+        <View style={profileStyles.calibBackground}>
+          <Pressable style={profileStyles.calibBackdrop} onPress={closeCalibExpanded}/>
+          <View style={profileStyles.calibCenter} pointerEvents="box-none">
+            <View style={profileStyles.calibModalCard}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingHorizontal: 6,
+                  paddingTop: 4,
+                  marginBottom: 6,
+                }}
+              >
+                <AppText style={profileStyles.calibTitle}>{calibExpandTitle}</AppText>
+                <Pressable onPress={closeCalibExpanded} hitSlop={10}>
+                  <Ionicons name="close" size={26} color={"black"} />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={profileStyles.calibBodyContent}
+                showsVerticalScrollIndicator
+                keyboardShouldPersistTaps="handled"
+              >
+                <AppText style={profileStyles.calibOptTxt}>{calibExpandText}</AppText>
               </ScrollView>
             </View>
           </View>

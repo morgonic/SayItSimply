@@ -277,6 +277,10 @@ export default function ReaderScreen() {
   const [calibLowerTxt, setCalibLowerTxt] = useState<string>("");
   const [calibHigherTxt, setCalibHigherTxt] = useState<string>("");
 
+  const [calibExpandVis, setCalibExpandVis] = useState(false);
+  const [calibExpandTitle, setCalibExpandTitle] = useState<string>("");
+  const [calibExpandText, setCalibExpandText] = useState<string>("");
+
   // prevents scan count from updating every render
   const imageUriRef = useRef<string | null>(null);
 
@@ -721,7 +725,30 @@ export default function ReaderScreen() {
     }
   }
 
+  function openCalibExpanded(which: "lower" | "higher") {
+    if (calibLoad) return;
+    if (calibErr) return;
+
+    if (which === "lower") {
+      setCalibExpandTitle("Option A - Lower");
+      setCalibExpandText(calibLowerTxt || "");
+    } else {
+      setCalibExpandTitle("Option B - Higher");
+      setCalibExpandText(calibHigherTxt || "");
+    }
+    setCalibVis(false);
+    setTimeout(() => {
+      setCalibExpandVis(true);
+    }, 0);
+  }
+
+  function closeCalibExpanded() {
+    setCalibExpandVis(false);
+    setCalibVis(true);
+  }
+
   function closeCalibModal() {
+    setCalibExpandVis(false);
     setCalibVis(false);
     setCalibLoad(false);
     setCalibErr(null);
@@ -1071,14 +1098,16 @@ export default function ReaderScreen() {
 
       const json: GeminiResponse = await response.json();
 
+      const newLevel = (typeof json.reading_level === "number" ? json.reading_level : level);
+      setSessionReadingLevel(newLevel);
+      setSimplifyMoreCount(0);
+
       setGeminiData(json);
-      setSimplifyMoreText(json.simplification);
-      setSimplifiedReadingLevel(json.reading_level ?? level);
-      setSimplifiedMost((json.reading_level ?? level) === 1);
+      setSimplifyMoreText(json.simplification ?? null);
+      setSimplifiedReadingLevel(newLevel);
+      setSimplifiedMost(newLevel === 1);
       try {
-        setSessionReadingLevel(json.reading_level!!);
-        setSimplifyMoreCount(0);
-        await patchReadingLevel(level);
+        await patchReadingLevel(newLevel);
       }
       catch (e: any) {
         console.warn("Failed to store reading level:", e?.message ?? e);
@@ -1245,14 +1274,13 @@ export default function ReaderScreen() {
                 indicatorStyle='black'
                 onScrollBeginDrag={closeDefinitionModal}
               >
-                <AppText style={readerStyles.bodyText}>
-                  {tab === "Overview" && showOriginal
-                    ? highlightedOriginal
-                    : tab === "Easy Read"
-                      ? highlightedSimplified
-                      : content
-                  }
-                </AppText>
+                  {tab === "Overview" && showOriginal ? (
+                    <AppText style={readerStyles.bodyText}>{highlightedOriginal}</AppText>
+                  ) : tab === "Easy Read" ? (
+                    <AppText style={readerStyles.bodyText}>{highlightedSimplified}</AppText>
+                  ) : (
+                    <AppText style={readerStyles.bodyText}>{content}</AppText>
+                  )}
               </ScrollView>
 
               {/* Bottom CTA */}
@@ -1470,8 +1498,8 @@ export default function ReaderScreen() {
         onRequestClose={closeCalibModal}
       >
         <View style={readerStyles.calibBackground}>
-          <Pressable style={readerStyles.fullFill} onPress={closeCalibModal} />
-          <View style={readerStyles.calibCenter} pointerEvents='box-none'>
+          <Pressable style={readerStyles.calibBackdrop} onPress={closeCalibModal}/>
+          <View style={readerStyles.calibCenter} pointerEvents="box-none">
             <View style={readerStyles.calibModalCard}>
               <ScrollView style={{ flex: 1 }} contentContainerStyle={readerStyles.calibBodyContent}
                 showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
@@ -1487,19 +1515,27 @@ export default function ReaderScreen() {
                   <AppText style={readerStyles.calibErrTxt}>{calibErr}</AppText>
                 ) : (
                   <View style={readerStyles.calibOptsRow}>
-                    <View style={readerStyles.calibOpt}>
+                    <Pressable
+                      style={readerStyles.calibOpt}
+                      onPress={() => openCalibExpanded("lower")}
+                      disabled={calibLoad || !!calibErr}
+                    >
                       <View style={readerStyles.calibOptHeader}>
                         <AppText style={readerStyles.calibOptHeaderTxt}> Option A - Lower</AppText>
                       </View>
                       <AppText style={readerStyles.calibOptTxt}>{calibLowerTxt}</AppText>
-                    </View>
+                    </Pressable>
 
-                    <View style={readerStyles.calibOpt}>
+                    <Pressable
+                      style={readerStyles.calibOpt}
+                      onPress={() => openCalibExpanded("higher")}
+                      disabled={calibLoad || !!calibErr}
+                    >
                       <View style={readerStyles.calibOptHeader}>
                         <AppText style={readerStyles.calibOptHeaderTxt}> Option B - Higher</AppText>
                       </View>
                       <AppText style={readerStyles.calibOptTxt}>{calibHigherTxt}</AppText>
-                    </View>
+                    </Pressable>
                   </View>
                 )}
 
@@ -1534,6 +1570,46 @@ export default function ReaderScreen() {
                     <AppText style={readerStyles.calibChoiceTxt}>Choose Option B</AppText>
                   </Pressable>
                 </View>
+              </ScrollView>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Option Expander Modal */}
+      <Modal
+        transparent
+        visible={calibExpandVis}
+        animationType="fade"
+        onRequestClose={closeCalibExpanded}
+      >
+        <View style={readerStyles.calibBackground}>
+          <Pressable style={readerStyles.calibBackdrop} onPress={closeCalibExpanded}/>
+          <View style={readerStyles.calibCenter} pointerEvents="box-none">
+            <View style={readerStyles.calibModalCard}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingHorizontal: 6,
+                  paddingTop: 4,
+                  marginBottom: 6,
+                }}
+              >
+                <AppText style={readerStyles.calibTitle}>{calibExpandTitle}</AppText>
+                <Pressable onPress={closeCalibExpanded} hitSlop={10}>
+                  <Ionicons name="close" size={26} color={"black"} />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={readerStyles.calibBodyContent}
+                showsVerticalScrollIndicator
+                keyboardShouldPersistTaps="handled"
+              >
+                <AppText style={readerStyles.calibOptTxt}>{calibExpandText}</AppText>
               </ScrollView>
             </View>
           </View>

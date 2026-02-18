@@ -1,5 +1,5 @@
 import { styles } from "@/constants/styles";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { View, Text, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import storage from "@/app/storage";
@@ -21,16 +21,54 @@ const api_url = process.env.EXPO_PUBLIC_API_URL;
 export default function toDoListScreen() {
   // # TODO: Use tab state to track active tab / content viewed
   const [tab, setTab] = useState<ToDoTab>("To Do");
+  // temporarily storing item ids for timer
+  const [ids, setIds] = useState<Record<string, boolean>>({});
+  // storing timer for each item to handle timeouts
+  const timers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   // storing to do items
   const [items, setItems] = useState<ActionItem[]>([]);
   // loading and error states
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // toggle individual items' completed bool state
+  // starts/resets timer for item id so item stays visible briefly before disappearing/moving
+  const delayFor = (id: string, ms=700) => {
+    // reset timer if there's already a timer for the item
+    if (timers.current[id]) {
+      clearTimeout(timers.current[id])
+    }
+    // set ids for timer, marking id as delayed
+    setIds(prev => ({...prev, [id]: true}));
+    // after delay, remove id from delay set to be filtered/moved
+    timers.current[id] = setTimeout(() => {
+      setIds(prev => {
+        const next = {...prev};
+        delete next[id];
+        return next;
+      });
+      // remove timer handle to clean up
+      delete timers.current[id];
+    }, ms);
+  };
+
+  // cleanup timers on unmountt
+  useEffect(() => {
+    return () => Object.values(timers.current).forEach(clearTimeout);
+  }, []);
+
+  // toggle individual items' completed bool state and PATCH to update
   async function toggleCompleted(item: ActionItem) {
     // flip the completed bool
     const next = !item.completed;
+    // track whether there are items on current tab that will move to another tab (have been checked)
+    const itemsWillMove = (
+      (tab === "To Do" && next === true) 
+      || (tab === "Completed" && next === false)
+    );
+    // if items are about to move, start timer
+    if (itemsWillMove) {
+      delayFor(item.id, 700);
+    }
     // update completed items in useState
     setItems(prev =>
       // iterate items
@@ -166,11 +204,13 @@ export default function toDoListScreen() {
       return items;
     }
     if (tab === "Completed") {
-      return items.filter(i => i.completed);
+      // keep unchecked items for a moment
+      return items.filter(i => i.completed || ids[i.id]);
     }
     // else "To Do"
-    return items.filter(i => !i.completed);
-  }, [items, tab]);
+    // keep checked items for a moment
+    return items.filter(i => !i.completed || ids[i.id]);
+  }, [items, tab, ids]);
 
   // filtered items is empty
   const emptyFiltered = !loading && !error && filteredItems.length === 0;

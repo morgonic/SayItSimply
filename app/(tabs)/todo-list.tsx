@@ -227,55 +227,102 @@ export default function toDoListScreen() {
       const due = item.deadline ? `${item.deadline}` : "";
 
       return (
-        <Pressable
-          key={key}
-          // user can tap anywhere on card to toggle complete, not just checkbox
-          onPress={() => toggleCompleted(item)}
-          style={{
-            marginHorizontal: 12,
-            marginTop: 12,
-            padding: 12,
-            borderRadius: 12,
-            backgroundColor: 'rgba(0,0,0,0.05)',
-            flexDirection: 'row',
-            alignItems: 'flex-start',
-            gap: 12
-          }}
-        >
-          <Ionicons
-            // checkbox icon when completed
-            name={isChecked ? "checkbox-outline" : "square-outline"}
-            size={36}
-            color='black'
-            style={{ marginTop: 4 }}
-          />
+        <View style={{marginHorizontal: '3%'}}>
+          <Pressable
+            key={key}
+            // user can tap anywhere on card to toggle complete, not just checkbox
+            onPress={() => toggleCompleted(item)}
+            style={{
+              marginHorizontal: 12,
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 12,
+              backgroundColor: 'rgba(0,0,0,0.05)',
+              flexDirection: 'row',
+              alignItems: 'flex-start',
+              gap: 12
+            }}
+          >
+            <Ionicons
+              // checkbox icon when completed
+              name={isChecked ? "checkbox-outline" : "square-outline"}
+              size={36}
+              color='black'
+              style={{ marginTop: 4 }}
+            />
 
 
-          <View style={{ flex: 1 }}>
-            {/*action item text*/}
-            <Text
-              style={{
-                color: 'black',
-                fontWeight: '800',
-                fontSize: 16,
-                textDecorationLine: isChecked ? 'line-through' : 'none',
-                opacity: isChecked ? 0.5 : 1
-              }}
-            >
-              {item.action_item}
-            </Text>
-            {/*optional due date*/}
-            {!!due && (
-              <Text style={{
-                color: 'rgba(0,0,0,0.7)',
-                marginTop: 4,
-                fontWeight: '700'
-              }}>
-                Due by: {due}
+            <View style={{ flex: 1, flexDirection: 'row' }}>
+              <View style={{ flexDirection: 'column' }}>
+              {/*action item text*/}
+              <Text
+                style={{
+                  color: 'black',
+                  fontWeight: '800',
+                  fontSize: 16,
+                  textDecorationLine: isChecked ? 'line-through' : 'none',
+                  opacity: isChecked ? 0.5 : 1
+                }}
+              >
+                {item.action_item}
               </Text>
-            )}
-          </View>
-        </Pressable>
+              
+              {/*optional due date*/}
+              {!!due && (
+                <Text style={{
+                  color: 'rgba(0,0,0,0.7)',
+                  marginTop: 4,
+                  fontWeight: '700'
+                }}>
+                  Due by: {due}
+                </Text>
+              )}
+              </View>
+
+              <View style={{flexDirection:'row', justifyContent: 'flex-end', marginRight: 36}}>
+                
+                <Pressable
+                  style={{
+                    height: 36, 
+                    width: 36, 
+                    backgroundColor: '#9DB17C',
+                    borderRadius: 12
+                  }}
+                  onPress={() => {}}
+                >
+                  <Ionicons
+                    name={'pencil-outline'}
+                    size={28}
+                    color='black'
+                    style={{
+                      alignSelf: 'center', 
+                      marginTop: 4
+                    }}
+                  />
+                </Pressable>
+                <Pressable
+                  style={{
+                    height: 36, 
+                    width: 36, 
+                    backgroundColor: '#8C311C',
+                    borderRadius: 12
+                  }}
+                  onPress={() => {}}
+                >
+                  <Ionicons
+                    name={'trash-bin-outline'}
+                    size={28}
+                    color='black'
+                    style={{
+                      alignSelf: 'center', 
+                      marginTop: 4
+                    }}
+                  />
+                </Pressable>
+              </View>
+            </View>
+          </Pressable>
+        </View>
       );
     });
   }, [filteredItems]);

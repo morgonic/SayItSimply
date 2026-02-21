@@ -124,6 +124,36 @@ function randomIntInclusive(min: number, max: number) {
   return Math.floor(Math.random() * (_max - _min + 1)) + _min;
 }
 
+function clampToTwoSentences(text: string): string {
+  const cleaned = (text || "").replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+  const parts = cleaned.split(/(?<=[.!?])\s+/).filter(Boolean);
+  return parts.slice(0, 2).join(" ");
+}
+
+async function updatePreview(docId: string, previewText: string) {
+  const token = await storage.getItem("access_token");
+  const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+  if (!token) return;
+
+  try {
+    const res =await fetch(`${api_url}/documents/${docId}/preview_text`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `${tokenType} ${token}`,
+      },
+      body: JSON.stringify({ preview_text: (previewText ?? "").trim().slice(0, 250) }),
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.warn("Preview PATCH failed:", res.status, txt);
+    }
+  } catch (e) {
+    console.warn("Failed to update preview text:", e);
+  }
+}
+
 /**
  * 
  * reading level pulled from db. left option is 1 reading lvl lower, right option is 1 reading lvl higher
@@ -152,10 +182,15 @@ export default function ReaderScreen() {
 
   // read route params passed in from camerascreen
   // imageuri - local image file uri; mode - selected scan mode
-  const { imageUri, mode } = useLocalSearchParams<{
+  const params = useLocalSearchParams<{
     imageUri?: string;
     mode?: string;
+    docId?: string;
   }>();
+
+  const imageUri = Array.isArray(params.imageUri) ? params.imageUri[0] : params.imageUri;
+  const mode = Array.isArray(params.mode) ? params.mode[0] : params.mode;
+  const docId = Array.isArray(params.docId) ? params.docId[0] : params.docId;
 
   // ocr request states
   const [ocrLoading, setOcrLoading] = useState(false);
@@ -807,11 +842,6 @@ export default function ReaderScreen() {
     if (db) return;
 
     await incrScan();
-    const local = await incrScan();
-    const currLevel = sessionReadingLevel ?? local.reading_level ?? geminiData?.reading_level ?? reading_levels.standard;
-    if (local.prompt) {
-      return;
-    }
   }
 
   useEffect(() => {
@@ -905,6 +935,12 @@ export default function ReaderScreen() {
           setOcrText(data.text ?? "");
           setOcrLanguage(data.language ?? "unknown");
           setOcrLoading(false);
+          if (docId) {
+          const text_preview = clampToTwoSentences(data.text ?? "");
+          if (text_preview) {
+            await updatePreview(docId, text_preview);
+          }
+        }
         }
 
         const token = await storage.getItem("access_token");
@@ -933,7 +969,6 @@ export default function ReaderScreen() {
           ...raw,
           action_items: normalizeActionItems(raw.action_items)
         };
-        setGeminiData(geminiJson);
 
         console.log("\n---[ORIGINAL TEXT] COMPLEX WORDS/DEFS---\n")
         if (geminiJson.complex_words && geminiJson.complex_definitions) {
@@ -1134,9 +1169,14 @@ export default function ReaderScreen() {
       setSimplifiedMost(newLevel === 1);
       try {
         await patchReadingLevel(newLevel);
-      }
-      catch (e: any) {
+      } catch (e: any) {
         console.warn("Failed to store reading level:", e?.message ?? e);
+      }
+      if (docId) {
+        const text_preview = clampToTwoSentences(json.simplification || json.summary || "");
+        if (text_preview) {
+          await updatePreview(docId, text_preview);
+        }
       }
     } catch (e: any) {
       setGeminiError(e?.message ?? "Request failed");
@@ -1371,6 +1411,12 @@ export default function ReaderScreen() {
                         setSimplifiedMost(json.reading_level === 1);
                         if (json.reading_level != null) {
                           await patchReadingLevel(json.reading_level);
+                        }
+                        if (docId) {
+                          const text_preview = clampToTwoSentences(json.simplification || json.summary || "");
+                          if (text_preview) {
+                            await updatePreview(docId, text_preview);
+                          }
                         }
                       }
                       catch (e: any) {

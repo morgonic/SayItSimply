@@ -27,7 +27,7 @@ async function uploadDocument(params: {
   imageUri: string;
   mode: string;
   sourceAssetId?: string | null;
-}): Promise<void> {
+}): Promise<string> {
   const baseUrl = normalizeBaseUrl(api_url);
   if (!baseUrl) throw new Error("EXPO_PUBLIC_API_URL is not set.");
 
@@ -74,6 +74,10 @@ async function uploadDocument(params: {
     const text = await res.text().catch(() => "");
     throw new Error(`Upload failed (${res.status}). ${text}`.trim());
   }
+  const data = (await res.json().catch(() => null)) as any;
+  const docId = data?.id ? String(data.id) : null;
+  if (!docId) throw new Error("Upload succeeded but no document ID returned");
+  return docId;
 }
 
 export default function CameraScreen() {
@@ -117,18 +121,11 @@ export default function CameraScreen() {
 
       setLastCaptureUri(pic.uri)
 
-      try {
-          await uploadDocument({ imageUri: pic.uri, mode, sourceAssetId: null  });
-        } catch (e: any) {
-            console.warn("Camera capture uploadDocument failed:", e?.message ?? e);
-        }
+      const docId = await uploadDocument({ imageUri: pic.uri, mode, sourceAssetId: null  });
 
       router.push({
-        pathname: "/camera/reader", params: { imageUri: pic.uri, mode },
+        pathname: "/camera/reader", params: { imageUri: pic.uri, mode, docId },
       });
-      (async () => {
-        
-      })();
     } catch (e: any) {
       console.error(e);
       Alert.alert("Failed to take picture", e?.message ?? "Capture failed");

@@ -64,6 +64,7 @@ class Document(Base):
     image_uri: Mapped[str] = mapped_column(String, nullable=False)
     thumb_uri: Mapped[str] = mapped_column(String, nullable=False)
     mime_type: Mapped[str] = mapped_column(String(50), default="image/jpeg")
+    preview_text: Mapped[str | None] = mapped_column(String(250), nullable=True, default=None)
     user: Mapped["User"] = relationship("User", back_populates="documents")
 
 # Define the User model

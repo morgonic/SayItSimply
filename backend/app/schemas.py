@@ -138,6 +138,7 @@ class DocumentListItem(BaseModel):
     thumb_uri: str
     thumb_b64: Optional[str] = None
     thumb_mime: Optional[str] = None
+    preview_text: Optional[str] = None
     
 class DocumentDetail(BaseModel):
     id: uuid.UUID
@@ -147,9 +148,13 @@ class DocumentDetail(BaseModel):
     thumb_uri: str
     thumb_b64: Optional[str] = None
     thumb_mime: Optional[str] = None
+    preview_text: Optional[str] = None
     
 class DocumentUpdate(BaseModel):
     mode: str = Field(description="A label for the source of the text")
     
 class DocumentDelete(BaseModel):
     ok: bool = True
+    
+class DocumentPreviewUpdate(BaseModel):
+    preview_text: str = Field(min_length=20, max_length=250)

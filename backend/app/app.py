@@ -22,7 +22,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import User, UserSettings, OAuthAccount, create_db_and_tables, engine, get_async_session
-from app.schemas import ActionItem, CompleteItemRequest, AddToDoRequest, UserCreate, UserRead, UserUpdate, GeminiRequest, OCRRequest, OCRResponse, SettingsRead, SettingsUpdate
+from app.schemas import ActionItem, AddToDoRequest, PatchItemRequest, UserCreate, UserRead, UserUpdate, GeminiRequest, OCRRequest, OCRResponse, SettingsRead, SettingsUpdate
 from app.users import auth_backend, current_active_user, fastapi_users, get_user_manager, google_oauth_client, SECRET
 
 from dotenv import load_dotenv
@@ -404,6 +404,17 @@ async def get_todo_list(
     # bool flag to track whether list has been changed/mutated/updated
     updated = False
 
+    # iterate tjrpigj stpred items
+    for item in current:
+        # make sure completed is never none
+        if item.get("completed") is None:
+            item['completed'] = False
+            updated = True
+        # allow empty deadline to be none
+        if "deadline" in item and item["deadline"] == "":
+            item["deadline"] = None
+            updated = True
+
     # iterate through stored items
     for item in current:
         # normalize item id
@@ -463,24 +474,53 @@ async def add_todo_items(
 
 # endpoint for patching to do list item
 @app.patch("/users/me/todo/{item_id}", response_model=ActionItem, tags=["users"])
-async def patch_todo_list(
+async def patch_todo_item(
     item_id: str,
-    payload: CompleteItemRequest,
+    payload: PatchItemRequest,
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session)
 ):
     # current to do list from user table in db as copy of every dict
     current = [dict(i) for i in (user.to_do or [])]
+    raw = payload.model_dump(exclude_unset=True)
+    data = payload.model_dump(exclude_unset=True, exclude_none=True)
+
+    if "deadline" in raw:
+        data["deadline"] = raw["deadline"]
+
+    # validate and normalize edits
+    if "action_item" in data:
+        text = (data['action_item'] or "").strip()
+        if not text:
+            raise HTTPException(status_code=400, detail='action_item cannot be empty')
+        data["action_item"] = text
+
+    if "deadline" in data:
+        if data['deadline'] is not None:
+            due_text = (data["deadline"] or "").strip()
+            if due_text:
+                data['deadline'] = due_text
+            else:
+                data['deadline'] = None
     # will store updated dict if match is found
     found = None
 
     # iterate through to do list and patch completed flag
     for index, item in enumerate(current):
         if str(item.get("id")) == item_id:
-            # replace item with new dict
-            current[index] = {**item, "completed": payload.completed}
-            # found item at index
-            found = current[index]
+            #fix corrupt data
+            if item.get("completed") is None:
+                item["completed"] = False
+            
+            # only apply sent fields
+            patched = {**item, **data}
+
+            # do not allow none
+            if patched.get("completed") is None:
+                patched["completed"] = False
+            
+            current[index] = patched
+            found = patched
             break
     # no match, error 404 not found
     if not found:
@@ -495,6 +535,34 @@ async def patch_todo_list(
     await session.refresh(user)
     # return updated item as validated actionitem model
     return ActionItem.model_validate(found)
+
+# endpoint for deleting to do item
+@app.delete("/users/me/todo/{item_id}", tags=["users"])
+async def delete_todo_item(
+    item_id: str,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    # current to do list from db
+    current = [dict(i) for i in (user.to_do or [])]
+    # updated to do list
+    updated = [i for i in current if str(i.get("id")) != item_id]
+
+    # different lengths between lists, error 404 not found
+    if len(updated) == len(current):
+        raise HTTPException(status_code=404, detail="To-do item not fuound.")
+    
+    # update to_do in db
+    user.to_do = updated
+    # mark to_do field as modified
+    flag_modified(user, "to_do")
+
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    return {"deleted_item_id": item_id}
+
 
 
 ### OCR ###

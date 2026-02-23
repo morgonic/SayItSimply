@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 
 class ActionItem(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4))
+    id: str = Field(default_factory=lambda: str(uuid.uuid4())) # generate action item id here
     action_item: str
     deadline: Optional[str] = None
     completed: bool = False
@@ -14,9 +14,11 @@ class ActionItem(BaseModel):
 class AddToDoRequest(BaseModel):
     action_items: List[ActionItem]
 
-# request model to patch completed flag for action items in to_do
-class CompleteItemRequest(BaseModel):
-    completed: bool
+# request model to patch to do list items
+class PatchItemRequest(BaseModel):
+    action_item: Optional[str] = None
+    deadline: Optional[str] = None
+    completed: Optional[bool] = None
 
 class UserRead(schemas.BaseUser[uuid.UUID]):
     language: str

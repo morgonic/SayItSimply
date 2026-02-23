@@ -1,10 +1,12 @@
 import { styles } from "@/constants/styles";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import { View, Text, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, Modal, TextInput, Switch, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import storage from "@/app/storage";
 import { useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
+import AppText from "@/components/TextSize";
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 // action item data structure matching db
 type ActionItem = {
@@ -18,6 +20,23 @@ type ToDoTab = "To Do" | "Completed" | "All"
 // ngrok public api url
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
+const formatYdmToDate = (date: string) => {
+  const [year, month, day] = date.split('-').map(Number);
+
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  return new Date(year, month - 1, day);
+}
+
+const formatDateToYdm = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function toDoListScreen() {
   // # TODO: Use tab state to track active tab / content viewed
   const [tab, setTab] = useState<ToDoTab>("To Do");
@@ -30,6 +49,18 @@ export default function toDoListScreen() {
   // loading and error states
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // state for to do item being deleted
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  // edit item modal states
+  const [editVisible, setEditVisible] = useState(false);
+  const [editItem, setEditItem] = useState<ActionItem | null>(null);
+  const [editText, setEditText] = useState("");
+  const [editDeadlineDate, setEditDeadlineDate] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [editCompleted, setEditCompleted] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
+  // platform being used
+  const platform = Platform.OS;
 
   // starts/resets timer for item id so item stays visible briefly before disappearing/moving
   const delayFor = (id: string, ms=700) => {
@@ -217,6 +248,169 @@ export default function toDoListScreen() {
   // all items empty
   const emptyAll = !loading && !error && items.length === 0;
 
+  // delete to do item
+  const deleteToDoItem = async (itemId: string) => {
+    // no api url, throw error
+    if (!api_url) {
+      throw new Error("EXPO_PUBLIC_API_URL not set");
+    }
+    // set the item's id as the one being deleted
+    setDeletingId(itemId);
+
+    try{
+      // get token adn token type
+      const token = await storage.getItem("access_token");
+      const tokenType = await storage.getItem("token_type");
+      // make api call to delete
+      const response = await fetch(`${api_url}/users/me/todo/${itemId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `${tokenType} ${token}`,
+          Accept: 'application/json'
+        }
+      });
+      // bad response, throw error
+      if (!response.ok) {
+        throw new Error(`Delete To Do Item failed: ${response.status}`);
+      }
+      // update to-do list to not include deleted item by id
+      setItems((prev) => 
+        prev.filter((i) => 
+          i.id !== itemId
+        )
+      );
+    }
+    finally {
+      // finally, delete that item
+      setDeletingId((prev) => 
+        (prev === itemId ? null : prev)
+      );
+    }
+  };
+
+  // use alert as deletion confirmation modal
+  const confirmDeleteTodoItem = (itemId: string) => {
+    Alert.alert(
+      "Delete To-Do List item?",
+      "WARNING: This can NOT be undone.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteToDoItem(itemId)}
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const openEditModal = (item: ActionItem) => {
+    setEditItem(item);
+    setEditText(item.action_item ?? "");
+    setEditDeadlineDate(item.deadline ? formatYdmToDate(item.deadline) : null);
+    setShowDatePicker(false);
+    setEditCompleted(item.completed ?? false);
+    setEditVisible(true);
+  };
+
+  const closeEditModal = () => {
+    setEditVisible(false);
+    setEditItem(null);
+    setEditText("");
+    setEditDeadlineDate(null);
+    setEditCompleted(false);
+    setShowDatePicker(false);
+  };
+
+  const saveEdit = async () => {
+    if (!editItem) {
+      return;
+    }
+
+    const newEditText = editText.trim();
+    const newEditDeadline = editDeadlineDate ? formatDateToYdm(editDeadlineDate) : null;
+    const newDeadline = newEditDeadline;
+
+    if (!newEditText) {
+      Alert.alert("Missing action item text.", "Action item text cannot be empty.");
+      return;
+    }
+
+    const patch: any = {};
+
+    if (newEditText !== editItem.action_item) {
+      patch.action_item = newEditText;
+    }
+
+    if ((newDeadline ?? null) !== (editItem.deadline ?? null)) {
+      patch.deadline = newDeadline;
+    }
+
+    if (editCompleted !== editItem.completed) {
+      patch.completed = editCompleted;
+    }
+
+    if (Object.keys(patch).length === 0) {
+      closeEditModal();
+      return;
+    }
+
+    if ("completed" in patch) {
+      const itemsWillMove = (
+        (tab === "To Do" && editCompleted === true) 
+        || (tab === "Completed" && editCompleted === false)
+      );
+
+      if (itemsWillMove) {
+        delayFor(editItem.id, 700);
+      }
+    }
+
+    try {
+      setSavingEdit(true); 
+
+      const token = await storage.getItem("access_token");
+      const tokenType = (await storage.getItem("token_type") ?? "bearer");
+
+      if (!api_url) {
+        throw new Error("Missing EXPO_PUBLIC_API_URL");
+      }
+
+      if (!token) {
+        throw new Error("Missing auth/access token");
+      }
+
+      const response = await fetch(`${api_url}/users/me/todo/${editItem.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `${tokenType} ${token}`
+        },
+        body: JSON.stringify(patch)
+      });
+
+      const bodyText = await response.text();
+
+      if (!response.ok) {
+        throw new Error(bodyText || `PATCH failed: ${response.status}`);
+      }
+
+      const updated: ActionItem = JSON.parse(bodyText);
+
+      setItems((prev) => 
+        prev.map((i) => 
+          (i.id === updated.id ? updated : i)
+        )
+      );
+
+      closeEditModal();
+    }
+    catch (e: any) {
+      console.warn("Failed to edit to-do item:", e);
+      Alert.alert("Edit To-Do Item failed:", e?.message ?? "Could not update item.");
+    }
+    finally {
+      setSavingEdit(false);
+    }
+  };
+
   // redner list memoized so only rebuild when filtered items change
   const rendered = useMemo(() => {
     return filteredItems.map((item) => {
@@ -227,9 +421,8 @@ export default function toDoListScreen() {
       const due = item.deadline ? `${item.deadline}` : "";
 
       return (
-        <View style={{marginHorizontal: '3%'}}>
+        <View key={key} style={{marginHorizontal: '3%'}}>
           <Pressable
-            key={key}
             // user can tap anywhere on card to toggle complete, not just checkbox
             onPress={() => toggleCompleted(item)}
             style={{
@@ -252,8 +445,8 @@ export default function toDoListScreen() {
             />
 
 
-            <View style={{ flex: 1, flexDirection: 'row' }}>
-              <View style={{ flexDirection: 'column' }}>
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-start' }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
               {/*action item text*/}
               <Text
                 style={{
@@ -279,45 +472,57 @@ export default function toDoListScreen() {
               )}
               </View>
 
-              <View style={{flexDirection:'row', justifyContent: 'flex-end', marginRight: 36}}>
+              <View style={{flexDirection:'row', marginLeft: 'auto', gap: 8}}>
                 
                 <Pressable
                   style={{
-                    height: 36, 
-                    width: 36, 
+                    height: 42, 
+                    width: 42, 
                     backgroundColor: '#9DB17C',
                     borderRadius: 12
                   }}
-                  onPress={() => {}}
+                  onPress={(event) => {
+                    event?.stopPropagation?.();
+                    openEditModal(item);
+                  }}
                 >
                   <Ionicons
-                    name={'pencil-outline'}
+                    name={'pencil-sharp'}
                     size={28}
                     color='black'
                     style={{
-                      alignSelf: 'center', 
-                      marginTop: 4
+                      alignSelf: 'center',
+                      margin: 'auto'
                     }}
                   />
                 </Pressable>
                 <Pressable
                   style={{
-                    height: 36, 
-                    width: 36, 
+                    height: 42, 
+                    width: 42, 
                     backgroundColor: '#8C311C',
                     borderRadius: 12
                   }}
-                  onPress={() => {}}
+                  disabled={deletingId === item.id}
+                  onPress={(event) => {
+                    event?.stopPropagation?.();
+                    confirmDeleteTodoItem(item.id);
+                  }}
                 >
-                  <Ionicons
-                    name={'trash-bin-outline'}
+                  {deletingId === item.id ? (
+                    <ActivityIndicator style={{marginTop: 8}}/>
+                  ) : (
+                    <Ionicons
+                    name={'trash-bin-sharp'}
                     size={28}
-                    color='black'
+                    color='white'
                     style={{
                       alignSelf: 'center', 
-                      marginTop: 4
+                      margin: 'auto'
                     }}
-                  />
+                    />
+                  )}
+                  
                 </Pressable>
               </View>
             </View>
@@ -503,6 +708,183 @@ export default function toDoListScreen() {
           {rendered}
         </ScrollView>
       </View>
+
+      <Modal
+        visible={editVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={closeEditModal}
+      >
+        <Pressable
+          onPress={closeEditModal}
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 18
+          }}
+        >
+          <Pressable
+            onPress={(event) => event?.stopPropagation?.()}
+            style={{
+              width: '100%',
+              maxWidth: 420,
+              backgroundColor: 'white',
+              borderRadius: 24,
+              padding: 16
+            }}
+          >
+            <AppText style={{fontSize: 18, fontWeight: '800'}}>
+              Edit Item
+            </AppText>
+
+            <View style={{height: 12}}/>
+
+            <AppText style={{fontSize: 16, fontWeight: '700'}}>
+              Task
+            </AppText>
+
+            <TextInput
+              value={editText}
+              onChangeText={setEditText}
+              placeholder="Action Item"
+              placeholderTextColor='rgba(0,0,0,0.4)'
+              style={{
+                marginTop: 8,
+                backgroundColor: 'rgba(0,0,0,0.1)',
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                color: 'black',
+                fontWeight: '700'
+              }}
+            />
+
+            <View style={{height: 12}}/>
+
+            <AppText style={{fontSize: 16, fontWeight: '700'}}>
+              Deadline <AppText style={{fontWeight: '600', color: 'rgba(0,0,0,0.8)'}}>(optional)</AppText>
+            </AppText>
+
+            <View style={{
+              marginTop: 8,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12
+            }}>
+              <Pressable
+                onPress={() => setShowDatePicker(true)}
+                style={{
+                  flex: 1,
+                  backgroundColor: 'rgba(0,0,0,0.1)',
+                  borderRadius: 12,
+                  paddingHorizontal: 12,
+                  paddingVertical: 12
+                }}
+              >
+                <AppText style={{fontWeight: '700', color: 'black'}}>
+                  {editDeadlineDate ? formatDateToYdm(editDeadlineDate) : "No deadline"}
+                </AppText>
+              </Pressable>
+
+              <Pressable
+                onPress={() => setEditDeadlineDate(null)}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  backgroundColor: 'rgba(0,0,0,0.1)'
+                }}
+              >
+                <AppText style={{fontWeight: '800', color: 'black'}}>
+                  Clear
+                </AppText>
+              </Pressable>
+            </View>
+
+            {showDatePicker && (
+              <DateTimePicker
+                value={editDeadlineDate ?? new Date()}
+                mode='date'
+                display={platform === 'ios' ? 'spinner' : 'default'}
+                onChange={(_event: any, selected: Date | undefined) => {
+                  if (platform === 'android') {
+                    setShowDatePicker(false);
+                  }
+                  if (!selected) {
+                    return;
+                  }
+                  setEditDeadlineDate(selected);
+                }}
+                style={{alignSelf: 'center', justifyContent: 'center', marginTop: 12, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 24}}
+              />
+            )}
+            
+            <View style={{
+              marginTop: 14, 
+              flexDirection: 'row', 
+              alignItems: 'center'
+            }}>
+              <AppText style={{fontSize: 16, fontWeight: '700', marginRight: 12}}>
+                Completed
+              </AppText>
+              <Switch 
+                value={editCompleted} 
+                onValueChange={setEditCompleted}
+                trackColor={{false: '#8C311C', true: '#9DB17C'}}
+                thumbColor={'white'}
+                ios_backgroundColor={'#8C311C'}
+              />
+            </View>
+
+            <View style={{
+              marginTop: 16,
+              flexDirection: 'row',
+              justifyContent: 'flex-end',
+              gap: 10
+            }}>
+              <Pressable
+                onPress={closeEditModal}
+                disabled={savingEdit}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderRadius: 12,
+                  backgroundColor: '#8C311C',
+                  opacity: savingEdit ? 0.6 : 1
+                }}
+              >
+                <AppText style={{fontSize: 14, fontWeight: '700', color: 'white'}}>
+                  Cancel
+                </AppText>
+              </Pressable>
+
+              <Pressable
+                onPress={saveEdit}
+                disabled={savingEdit}
+                style={{
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderRadius: 12,
+                  backgroundColor: '#9DB17C',
+                  opacity: savingEdit ? 0.6 : 1,
+                  minWidth: 90,
+                  alignItems: 'center'
+                }}
+              >
+                {savingEdit ? (
+                  <ActivityIndicator color='black'/>
+                ) : (
+                  <AppText style={{fontSize: 14, fontWeight: '700', color: 'black'}}>
+                    Save
+                  </AppText>
+                )}
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
     </SafeAreaView>
   );

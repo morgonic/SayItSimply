@@ -10,7 +10,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from app.db import Document, User, get_async_session
-from app.schemas import DocumentDetail, DocumentListItem, DocumentUpdate, DocumentDelete
+from app.schemas import DocumentDetail, DocumentListItem, DocumentUpdate, DocumentDelete, DocumentPreviewUpdate
 from app.users import current_active_user
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -73,7 +73,8 @@ async def list_documents(
                 timestamp=d.timestamp,
                 thumb_uri=f"/documents/{d.id}/thumb",
                 thumb_b64=thumb_b64,
-                thumb_mime=thumb_mime
+                thumb_mime=thumb_mime,
+                preview_text=getattr(d, "preview_text", None)
             )
         )
     return items
@@ -97,6 +98,7 @@ async def get_document(
         timestamp=d.timestamp,
         file_uri=f"/documents/{d.id}/file",
         thumb_uri=f"/documents/{d.id}/thumb",
+        preview_text=getattr(d, "preview_text", None)
     )
     
 @router.post("", response_model=DocumentDetail)
@@ -107,6 +109,7 @@ async def upload_document(
     thumb: UploadFile = File(...),
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
+    preview_text: Optional[str] = Form(None)
 ):
     source_asset_id = (source_asset_id or "").strip() or None
     if source_asset_id:
@@ -119,7 +122,8 @@ async def upload_document(
         if existing:
             return DocumentDetail(
                 id=existing.id, mode=existing.mode, timestamp=existing.timestamp,
-                file_uri=f"/documents/{existing.id}/file", thumb_uri=f"/documents/{existing.id}/thumb"
+                file_uri=f"/documents/{existing.id}/file", thumb_uri=f"/documents/{existing.id}/thumb",
+                preview_text=getattr(existing, "preview_text", None)
             )
             
     if not image.content_type or not image.content_type.startswith("image/"):
@@ -129,6 +133,8 @@ async def upload_document(
 
     doc_id = uuid.uuid4()
     user_dir = _user_dir(user.id)
+    if not source_asset_id:
+        source_asset_id = str(doc_id)
 
     img_ext = ".jpg" if image.content_type == "image/jpeg" else ".png"
     th_ext = ".jpg" if thumb.content_type == "image/jpeg" else ".png"
@@ -142,6 +148,8 @@ async def upload_document(
 
     image_uri.write_bytes(image_bytes)
     thumb_uri.write_bytes(thumb_bytes)
+    
+    normalized_preview = (preview_text or "").strip()[:250] or None
 
     d = Document(
         id=doc_id,
@@ -151,7 +159,8 @@ async def upload_document(
         image_uri=str(image_uri),
         thumb_uri=str(thumb_uri),
         mime_type=image.content_type or "image/jpeg",
-        source_asset_id=source_asset_id or None
+        source_asset_id=source_asset_id or None,
+        preview_text=normalized_preview
     )
 
     session.add(d)
@@ -164,6 +173,7 @@ async def upload_document(
         timestamp=d.timestamp,
         file_uri=f"/documents/{d.id}/file",
         thumb_uri=f"/documents/{d.id}/thumb",
+        preview_text=getattr(d, "preview_text", None)
     )
     
 @router.get("/{doc_id}/thumb")
@@ -229,6 +239,7 @@ async def update_document(
         timestamp=d.timestamp,
         file_uri=f"/documents/{d.id}/file",
         thumb_uri=f"/documents/{d.id}/thumb",
+        preview_text=d.preview_text
     )
     
 @router.delete("", response_model=DocumentDelete)
@@ -252,6 +263,36 @@ async def delete_all_documents(
         
     await session.commit()
     return DocumentDelete(ok=True)
+
+@router.patch("/{doc_id}/preview_text", response_model=DocumentDetail)
+async def update_document_preview(
+    doc_id: uuid.UUID,
+    payload: DocumentPreviewUpdate,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    res = await session.execute(
+        select(Document).where(Document.id == doc_id, Document.user_id == user.id)
+    )
+    d = res.scalars().first()
+    if not d:
+        raise HTTPException(status_code=187, detail="Document not found")
+
+    normalized_preview = (payload.preview_text or "").strip()[:250]
+    d.preview_text = normalized_preview or None
+
+    session.add(d)
+    await session.commit()
+    await session.refresh(d)
+
+    return DocumentDetail(
+        id=d.id,
+        mode=d.mode,
+        timestamp=d.timestamp,
+        file_uri=f"/documents/{d.id}/file",
+        thumb_uri=f"/documents/{d.id}/thumb",
+        preview_text=getattr(d, "preview_text", None),
+    )
     
 @router.delete("/{doc_id}", response_model=DocumentDelete)
 async def delete_document(

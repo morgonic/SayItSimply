@@ -1,12 +1,12 @@
 import storage from '@/app/storage';
 import AppText from "@/components/TextSize";
 import { styles } from "@/constants/styles";
-import { FontAwesome } from "@expo/vector-icons";
+import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
-import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { Alert, Pressable, ScrollView, View } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
@@ -21,11 +21,72 @@ function normalizeBaseUrl(url?: string) {
   return url.replace(/\/$/, "");
 }
 
+type DocumentListItem = {
+  id: string;
+  mode?: string | null;
+  created_at?: string | null;
+  thumb_url?: string | null;
+  preview_text?: string | null;
+};
+
+type TodoItem = {
+  id?: string;
+  action_item: string;
+  deadline?: string | null;
+  completed?: boolean;
+};
+
+function safeTimeline(raw?: string | null): number | null {
+  if (!raw) return null;
+  const t = new Date(raw).getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
+function timelineFormat(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const t = d.getTime();
+  if (Number.isNaN(t)) return "";
+
+  const now = Date.now();
+  const diffMs = Math.max(0, now - t);
+  const mins = Math.floor(diffMs / 60000);
+
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hr${hrs === 1 ? "" : "s"} ago`;
+
+  const days = Math.floor(hrs / 24);
+  if (days === 1) {
+    return "Yesterday";
+  } else if (days > 1 && days < 30) {
+    return `${days} days ago`;
+  } else {
+    return "A month or more ago";
+  }
+}
+
+function fallbackTimelineFormat(iso?: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
+function clampToTwoSentences(text: string): string {
+  const cleaned = (text || "").replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+  const parts = cleaned.split(/(?<=[.!?])\s+/).filter(Boolean);
+  return parts.slice(0, 2).join(" ");
+}
+
 async function uploadDocument(params: {
   imageUri: string;
   mode: string;
   sourceAssetId?: string | null
-}): Promise<void> {
+}): Promise<string> {
   const baseUrl = normalizeBaseUrl(api_url);
   const token = await getAccessToken();
   const thumb = await manipulateAsync(
@@ -60,11 +121,116 @@ async function uploadDocument(params: {
     const text = await res.text().catch(() => "");
     throw new Error(`Upload failed (${res.status}). ${text}`.trim());
   }
+  const data = (await res.json().catch(() => null)) as any;
+  const docId = data?.id ? String(data.id) : null;
+  if (!docId) {
+    throw new Error("Upload succeeded but no document ID returned");
+  }
+  return docId;
+}
+
+async function fetchRecentDocs(limit = 5): Promise<DocumentListItem[]> {
+  const baseUrl = normalizeBaseUrl(api_url);
+  const token = await getAccessToken();
+  if (!baseUrl || !token) return [];
+
+  const res = await fetch(`${baseUrl}/documents`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) return [];
+
+  const data = (await res.json().catch(() => null)) as any;
+  const items: any[] = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
+
+  const normalized = items
+    .map((x) => ({
+      id: String(x.id),
+      mode: x.mode ?? null,
+      created_at: x.created_at ?? x.createdAt ?? x.timestamp ?? null,
+      thumb_url: x.thumb_url ?? x.thumbUrl ?? null,
+      preview_text: x.preview_text ?? x.previewText ?? null
+    }))
+    .sort((a, b) => {
+      const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return tb - ta;
+    });
+
+  return normalized.slice(0, limit);
+}
+
+async function fetchTodoItems(limit = 2): Promise<TodoItem[]> {
+  if (!api_url) return [];
+  const token = await storage.getItem("access_token");
+  const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+  if (!token) return [];
+
+  const res = await fetch(`${api_url}/users/me/todo`, {
+    headers: { Authorization: `${tokenType} ${token}` },
+  });
+
+  if (!res.ok) return [];
+
+  const todoItems: TodoItem[] = await res.json();
+
+  const sorted = [...todoItems]
+    .filter((t) => !t.completed)
+    .sort((a, b) => {
+      const ad = safeTimeline(a.deadline);
+      const bd = safeTimeline(b.deadline);
+
+      if (ad === null && bd === null) return 0;
+      if (ad === null) return 1;
+      if (bd === null) return -1;
+      return ad - bd;
+    });
+
+  return sorted.slice(0, limit);
+}
+
+function docLabel(doc: DocumentListItem | null): string {
+  if (!doc) return "";
+  const mode = (doc.mode || "Scan").toString().trim() || "Scan";
+  const rel = timelineFormat(doc.created_at);
+  const fallback = fallbackTimelineFormat(doc.created_at);
+  const when = rel || fallback;
+  return when ? `${mode} (${when})` : mode;
 }
 
 export default function DashboardScreen() {
   const router = useRouter();
   const [isUploading, setIsUploading] = useState(false);
+
+  const [loadingDash, setLoadingDash] = useState(true);
+  const [recentDocs, setRecentDocs] = useState<DocumentListItem[]>([]);
+  const [tasks, setTasks] = useState<TodoItem[]>([]);
+  const [lastScanSummary, setLastScanSummary] = useState<string>("");
+
+  const continueReadingDoc = useMemo(() => recentDocs?.[0] ?? null, [recentDocs]);
+
+  const loadDash = useCallback(async () => {
+    setLoadingDash(true);
+    try {
+      const [docs, tasks] = await Promise.all([
+        fetchRecentDocs(5),
+        fetchTodoItems(5),
+      ]);
+      setRecentDocs(docs);
+      setTasks(tasks);
+
+      const preview = docs?.[0]?.preview_text ?? "";
+      setLastScanSummary(clampToTwoSentences(preview));
+    } finally {
+      setLoadingDash(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadDash();
+    }, [loadDash])
+  );
 
   async function handleLogout() {
     const token = await storage.getItem("access_token");
@@ -115,17 +281,12 @@ export default function DashboardScreen() {
 
       const mode = "Auto-detect";
 
+      const docId = await uploadDocument({ imageUri: uri, mode, sourceAssetId });
 
       router.push({
         pathname: "/camera/reader",
-        params: { imageUri: uri, mode: mode },
+        params: { imageUri: uri, mode: mode, docId }
       });
-
-      try {
-        await uploadDocument({ imageUri: uri, mode, sourceAssetId });
-      } catch (e: any) {
-        console.warn("Upload failed: ", e?.message ?? e);
-      }
     } catch (e: any) {
       console.error(e);
       Alert.alert("Upload failed", e?.message ?? "Could not upload image");
@@ -133,6 +294,11 @@ export default function DashboardScreen() {
       setIsUploading(false);
     }
   };
+
+  const continueReadingLabel = useMemo(() => {
+    if (!continueReadingDoc) return "No documents yet";
+    return docLabel(continueReadingDoc);
+  }, [continueReadingDoc]);
 
   return (
     <SafeAreaView style={styles.dashSafe}>
@@ -153,34 +319,43 @@ export default function DashboardScreen() {
         {/* Content */}
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{
-
-          }}
+          contentContainerStyle={{ paddingTop: 6, paddingBottom: 20}}
           showsVerticalScrollIndicator
-          indicatorStyle='white'
+          indicatorStyle="white"
         >
-          <View style={styles.dashContent}>
-            {/* Scan New Text */}
+          {/* Scan New Text */}
+          <View style={[styles.dashContent, { paddingTop: 6 }]}>
             <AppText style={styles.dashSectionTitle}>Scan New Text</AppText>
 
-            <View style={styles.dashScanRow}>
+            <View style={[styles.dashScanRow, { marginTop: 12 }]}>
               <Pressable style={styles.dashScanBtn} onPress={() => router.replace("/camera")}>
-                <FontAwesome name="camera" size={36} color="#000000" />
+                <FontAwesome name="camera" size={24} color="#000000" />
               </Pressable>
 
               <Pressable style={[styles.dashScanBtn, isUploading && { opacity: 0.6 }]} onPress={handleUploadPress} disabled={isUploading}>
-                <FontAwesome name="upload" size={36} color="#000000" />
+                <FontAwesome name="upload" size={24} color="#000000" />
               </Pressable>
             </View>
 
             {/* Continue Reading */}
-            <View style={styles.dashContinueCardWrap}>
+            <View style={[styles.dashContinueCardWrap, { paddingHorizontal: 16 }]}>
               <View style={styles.dashBookmark}>
                 <View style={styles.dashBookmarkNotch} />
               </View>
               <View style={styles.dashContinueCard}>
-                <AppText style={styles.dashContinueTitle}>Phone Bill - Dec 2025</AppText>
+                <AppText style={styles.dashContinueTitle}>{continueReadingLabel}</AppText>
 
+                {loadingDash ? (
+                  <View style={{ paddingTop: 10, paddingBottom: 2 }}>
+                    <ActivityIndicator />
+                  </View>
+                ) : (
+                  <AppText style={styles.dashBullet}>
+                    {lastScanSummary
+                      ? lastScanSummary
+                      : "Capture or upload a picture and we will show a quick preview here!"}
+                  </AppText>
+                )}
                 <Pressable style={styles.dashContinueBtn} onPress={() => router.replace("/(tabs)/camera/reader")}>
                   <AppText style={styles.dashContinueBtnText}>Continue Reading</AppText>
                   <AppText style={styles.dashContinueBtnArrow}>›</AppText>
@@ -193,16 +368,38 @@ export default function DashboardScreen() {
               Shortcuts
             </AppText>
 
+            {/* Urgent Tasks */}
             <View style={styles.dashShortcutRow}>
-              {/* Urgent Tasks */}
               <View style={styles.dashShortcutCardOuter}>
                 <View style={styles.dashShortcutCardInnerOuter}>
                   <View style={styles.dashShortcutCard}>
                     <AppText style={styles.dashShortcutTitle}>Urgent Tasks</AppText>
 
                     <View style={styles.dashBulletGroup}>
-                      <AppText style={styles.dashBullet}>• Pay $52.50 to AT&amp;T</AppText>
-                      <AppText style={styles.dashBullet}>• Call Dr. Smith</AppText>
+                      {loadingDash ? (
+                        <ActivityIndicator />
+                      ) : tasks.length ? (
+                        tasks.slice(0, 2).map((t) => {
+                          const checked = t.completed === true;
+                          return (
+                            <View
+                              key={t.id}
+                              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+                            >
+                              <Ionicons
+                                name={checked ? "checkbox-outline" : "square-outline"}
+                                size={18}
+                                color="#FFFFFF"
+                              />
+                              <AppText style={styles.dashBullet}>{t.action_item}</AppText>
+                            </View>
+                          );
+                        })
+                      ) : (
+                        <AppText style={styles.dashBullet}>
+                          No urgent tasks yet. Add tasks in your to-do list and we’ll show the top ones here.
+                        </AppText>
+                      )}
                     </View>
 
                     <Pressable style={styles.dashViewAllBtn} onPress={() => router.replace("/(tabs)/todo-list")}>
@@ -220,10 +417,19 @@ export default function DashboardScreen() {
                     <AppText style={styles.dashShortcutTitle}>Recent Scans</AppText>
 
                     <View style={styles.dashBulletGroup}>
-                      <AppText style={styles.dashBullet}>• Medical Bill - Yesterday</AppText>
-                      <AppText style={styles.dashBullet}>
-                        • Parking Ticket - 3 days ago
-                      </AppText>
+                      {loadingDash ? (
+                        <ActivityIndicator />
+                      ) : recentDocs.length ? (
+                        recentDocs.slice(0, 5).map((d) => (
+                          <AppText key={d.id} style={styles.dashBullet}>
+                            • {docLabel(d)}
+                          </AppText>
+                        ))
+                      ) : (
+                        <AppText style={styles.dashBullet}>
+                          Capture or upload an image and it will show up here!
+                        </AppText>
+                      )}
                     </View>
 
                     <Pressable style={styles.dashViewAllBtn} onPress={() => router.push("/(tabs)/documents")}>

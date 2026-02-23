@@ -1,10 +1,10 @@
-import { styles } from "@/constants/styles";
-import { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert, Modal, TextInput, Switch, Platform } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import storage from "@/app/storage";
-import { useFocusEffect } from "@react-navigation/native";
+import { styles } from "@/constants/styles";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { ActivityIndicator, Pressable, ScrollView, View, Alert, Modal, TextInput, Switch, Platform } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import AppText from "@/components/TextSize";
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -113,7 +113,6 @@ export default function toDoListScreen() {
         } : it // no id match, stay same
       ))
     );
-
     // patch todo list
     try {
       // get access token and type
@@ -448,7 +447,7 @@ export default function toDoListScreen() {
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-start' }}>
               <View style={{ flex: 1, minWidth: 0 }}>
               {/*action item text*/}
-              <Text
+              <AppText
                 style={{
                   color: 'black',
                   fontWeight: '800',
@@ -458,17 +457,17 @@ export default function toDoListScreen() {
                 }}
               >
                 {item.action_item}
-              </Text>
+              </AppText>
               
               {/*optional due date*/}
               {!!due && (
-                <Text style={{
+                <AppText style={{
                   color: 'rgba(0,0,0,0.7)',
                   marginTop: 4,
                   fontWeight: '700'
                 }}>
                   Due by: {due}
-                </Text>
+                </AppText>
               )}
               </View>
 
@@ -558,11 +557,11 @@ export default function toDoListScreen() {
         paddingHorizontal: 24
       }}>
 
-        <Text style={[styles.dashHeaderTitle, {
+        <AppText style={[styles.dashHeaderTitle, {
           color: '#000000'
-        }]}>To-Do List</Text>
+        }]}>To-Do List</AppText>
 
-        <Text style={[styles.dashSectionTitle, {
+        <AppText style={[styles.dashSectionTitle, {
           textAlign: 'left',
           marginTop: 12,
           fontSize: 16,
@@ -570,7 +569,7 @@ export default function toDoListScreen() {
           color: 'rgba(0,0,0,0.5)'
         }]}>
           Check off items as you complete them!
-        </Text>
+        </AppText>
 
       </View>
 
@@ -591,27 +590,27 @@ export default function toDoListScreen() {
           onPress={() => setTab("To Do")}
           style={tabPill(tab === "To Do")}
         >
-          <Text style={tabText(tab === "To Do")}>
+          <AppText style={tabText(tab === "To Do")}>
             To Do
-          </Text>
+          </AppText>
         </Pressable>
 
         <Pressable
           onPress={() => setTab("Completed")}
           style={tabPill(tab === "Completed")}
         >
-          <Text style={tabText(tab === "Completed")}>
+          <AppText style={tabText(tab === "Completed")}>
             Completed
-          </Text>
+          </AppText>
         </Pressable>
 
         <Pressable
           onPress={() => setTab("All")}
           style={tabPill(tab === "All")}
         >
-          <Text style={tabText(tab === "All")}>
+          <AppText style={tabText(tab === "All")}>
             All Tasks
-          </Text>
+          </AppText>
         </Pressable>
       </ScrollView>
 
@@ -623,21 +622,21 @@ export default function toDoListScreen() {
             alignItems: 'center'
           }}>
             <ActivityIndicator color={'black'} />
-            <Text style={{ color: 'black', marginTop: 12, fontWeight: '700' }}>
+            <AppText style={{ color: 'black', marginTop: 12, fontWeight: '700' }}>
               Loading to-do list...
-            </Text>
+            </AppText>
           </View>
         )}
 
         {!!error && !loading && (
-          <Text style={{
+          <AppText style={{
             color: 'black',
             marginHorizontal: 16,
             marginTop: 16,
             fontWeight: '700'
           }}>
             {error}
-          </Text>
+          </AppText>
         )}
 
         {emptyAll && (
@@ -649,7 +648,7 @@ export default function toDoListScreen() {
             maxWidth: '80%',
             borderRadius: 24
           }}>
-            <Text style={{
+            <AppText style={{
               color: 'rgba(0,0,0,0.8)',
               marginHorizontal: 24,
               marginVertical: 12,
@@ -657,8 +656,8 @@ export default function toDoListScreen() {
               fontSize: 22
             }}>
               No to-do list items yet.
-            </Text>
-            <Text style={{
+            </AppText>
+            <AppText style={{
               color: 'rgba(0,0,0,0.5)',
               marginHorizontal: 36,
               marginVertical: 24,
@@ -668,7 +667,7 @@ export default function toDoListScreen() {
               lineHeight: 28
             }}>
               Add to-do list items by taking images of real-world text like notices, bills, letters, and more!
-            </Text>
+            </AppText>
           </View>
         )}
 
@@ -681,7 +680,7 @@ export default function toDoListScreen() {
             maxWidth: '80%',
             borderRadius: 24
           }}>
-            <Text style={{
+            <AppText style={{
               color: 'rgba(0,0,0,0.8)',
               marginHorizontal: 24,
               marginVertical: 12,
@@ -690,7 +689,7 @@ export default function toDoListScreen() {
             }}>
               {tab === "Completed" ? "No completed items yet."
                 : tab === "To Do" ? "No active to-do items." : "No items to show."}
-            </Text>
+            </AppText>
           </View>
         )}
 

@@ -95,8 +95,8 @@ export const styles = StyleSheet.create({
 
   dashContent: {
     flex: 1,
-    paddingHorizontal: 36,
-    marginTop: screenHeight * 0.05
+    paddingHorizontal: 0,
+    marginTop: 0
   },
 
   dashSectionTitle: {
@@ -115,8 +115,8 @@ export const styles = StyleSheet.create({
     marginBottom: 28,
   },
   dashScanBtn: {
-    width: 98,
-    height: 98,
+    width: 60,
+    height: 60,
     borderRadius: 14,
     backgroundColor: "#2E8B9C",
     alignItems: "center",
@@ -130,13 +130,13 @@ export const styles = StyleSheet.create({
 
   dashContinueCardWrap: {
     alignSelf: "center",
-    width: "82%",
+    width: "95%",
     marginTop: 8,
     marginBottom: 12
   },
   dashBookmark: {
     position: "absolute",
-    right: 12,
+    right: 18,
     top: -6,
     width: 18,
     height: 26,
@@ -163,10 +163,13 @@ export const styles = StyleSheet.create({
     borderBottomColor: '#fffffff2'
   },
   dashContinueCard: {
+    width: "100%",
     backgroundColor: "#fffffff2",
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 12,
     borderWidth: 1.5,
     borderColor: "rgba(0,0,0,0.06)",
   },
@@ -196,7 +199,9 @@ export const styles = StyleSheet.create({
   dashShortcutRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 10
+    marginTop: 10,
+    marginHorizontal: 10,
+    gap: 12
   },
   dashShortcutCardOuter: {
     flex: 1,
@@ -204,10 +209,10 @@ export const styles = StyleSheet.create({
     //borderWidth: 3,
     backgroundColor: "rgba(233,198,166,0.9)",
     padding: 6,
-    marginLeft: 6,
-    marginRight: 6,
-    height: 190,
-    width: 150,
+    marginLeft: 0,
+    marginRight: 0,
+    minHeight: 240,
+    //width: 150,
     justifyContent: 'center',
     alignItems: 'center'
   },
@@ -217,8 +222,8 @@ export const styles = StyleSheet.create({
     //borderWidth: 3,
     backgroundColor: "#277A8C",
     padding: 6,
-    height: 180,
-    width: 140,
+    //height: 180,
+    //width: 140,
     justifyContent: 'center',
     alignItems: 'center'
   },
@@ -226,9 +231,10 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fffffff2",
     borderRadius: 14,
-    padding: 12,
-    height: 170,
-    width: 130,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    //height: 170,
+    //width: 130,
     justifyContent: 'center',
     alignItems: 'center'
   },
@@ -239,12 +245,12 @@ export const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: "center",
   },
-  dashBulletGroup: { gap: 6, marginBottom: 10 },
-  dashBullet: { color: "#1F1F1F", fontSize: 12, fontWeight: "600" },
+  dashBulletGroup: { gap: 6, marginBottom: 10, flexGrow: 1, alignSelf: "stretch" },
+  dashBullet: { color: "#1F1F1F", fontSize: 12, fontWeight: "600", textAlign: "left" },
 
   dashViewAllBtn: {
-    marginTop: "auto",
-    alignSelf: "center",
+    marginTop: 12,
+    alignSelf: "stretch", 
     backgroundColor: "#fffffff2",
     borderRadius: 10,
     paddingVertical: 10,
@@ -253,7 +259,7 @@ export const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 1,
     borderColor: "#00000014",
-    width: 100,
+    width: "100%",
     justifyContent: "center",
   },
   dashViewAllText: { color: "#222", fontWeight: "900", marginRight: 8 },
@@ -261,6 +267,8 @@ export const styles = StyleSheet.create({
 
   dashLoginWrap: {
     paddingHorizontal: 18,
+    marginTop: 10,
+    paddingBottom: 8
   },
   dashLoginBtn: {
     backgroundColor: "#809BCE",

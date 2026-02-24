@@ -448,7 +448,7 @@ export default function toDoListScreen() {
     }
   };
 
-  // redner list memoized so only rebuild when filtered items change
+  // render list memoized so only rebuild when filtered items change
   const rendered = useMemo(() => {
     return filteredItems.map((item) => {
       // key for to do list

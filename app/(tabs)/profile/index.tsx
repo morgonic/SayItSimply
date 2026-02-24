@@ -1,3 +1,4 @@
+import { useTheme } from "@/app/context/ThemeContext";
 import storage from "@/app/storage";
 import AppText from "@/components/TextSize";
 import { profileStyles } from "@/constants/styles";
@@ -17,6 +18,12 @@ type RowProps = {
   rightContent?: React.ReactNode;
   rightIcon?: React.ComponentProps<typeof Ionicons>["name"] | null;
   disabled?: boolean;
+  //dark mode
+  iconColor?: string;
+  textColor?: string;
+  cardBg?: string;
+  borderColor?: string;
+  pressedBg?: string;
 };
 
 function Row({
@@ -25,6 +32,11 @@ function Row({
   rightContent,
   rightIcon = "chevron-forward",
   disabled = false,
+  textColor = "#111827",
+  iconColor = "#111827",
+  cardBg = "#FFFFFF",
+  borderColor = "rgba(17,24,39,0.08)",
+  pressedBg = "rgba(0,0,0,0.06)"
 }: RowProps) {
   return (
     <Pressable
@@ -32,10 +44,11 @@ function Row({
       disabled={disabled}
       style={({ pressed }) => [
         profileStyles.row,
-        pressed && !disabled && profileStyles.rowPressed,
+        { backgroundColor: cardBg, borderColor },
+        pressed && !disabled && {backgroundColor: pressedBg },
         disabled && profileStyles.rowDisabled,
       ]}
-      android_ripple={disabled ? undefined : { color: "rgba(0,0,0,0.08)" }}
+      android_ripple={disabled ? undefined : { color: pressedBg }}
     >
       <View style={profileStyles.rowLeft}>
         <AppText style={[profileStyles.rowLabel, disabled && profileStyles.rowLabelDisabled]}>
@@ -165,6 +178,27 @@ type GeminiResponse = {
     })();
   }, []);
 
+  const { darkMode } = useTheme();
+
+  const C = useMemo(() => {
+    const isDark = !!darkMode;
+    return {
+      isDark,
+      bg: isDark ? "#0B1220" : "#F3F4F6",
+      card: isDark ? "#101A2D" : "#FFFFFF",
+      text: isDark ? "#E5E7EB" : "#111827",
+      subtext: isDark ? "#AAB4C3" : "#6B7280",
+      border: isDark ? "rgba(255,255,255,0.10)" : "rgba(17,24,39,0.08)",
+      icon: isDark ? "#E5E7EB" : "#111827",
+      overlay: isDark ? "rgba(0,0,0,0.70)" : "rgba(0,0,0,0.35)",
+      gradTop: isDark ? "#0F1B33" : "#B7D7E3",
+      gradBot: isDark ? "#0B1220" : "#F3F4F6",
+      inputBg: isDark ? "#0F1B33" : "#FFFFFF",
+      inputText: isDark ? "#E5E7EB" : "#111827",
+      placeholder: isDark ? "#94A3B8" : "#9CA3AF",
+    };
+  }, [darkMode]);
+
   const languageChip = useMemo(() => {
     return (
       <Pressable
@@ -175,7 +209,7 @@ type GeminiResponse = {
         ]}
       >
         <AppText style={profileStyles.languageChipText}>{preferredLanguage}</AppText>
-        <Ionicons name="chevron-down" size={14} color="#111827" />
+        <Ionicons name="chevron-down" size={14} color="#111827"/>
       </Pressable>
     );
   }, [preferredLanguage]);
@@ -479,10 +513,10 @@ type GeminiResponse = {
   }
 
   return (
-    <SafeAreaView style={profileStyles.safe}>
+    <SafeAreaView style={[profileStyles.safe, { backgroundColor: C.bg }]}>
       <ScrollView contentContainerStyle={profileStyles.scrollContent} showsVerticalScrollIndicator={false}>
-        <LinearGradient colors={["#B7D7E3", "#F3F4F6"]} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={profileStyles.header}>
-          <AppText style={profileStyles.headerTitle}>Profile</AppText>
+        <LinearGradient colors={[C.gradTop, C.gradBot]} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={profileStyles.header}>
+          <AppText style={[profileStyles.headerTitle, { color: C.text }]}>Profile</AppText>
 
           <View style={profileStyles.avatarWrap}>
             <View style={profileStyles.avatarCircle}>
@@ -511,9 +545,9 @@ type GeminiResponse = {
         </LinearGradient>
 
         <View style={profileStyles.section}>
-          <AppText style={profileStyles.sectionTitle}>Reading &amp; Language</AppText>
+          <AppText style={[profileStyles.sectionTitle, { color: C.text }]}>Reading &amp; Language</AppText>
 
-          <View style={profileStyles.card}>
+          <View style={[profileStyles.card, { backgroundColor: C.card }]}>
             <Row
               label="Preferred Language"
               onPress={undefined}
@@ -522,15 +556,15 @@ type GeminiResponse = {
             />
           </View>
 
-          <View style={profileStyles.card}>
+          <View style={[profileStyles.card, { backgroundColor: C.card }]}>
             <Row label="Calibrate Simplification" onPress={onCalibrate} />
           </View>
         </View>
 
         <View style={profileStyles.section}>
-          <AppText style={profileStyles.sectionTitle}>Account &amp; Security</AppText>
+          <AppText style={[profileStyles.sectionTitle, { color: C.text }]}>Account &amp; Security</AppText>
 
-          <View style={profileStyles.card}>
+          <View style={[profileStyles.card, { backgroundColor: C.card }]}>
             <Row label="Account Details" onPress={onAccountDetails} />
           </View>
 
@@ -539,12 +573,12 @@ type GeminiResponse = {
           </View>
 
           {isOAuthUser ? (
-            <AppText style={profileStyles.oauthHint}>
+            <AppText style={[profileStyles.oauthHint, { color: C.text }]}>
               Password changes are managed through your sign in provider.
             </AppText>
           ) : null}
 
-          <View style={profileStyles.card}>
+          <View style={[profileStyles.card, { backgroundColor: C.card }]}>
             <Row
               label="Settings"
               onPress={onSettings}
@@ -561,10 +595,10 @@ type GeminiResponse = {
           ]}
           android_ripple={{ color: "rgba(255,255,255,0.18)" }}
         >
-          <AppText style={profileStyles.logoutText}>Log Out</AppText>
+          <AppText style={[profileStyles.logoutText, { color: C.text }]}>Log Out</AppText>
         </Pressable>
 
-        <AppText style={profileStyles.dangerTitle}>DANGER ZONE</AppText>
+        <AppText style={[profileStyles.dangerTitle, { color: C.text }]}>DANGER ZONE</AppText>
         <View style={profileStyles.dangerWrap}>
           <Pressable
             onPress={onDeleteAccount}
@@ -574,8 +608,8 @@ type GeminiResponse = {
             ]}
             android_ripple={{ color: "rgba(255,255,255,0.14)" }}
           >
-            <AppText style={profileStyles.deleteText}>Delete Account</AppText>
-            <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
+            <AppText style={[profileStyles.deleteText, { color: C.text }]}>Delete Account</AppText>
+            <Ionicons name="trash-outline" size={20} color={C.icon} />
           </Pressable>
         </View>
 

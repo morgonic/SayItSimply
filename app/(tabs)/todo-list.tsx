@@ -1,3 +1,4 @@
+import { useTheme } from "@/app/context/ThemeContext";
 import storage from "@/app/storage";
 import AppText from "@/components/TextSize";
 import { styles } from "@/constants/styles";
@@ -20,6 +21,43 @@ type ToDoTab = "To Do" | "Completed" | "All"
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
 export default function toDoListScreen() {
+  const { darkMode } = useTheme();
+
+  const C = useMemo(() => {
+    const isDark = !!darkMode;
+    return {
+      isDark,
+      bg: isDark ? "#0B1220" : "#F8F4F9",
+
+      title: isDark ? "#E5E7EB" : "#000000",
+      subtitle: isDark ? "rgba(229,231,235,0.65)" : "rgba(0,0,0,0.5)",
+
+      // pills
+      tabActiveBg: isDark ? "#E9C6A6" : "#000000",
+      tabActiveText: isDark ? "#111827" : "#FFFFFF",
+      tabInactiveBg: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+      tabInactiveText: isDark ? "rgba(229,231,235,0.80)" : "rgba(0,0,0,0.75)",
+
+      // list cards
+      cardBg: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)",
+      cardBorder: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)",
+
+      text: isDark ? "#E5E7EB" : "#000000",
+      due: isDark ? "rgba(229,231,235,0.70)" : "rgba(0,0,0,0.7)",
+
+      icon: isDark ? "#E5E7EB" : "black",
+      iconChecked: isDark ? "#E9C6A6" : "black",
+
+      // empty states
+      emptyCardBg: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.065)",
+      emptyTitle: isDark ? "rgba(229,231,235,0.90)" : "rgba(0,0,0,0.8)",
+      emptyBody: isDark ? "rgba(229,231,235,0.65)" : "rgba(0,0,0,0.5)",
+
+      // loading
+      spinner: isDark ? "#E5E7EB" : "black",
+    };
+  }, [darkMode]);
+
   // # TODO: Use tab state to track active tab / content viewed
   const [tab, setTab] = useState<ToDoTab>("To Do");
   // storing to do items
@@ -177,7 +215,7 @@ export default function toDoListScreen() {
   // all items empty
   const emptyAll = !loading && !error && items.length === 0;
 
-  // redner list memoized so only rebuild when filtered items change
+  // render list memoized so only rebuild when filtered items change
   const rendered = useMemo(() => {
     return filteredItems.map((item) => {
       // key for to do list
@@ -196,7 +234,8 @@ export default function toDoListScreen() {
             marginTop: 12,
             padding: 12,
             borderRadius: 12,
-            backgroundColor: 'rgba(0,0,0,0.05)',
+            borderColor: C.cardBorder,
+            backgroundColor: C.cardBg,
             flexDirection: 'row',
             alignItems: 'flex-start',
             gap: 12
@@ -206,7 +245,7 @@ export default function toDoListScreen() {
             // checkbox icon when completed
             name={isChecked ? "checkbox-outline" : "square-outline"}
             size={36}
-            color='black'
+            color={isChecked ? C.iconChecked : C.icon}
             style={{ marginTop: 4 }}
           />
 
@@ -215,7 +254,7 @@ export default function toDoListScreen() {
             {/*action item text*/}
             <AppText
               style={{
-                color: 'black',
+                color: C.text,
                 fontWeight: '800',
                 fontSize: 16,
                 textDecorationLine: isChecked ? 'line-through' : 'none',
@@ -227,7 +266,7 @@ export default function toDoListScreen() {
             {/*optional due date*/}
             {!!due && (
               <AppText style={{
-                color: 'rgba(0,0,0,0.7)',
+                color: C.due,
                 marginTop: 4,
                 fontWeight: '700'
               }}>
@@ -245,7 +284,9 @@ export default function toDoListScreen() {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 36,
-    backgroundColor: active ? 'black' : 'rgba(0,0,0,0.05)',
+    borderWidth: C.isDark ? 1 : 0,
+    borderColor: C.isDark ? "rgba(255,255,255,0.10)" : "transparent",
+    backgroundColor: active ? C.tabActiveBg : C.tabInactiveBg,
     marginRight: 12,
     alignSelf: 'flex-start' as const,
     justifyContent: 'center' as const
@@ -253,12 +294,12 @@ export default function toDoListScreen() {
   const tabText = (active: boolean) => ({ // text in the tab pill
     fontWeight: '800' as const,
     fontSize: 16.67,
-    color: active ? 'white' : 'rgba(0,0,0,0.75)'
+    color: active ? C.tabActiveText : C.tabInactiveText
   });
 
   return (
     <SafeAreaView style={[styles.dashSafe, {
-      backgroundColor: '#F8F4F9'
+      backgroundColor: C.bg
     }]}>
 
       <View style={{
@@ -267,7 +308,7 @@ export default function toDoListScreen() {
       }}>
 
         <AppText style={[styles.dashHeaderTitle, {
-          color: '#000000'
+          color: C.title
         }]}>To-Do List</AppText>
 
         <AppText style={[styles.dashSectionTitle, {
@@ -275,7 +316,7 @@ export default function toDoListScreen() {
           marginTop: 12,
           fontSize: 16,
           fontWeight: '600',
-          color: 'rgba(0,0,0,0.5)'
+          color: C.subtitle
         }]}>
           Check off items as you complete them!
         </AppText>
@@ -330,8 +371,8 @@ export default function toDoListScreen() {
             paddingTop: 18,
             alignItems: 'center'
           }}>
-            <ActivityIndicator color={'black'} />
-            <AppText style={{ color: 'black', marginTop: 12, fontWeight: '700' }}>
+            <ActivityIndicator color={C.spinner} />
+            <AppText style={{ color: C.text, marginTop: 12, fontWeight: '700' }}>
               Loading to-do list...
             </AppText>
           </View>
@@ -339,7 +380,7 @@ export default function toDoListScreen() {
 
         {!!error && !loading && (
           <AppText style={{
-            color: 'black',
+            color: C.text,
             marginHorizontal: 16,
             marginTop: 16,
             fontWeight: '700'
@@ -353,12 +394,12 @@ export default function toDoListScreen() {
             alignItems: 'center',
             alignSelf: 'center',
             marginVertical: 24,
-            backgroundColor: 'rgba(0,0,0,0.065)',
+            backgroundColor: C.emptyCardBg,
             maxWidth: '80%',
             borderRadius: 24
           }}>
             <AppText style={{
-              color: 'rgba(0,0,0,0.8)',
+              color: C.emptyTitle,
               marginHorizontal: 24,
               marginVertical: 12,
               fontWeight: '600',
@@ -367,7 +408,7 @@ export default function toDoListScreen() {
               No to-do list items yet.
             </AppText>
             <AppText style={{
-              color: 'rgba(0,0,0,0.5)',
+              color: C.emptyBody,
               marginHorizontal: 36,
               marginVertical: 24,
               fontWeight: '500',
@@ -385,12 +426,12 @@ export default function toDoListScreen() {
             alignItems: 'center',
             alignSelf: 'center',
             marginVertical: 24,
-            backgroundColor: 'rgba(0,0,0,0.07)',
+            backgroundColor: C.emptyCardBg,
             maxWidth: '80%',
             borderRadius: 24
           }}>
             <AppText style={{
-              color: 'rgba(0,0,0,0.8)',
+              color: C.emptyTitle,
               marginHorizontal: 24,
               marginVertical: 12,
               fontWeight: '600',

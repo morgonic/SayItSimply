@@ -1,8 +1,9 @@
+import { useTheme } from '@/app/context/ThemeContext';
 import storage from '@/app/storage';
 import ActionItemModal from '@/components/ActionItemModal';
 import HelpModal from '@/components/HelpModal';
 import AppText from "@/components/TextSize";
-import { readerStyles } from '@/constants/styles';
+import { readerDarkStyles, readerPalette, readerStyles } from '@/constants/styles';
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import ISO6391 from "iso-639-1";
@@ -78,7 +79,7 @@ async function uriToBase64(uri: string): Promise<string> {
   const tokenType = (await storage.getItem("token_type")) ?? "bearer";
 
   const isRemote = 
-  typeof uri === "string" && ! !api_url && uri.startsWith(api_url.replace(/\/$/, ""));
+  typeof uri === "string" && !!api_url && uri.startsWith(api_url.replace(/\/$/, ""));
   // fetch local image file uri
   const response = await fetch(uri, {
     headers: {
@@ -166,6 +167,9 @@ function CalibrateReadingLvl(current: number) {
   return { left: clampInt(current - 1, 1, 9), right: clampInt(current + 1, 1, 9) };
 }
 export default function ReaderScreen() {
+  const { darkMode } = useTheme();
+
+  const P = darkMode ? readerPalette.dark : readerPalette.light;
 
   const reading_levels = {
     standard: 9,
@@ -446,7 +450,7 @@ export default function ReaderScreen() {
       return (
         <AppText
           key={i}
-          style={match ? readerStyles.complexWord : readerStyles.bodyText}
+          style={[match ? readerStyles.complexWord : readerStyles.bodyText, { color: match ? P.complexWord : P.bodyText }]}
           onPress={() => {
             if (match) {
               openDefinitionModal(clean_words);
@@ -457,7 +461,7 @@ export default function ReaderScreen() {
         </AppText>
       );
     });
-  }, [ocrText, geminiData?.complex_words]) // update when ocr text or complex_words list change
+  }, [ocrText, geminiData?.complex_words, darkMode]) // update when ocr text or complex_words list change
 
   // build version of simplification text with complex words highlighted
   const highlightedSimplified = useMemo(() => {
@@ -481,7 +485,7 @@ export default function ReaderScreen() {
       return (
         <AppText
           key={i}
-          style={match ? readerStyles.complexWord : readerStyles.bodyText}
+          style={[match ? readerStyles.complexWord : readerStyles.bodyText, darkMode && (match ? readerDarkStyles.complexWord : readerDarkStyles.bodyText)]}
           onPress={() => {
             if (match) {
               openDefinitionModal(clean_words);
@@ -492,7 +496,7 @@ export default function ReaderScreen() {
         </AppText>
       );
     });
-  }, [simplifyMoreText, geminiData?.simplification, geminiData?.simple_words, tab]); // update when simplification text/words or tab state changes
+  }, [simplifyMoreText, geminiData?.simplification, geminiData?.simple_words, tab, darkMode]); // update when simplification text/words or tab or dark mode state changes
 
   // calculate whether simplified level has reached minimum
   useEffect(() => {
@@ -1201,8 +1205,8 @@ export default function ReaderScreen() {
   }
 
   return (
-    <SafeAreaView style={readerStyles.safe}>
-      <View style={readerStyles.container}>
+    <SafeAreaView style={[readerStyles.safe, darkMode && readerDarkStyles.safe]}>
+      <View style={[readerStyles.container, darkMode && readerDarkStyles.container]}>
         {/* Header */}
         <View style={readerStyles.header}>
           <Pressable style={readerStyles.headerIconBtn} onPress={() => { }}>
@@ -1219,7 +1223,7 @@ export default function ReaderScreen() {
         <ScrollView
           style={{ flex: 1 }}
           showsVerticalScrollIndicator
-          indicatorStyle='white'
+          indicatorStyle={P.scrollIndicator as any}
           onScrollBeginDrag={closeDefinitionModal}
         >
 
@@ -1231,7 +1235,7 @@ export default function ReaderScreen() {
           </View>
 
           {/* Card Area */}
-          <View style={[readerStyles.outerCard, { height: cardHeight }]}>
+          <View style={[readerStyles.outerCard, darkMode && readerDarkStyles.outerCard, { height: cardHeight, borderColor: P.outerBorder, backgroundColor: P.midCard }]}>
             {/* Badge */}
             <View style={readerStyles.badge}>
               <AppText style={readerStyles.badgeText}>
@@ -1243,22 +1247,18 @@ export default function ReaderScreen() {
                   </AppText>
                 ) : null}
               </AppText>
-              <View style={readerStyles.badgeNotch} />
+              <View style={[readerStyles.badgeNotch, { borderBottomColor: P.badgeNotch }]}/>
             </View>
 
             {/* Inner "paper" */}
-            <View style={readerStyles.innerPaper}>
-              <View style={{
-                flexDirection: 'row', 
-                justifyContent: 'space-between', 
-                maxWidth: '75%'
-              }}>
+            <View style={[readerStyles.innerPaper, darkMode && readerDarkStyles.innerPaper]}>
+              <View style={readerStyles.paperTopRow}>
                 {/* action items icon */}
                 <Pressable
-                  style={[readerStyles.actionItemBtn, {
-                    backgroundColor: actionItemsDisabled ? 'transparent' : '#ECC8AF',
-                    borderColor: actionItemsDisabled ? 'transparent' : 'rgba(0,0,0,0.5)'
-                  }]}
+                  style={[readerStyles.actionItemBtn,
+                    actionItemsDisabled && { backgroundColor: 'transparent', borderColor: 'transparent' },
+                    darkMode && readerDarkStyles.actionItemBtn, actionItemsDisabled && darkMode && readerDarkStyles.actionItemBtnDisabled
+                  ]}
                   onPress={() => {
                     closeDefinitionModal();
                     setActionItemsVisible(true);
@@ -1271,33 +1271,21 @@ export default function ReaderScreen() {
                   <Ionicons
                     name="menu-outline"
                     size={30}
-                    color={actionItemsDisabled ? 'transparent' : 'black'}
-                    style={{
-                      justifyContent: 'center',
-                      alignItems: 'center'
-                    }}
+                    color={actionItemsDisabled ? P.iconDisabled : P.icon}
                   />
                 </Pressable>
 
                 {/*lang code fab*/}
                 {!isLoading && (  
                   <Pressable
-                    style={{
-                      backgroundColor: 'white',
-                      borderColor: 'black',
-                      width: 40,
-                      height: 40,
-                      borderRadius: 24,
-                      borderWidth: 2,
-                      justifyContent: 'center',
-                      alignContent: 'center',
-                      alignItems: 'center'
-                    }}
+                    style={[
+                      readerStyles.helpFab, darkMode && readerDarkStyles.helpFab
+                    ]}
                     onPress={() => setHelpVisible(true)}
                   >
                     <Ionicons
                       name="help"
-                      color={'black'}
+                      color={P.icon}
                       size={32}
                     />
                   </Pressable>)}
@@ -1316,13 +1304,14 @@ export default function ReaderScreen() {
                 >
                   <ActivityIndicator
                     size={28}
-                    color={'black'}
+                    color={P.indicator}
                   />
                   <AppText style={{
                     fontWeight: '600',
                     fontSize: 24,
                     textAlign: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    color: P.bodyText
                   }}
                   >
                     {ocrLoading ? "Reading your text..."
@@ -1337,15 +1326,19 @@ export default function ReaderScreen() {
                 contentContainerStyle={readerStyles.bodyScrollContent}
                 showsVerticalScrollIndicator
                 keyboardShouldPersistTaps='handled'
-                indicatorStyle='black'
+                indicatorStyle={P.scrollIndicator as any}
                 onScrollBeginDrag={closeDefinitionModal}
               >
                   {tab === "Overview" && showOriginal ? (
-                    <AppText style={readerStyles.bodyText}>{highlightedOriginal}</AppText>
+                    <AppText style={{flexDirection: "row", flexWrap: "wrap"}}>
+                      {highlightedOriginal}
+                    </AppText>
                   ) : tab === "Easy Read" ? (
-                    <AppText style={readerStyles.bodyText}>{highlightedSimplified}</AppText>
+                    <AppText style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                      {highlightedSimplified}                    
+                    </AppText>
                   ) : (
-                    <AppText style={readerStyles.bodyText}>{content}</AppText>
+                    <AppText style={[readerStyles.bodyText, { color: P.bodyText }]}>{content}</AppText>
                   )}
               </ScrollView>
 
@@ -1354,8 +1347,9 @@ export default function ReaderScreen() {
                 <Pressable
                   style={[
                     readerStyles.ctaBtn,
+                    darkMode && readerDarkStyles.ctaBtn,
                     (ocrLoading || geminiLoading || !ocrText || simplifiedMost) &&
-                    { backgroundColor: '#6C6767', opacity: 0.5 }
+                    (darkMode ? readerDarkStyles.ctaBtnDisabled : { opacity: 0.5 })
                   ]}
                   onPress={async () => {
                     if (tab === "Overview") {
@@ -1430,7 +1424,7 @@ export default function ReaderScreen() {
                   }}
                   disabled={ocrLoading || geminiLoading || !ocrText
                     || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1))}>
-                  <AppText style={readerStyles.ctaText}>
+                  <AppText style={[readerStyles.ctaText, darkMode && readerDarkStyles.ctaText]}>
                     {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
                       : (tab === "Overview" && !showOriginal) ? "See Original Text"
                         : (tab === "Overview" && showOriginal) ? "See Simplified Text"
@@ -1448,25 +1442,28 @@ export default function ReaderScreen() {
             <DetailLevelTab
               label="Standard"
               hint="More detail"
-              icon={<Ionicons name="book-outline" size={22} color="#1B1B1B" />}
+              icon={<Ionicons name="book-outline" size={22} color={P.icon}/>}
               active={sessionReadingLevel === reading_levels.standard}
               onPress={() => rerunGeminiWithLevel(reading_levels.standard)}
+              darkMode={darkMode}
             />
 
             <DetailLevelTab
               label="Simple"
               hint="Easier words"
-              icon={<Ionicons name="reader-outline" size={22} color="#1B1B1B" />}
+              icon={<Ionicons name="reader-outline" size={22} color={P.icon}/>}
               active={sessionReadingLevel === reading_levels.simple}
               onPress={() => rerunGeminiWithLevel(reading_levels.simple)}
+              darkMode={darkMode}
             />
 
             <DetailLevelTab
               label="Super"
               hint="Most simple"
-              icon={<Ionicons name="sparkles-outline" size={22} color="#1B1B1B" />}
+              icon={<Ionicons name="sparkles-outline" size={22} color={P.icon}/>}
               active={sessionReadingLevel === reading_levels.super_simple}
               onPress={() => rerunGeminiWithLevel(reading_levels.super_simple)}
+              darkMode={darkMode}
             />
           </View>
         )}
@@ -1475,12 +1472,12 @@ export default function ReaderScreen() {
         {tab === "Translate" && (
           <View style={readerStyles.translateControlsWrap}>
             <Pressable
-              style={readerStyles.langPickerBtn}
+              style={[readerStyles.langPickerBtn, darkMode && readerDarkStyles.langPickerBtn]}
               onPress={() => setLangPickerVisible(true)}
               hitSlop={10}
             >
-              <Ionicons name="language-outline" size={22} color="#1B1B1B"/>
-              <AppText style={readerStyles.langPickerBtnText}>
+              <Ionicons name="language-outline" size={22} color={P.icon}/>
+              <AppText style={[readerStyles.langPickerBtnText, darkMode && readerDarkStyles.langPickerBtnText]}>
                 {(userLang ?? "EN").toUpperCase()}
               </AppText>
             </Pressable>
@@ -1495,35 +1492,35 @@ export default function ReaderScreen() {
         animationType="fade"
         onRequestClose={() => setLangPickerVisible(false)}
       >
-        <View style={readerStyles.langModalBg}>
+        <View style={[readerStyles.langModalBg, darkMode && readerDarkStyles.langModalBg]}>
           <Pressable style={readerStyles.fullFill} onPress={() => setLangPickerVisible(false)} />
 
           <KeyboardAvoidingView
             style={readerStyles.langModalCenter}
           >
-            <View style={readerStyles.langModalCard}>
-              <AppText style={readerStyles.langModalTitle}>Choose Language</AppText>
+            <View style={[readerStyles.langModalCard, darkMode && readerDarkStyles.langModalCard]}>
+              <AppText style={[readerStyles.langModalTitle, darkMode && { color: P.bodyText }]}>Choose Language</AppText>
 
-              <View style={readerStyles.langSearchWrap}>
-                <Ionicons name="search-outline" size={18} color="#1B1B1B" />
+              <View style={[readerStyles.langSearchWrap, darkMode && readerDarkStyles.langSearchWrap]}>
+                <Ionicons name="search-outline" size={18} color={darkMode ? P.bodyText : "#1B1B1B"}/>
                 <TextInput
                   value={langSearch}
                   onChangeText={setLangSearch}
                   placeholder="Search language..."
-                  placeholderTextColor="rgba(0,0,0,0.45)"
-                  style={readerStyles.langSearchInput}
+                  placeholderTextColor={P.placeholder}
+                  style={[readerStyles.langSearchInput, darkMode && readerDarkStyles.langSearchInput]}
                   autoCapitalize="none"
                   autoCorrect={false}
                 />
                 {!!langSearch && (
                   <Pressable onPress={() => setLangSearch("")} hitSlop={10}>
-                    <Ionicons name="close-circle" size={18} color="rgba(0,0,0,0.55)" />
+                    <Ionicons name="close-circle" size={18} color={darkMode ? P.placeholder : "rgba(0,0,0,0.55)"}/>
                   </Pressable>
                 )}
               </View>
 
-              <AppText style={readerStyles.langCurrent}>
-                Current: <AppText style={{ fontWeight: "900" }}>{(userLang ?? "EN").toUpperCase()}</AppText>{" "}
+              <AppText style={[readerStyles.langCurrent, darkMode && { color: P.mutedText }]}>
+                Current: <AppText style={{ fontWeight: "900", color: P.bodyText }}>{(userLang ?? "EN").toUpperCase()}</AppText>{" "}
                 ({langCodeToName((userLang ?? "EN").toUpperCase())})
               </AppText>
 
@@ -1540,8 +1537,8 @@ export default function ReaderScreen() {
                       onPress={() => onSelectLanguage(item.code2)}
                     >
                       <View style={readerStyles.langRowLeft}>
-                        <AppText style={readerStyles.langCode}>{item.code2}</AppText>
-                        <AppText style={readerStyles.langName}>{item.name}</AppText>
+                        <AppText style={[readerStyles.langCode, darkMode && { color: P.bodyText }]}>{item.code2}</AppText>
+                        <AppText style={[readerStyles.langName, darkMode && { color: P.bodyText }]}>{item.name}</AppText>
                       </View>
                       {isSelected && (
                         <Ionicons name="checkmark-circle" size={20} color="#2C9AA4" />
@@ -1569,77 +1566,77 @@ export default function ReaderScreen() {
         animationType="fade"
         onRequestClose={closeCalibModal}
       >
-        <View style={readerStyles.calibBackground}>
+        <View style={[readerStyles.calibBackground, darkMode && { backgroundColor: P.modalBackdrop }]}>
           <Pressable style={readerStyles.calibBackdrop} onPress={closeCalibModal}/>
           <View style={readerStyles.calibCenter} pointerEvents="box-none">
-            <View style={readerStyles.calibModalCard}>
+            <View style={[readerStyles.calibModalCard,  { backgroundColor: P.modalCardBg, borderColor: P.cardBorder }]}>
               <ScrollView style={{ flex: 1 }} contentContainerStyle={readerStyles.calibBodyContent}
-                showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" indicatorStyle={P.scrollIndicator as any}
               >
-                <AppText style={readerStyles.calibTitle}>Calibrate Simplification</AppText>
+                <AppText style={[readerStyles.calibTitle, darkMode && { color: P.bodyText }]}>Calibrate Simplification</AppText>
 
                 {calibLoad ? (
                   <View style={readerStyles.calibLoadRow}>
-                    <ActivityIndicator size={22} color={"black"} />
-                    <AppText style={readerStyles.calibLoadTxt}>Loading...</AppText>
+                    <ActivityIndicator size={22} color={P.indicator} />
+                    <AppText style={[readerStyles.calibLoadTxt, darkMode && { color: P.bodyText }]}>Loading...</AppText>
                   </View>
                 ) : calibErr ? (
-                  <AppText style={readerStyles.calibErrTxt}>{calibErr}</AppText>
+                  <AppText style={[readerStyles.calibErrTxt, darkMode && { color: P.bodyText }]}>{calibErr}</AppText>
                 ) : (
                   <View style={readerStyles.calibOptsRow}>
                     <Pressable
-                      style={readerStyles.calibOpt}
+                      style={[readerStyles.calibOpt, darkMode && readerDarkStyles.calibOpt]}
                       onPress={() => openCalibExpanded("lower")}
                       disabled={calibLoad || !!calibErr}
                     >
-                      <View style={readerStyles.calibOptHeader}>
-                        <AppText style={readerStyles.calibOptHeaderTxt}> Option A - Lower</AppText>
+                      <View style={[readerStyles.calibOptHeader, darkMode && readerDarkStyles.calibOptHeader]}>
+                        <AppText style={[readerStyles.calibOptHeaderTxt, darkMode && { color: P.bodyText }]}> Option A - Lower</AppText>
                       </View>
-                      <AppText style={readerStyles.calibOptTxt}>{calibLowerTxt}</AppText>
+                      <AppText style={[readerStyles.calibOptTxt, darkMode && { color: P.bodyText }]}>{calibLowerTxt}</AppText>
                     </Pressable>
 
                     <Pressable
-                      style={readerStyles.calibOpt}
+                      style={[readerStyles.calibOpt, darkMode && readerDarkStyles.calibOpt]}
                       onPress={() => openCalibExpanded("higher")}
                       disabled={calibLoad || !!calibErr}
                     >
-                      <View style={readerStyles.calibOptHeader}>
-                        <AppText style={readerStyles.calibOptHeaderTxt}> Option B - Higher</AppText>
+                      <View style={[readerStyles.calibOptHeader, darkMode && readerDarkStyles.calibOptHeader]}>
+                        <AppText style={[readerStyles.calibOptHeaderTxt, darkMode && { color: P.bodyText }]}> Option B - Higher</AppText>
                       </View>
-                      <AppText style={readerStyles.calibOptTxt}>{calibHigherTxt}</AppText>
+                      <AppText style={[readerStyles.calibOptTxt, darkMode && { color: P.bodyText }]}>{calibHigherTxt}</AppText>
                     </Pressable>
                   </View>
                 )}
 
                 <View style={readerStyles.calibBtnRow}>
                   <Pressable
-                    style={[readerStyles.calibBtn, readerStyles.calibBtnLow]}
+                    style={[readerStyles.calibBtn, readerStyles.calibBtnLow, darkMode && { backgroundColor: "#809BCE"}]}
                     disabled={calibLoad}
                     onPress={async () => {
                       await setCalibChoice("lower");
                     }}
                   >
-                    <AppText style={readerStyles.calibChoiceTxt}>Choose Option A</AppText>
+                    <AppText style={readerStyles.calibChoiceDarkTxt}>Choose Option A</AppText>
                   </Pressable>
 
                   <Pressable
-                    style={[readerStyles.calibBtn, readerStyles.calibBtnStay]}
+                    style={[readerStyles.calibBtn, readerStyles.calibBtnStay, darkMode && { backgroundColor: "#604D53"}]}
                     disabled={calibLoad}
                     onPress={async () => {
                       await setCalibChoice("stay");
                     }}
                   >
-                    <AppText style={readerStyles.calibChoiceDarkTxt}>Neither - Don't change</AppText>
+                    <AppText style={darkMode ? readerStyles.calibChoiceTxt : readerStyles.calibChoiceDarkTxt}>Neither - Don't change</AppText>
                   </Pressable>
 
                   <Pressable
-                    style={[readerStyles.calibBtn, readerStyles.calibBtnHigh]}
+                    style={[readerStyles.calibBtn, readerStyles.calibBtnHigh, darkMode && { backgroundColor: "#809BCE"}]}
                     disabled={calibLoad}
                     onPress={async () => {
                       await setCalibChoice("higher");
                     }}
                   >
-                    <AppText style={readerStyles.calibChoiceTxt}>Choose Option B</AppText>
+                    <AppText style={readerStyles.calibChoiceDarkTxt}>Choose Option B</AppText>
                   </Pressable>
                 </View>
               </ScrollView>
@@ -1655,23 +1652,16 @@ export default function ReaderScreen() {
         animationType="fade"
         onRequestClose={closeCalibExpanded}
       >
-        <View style={readerStyles.calibBackground}>
+        <View style={[readerStyles.calibBackground, darkMode && { backgroundColor: P.modalBackdrop }]}>
           <Pressable style={readerStyles.calibBackdrop} onPress={closeCalibExpanded}/>
           <View style={readerStyles.calibCenter} pointerEvents="box-none">
-            <View style={readerStyles.calibModalCard}>
+            <View style={[readerStyles.calibModalCard, darkMode && { backgroundColor: P.modalCardBg, borderColor: P.cardBorder }]}>
               <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  paddingHorizontal: 6,
-                  paddingTop: 4,
-                  marginBottom: 6,
-                }}
+                style={readerStyles.paperTopRow}
               >
-                <AppText style={readerStyles.calibTitle}>{calibExpandTitle}</AppText>
+                <AppText style={[readerStyles.calibTitle, darkMode && { color: P.bodyText }]}>{calibExpandTitle}</AppText>
                 <Pressable onPress={closeCalibExpanded} hitSlop={10}>
-                  <Ionicons name="close" size={26} color={"black"} />
+                  <Ionicons name="close" size={26} color={darkMode ? P.bodyText : "black"} />
                 </Pressable>
               </View>
 
@@ -1680,8 +1670,9 @@ export default function ReaderScreen() {
                 contentContainerStyle={readerStyles.calibBodyContent}
                 showsVerticalScrollIndicator
                 keyboardShouldPersistTaps="handled"
+                indicatorStyle={P.scrollIndicator as any}
               >
-                <AppText style={readerStyles.calibOptTxt}>{calibExpandText}</AppText>
+                <AppText style={[readerStyles.calibOptTxt, darkMode && { color: P.bodyText }]}>{calibExpandText}</AppText>
               </ScrollView>
             </View>
           </View>
@@ -1696,17 +1687,17 @@ export default function ReaderScreen() {
         onRequestClose={closeDefinitionModal}
       >
         <Pressable
-          style={readerStyles.definitionBackground}
+          style={[readerStyles.definitionBackground, darkMode && readerDarkStyles.definitionBackground]}
           onPress={closeDefinitionModal}
         >
           <Pressable
-            style={readerStyles.definitionModalCard}
+            style={[readerStyles.definitionModalCard, darkMode && readerDarkStyles.definitionModalCard]}
             onPress={() => { }}
           >
-            <AppText style={readerStyles.definitionModalWordText}>
+            <AppText style={[readerStyles.definitionModalWordText, darkMode && readerDarkStyles.definitionModalWordText]}>
               {definitionModal.word}
             </AppText>
-            <AppText style={readerStyles.definitionModalDefinitionText}>
+            <AppText style={[readerStyles.definitionModalDefinitionText, darkMode && readerDarkStyles.definitionModalDefinitionText]}>
               {definitionModal.definition}
             </AppText>
           </Pressable>
@@ -1796,12 +1787,14 @@ function DetailLevelTab({
   icon,
   active,
   onPress,
+  darkMode
 }: {
   label: string;
   hint: string;
   icon: React.ReactNode;
   active: boolean;
   onPress: () => void;
+  darkMode: boolean;
 }) {
   return (
     <Pressable
@@ -1809,24 +1802,15 @@ function DetailLevelTab({
       style={[
         readerStyles.levelTab,
         active ? readerStyles.levelTabActive : readerStyles.levelTabInactive,
+        darkMode && (active ? readerDarkStyles.levelTabActive : readerDarkStyles.levelTabInactive)
       ]}
       hitSlop={8}
     >
       {icon}
-      <AppText
-        style={[
-          readerStyles.levelTabText,
-          active ? readerStyles.levelTabText : readerStyles.levelTabText,
-        ]}
-      >
+      <AppText style={[ readerStyles.levelTabText, darkMode && readerDarkStyles.levelTabText]}>
         {label}
       </AppText>
-      <AppText
-        style={[
-          readerStyles.levelTabHint,
-          active ? readerStyles.levelTabHint : readerStyles.levelTabHint,
-        ]}
-      >
+      <AppText style={[ readerStyles.levelTabHint, darkMode && readerDarkStyles.levelTabHint]}>
         {hint}
       </AppText>
     </Pressable>

@@ -448,7 +448,7 @@ export default function toDoListScreen() {
     }
   };
 
-  // render list memoized so only rebuild when filtered items change
+  // redner list memoized so only rebuild when filtered items change
   const rendered = useMemo(() => {
     return filteredItems.map((item) => {
       // key for to do list
@@ -458,52 +458,44 @@ export default function toDoListScreen() {
       const due = item.deadline ? `${item.deadline}` : "";
 
       return (
-        <Pressable
-          key={key}
-          // user can tap anywhere on card to toggle complete, not just checkbox
-          onPress={() => toggleCompleted(item)}
-          style={{
-            marginHorizontal: 12,
-            marginTop: 12,
-            padding: 12,
-            borderRadius: 12,
-            borderColor: C.cardBorder,
+        <View key={key} style={{marginHorizontal: '3%'}}>
+          <Pressable
+            // user can tap anywhere on card to toggle complete, not just checkbox
+            onPress={() => toggleCompleted(item)}
+            style={{
+              marginHorizontal: 12,
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 12,
+              borderColor: C.cardBorder,
             backgroundColor: C.cardBg,
-            flexDirection: 'row',
-            alignItems: 'flex-start',
-            gap: 12
-          }}
-        >
-          <Ionicons
-            // checkbox icon when completed
-            name={isChecked ? "checkbox-outline" : "square-outline"}
-            size={36}
-            color={isChecked ? C.iconChecked : C.icon}
-            style={{ marginTop: 4 }}
-          />
+              flexDirection: 'row',
+              alignItems: 'flex-start',
+              gap: 12
+            }}
+          >
+            <Ionicons
+              // checkbox icon when completed
+              name={isChecked ? "checkbox-outline" : "square-outline"}
+              size={36}
+              color={isChecked ? C.iconChecked : C.icon}
+              style={{ marginTop: 4 }}
+            />
 
 
-          <View style={{ flex: 1 }}>
-            {/*action item text*/}
-            <AppText
-              style={{
-                color: C.text,
-                fontWeight: '800',
-                fontSize: 16,
-                textDecorationLine: isChecked ? 'line-through' : 'none',
-                opacity: isChecked ? 0.5 : 1
-              }}
-            >
-              {item.action_item}
-            </AppText>
-            {/*optional due date*/}
-            {!!due && (
-              <AppText style={{
-                color: C.due,
-                marginTop: 4,
-                fontWeight: '700'
-              }}>
-                Due by: {due}
+            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-start' }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+              {/*action item text*/}
+              <AppText
+                style={{
+                  color: C.text,
+                  fontWeight: '800',
+                  fontSize: 16,
+                  textDecorationLine: isChecked ? 'line-through' : 'none',
+                  opacity: isChecked ? 0.5 : 1
+                }}
+              >
+                {item.action_item}
               </AppText>
               
               {/*optional due date*/}
@@ -704,7 +696,7 @@ export default function toDoListScreen() {
               fontWeight: '600',
               fontSize: 22
             }}>
-              No to-do list items yet.
+              No to-do list items.
             </AppText>
             <AppText style={{
               color: C.emptyBody,
@@ -736,7 +728,7 @@ export default function toDoListScreen() {
               fontWeight: '600',
               fontSize: 22
             }}>
-              {tab === "Completed" ? "No completed items yet."
+              {tab === "Completed" ? "No completed items."
                 : tab === "To Do" ? "No active to-do items." : "No items to show."}
             </AppText>
           </View>

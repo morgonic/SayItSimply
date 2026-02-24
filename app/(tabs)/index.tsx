@@ -1,3 +1,4 @@
+import { useTheme } from "@/app/context/ThemeContext";
 import storage from '@/app/storage';
 import AppText from "@/components/TextSize";
 import { styles } from "@/constants/styles";
@@ -198,8 +199,55 @@ function docLabel(doc: DocumentListItem | null): string {
   return when ? `${mode} (${when})` : mode;
 }
 
+
+
 export default function DashboardScreen() {
   const router = useRouter();
+
+  const { darkMode } = useTheme();
+  const C = useMemo(() => {
+    const isDark = !!darkMode;
+
+    const DM_BG = "#0B1220";
+    const DM_CARD = "#2B2B2B";
+    const DM_TEXT = "#E5E7EB";
+
+    return {
+      isDark,
+
+      // background and text
+      bg: isDark ? DM_BG : "#0D1321",
+      text: isDark ? DM_TEXT : "#000000",
+
+      // buttons and icons for scan/upload
+      scanBtnBg: isDark ? "#809BCE" : "#2E8B9C",
+      scanIcon: isDark ? DM_CARD : "#000000",
+
+      // cards around text sections
+      continueBg: isDark ? DM_CARD : "#fffffff2",
+      continueText: isDark ? DM_TEXT : "#1B1B1B",
+
+      // bookmark
+      notchColor: isDark ? DM_CARD: "#fffffff2",
+
+      //Shortcut
+      shortcutOuterBg: isDark ? "rgba(128,155,206,0.18)" : "rgba(233,198,166,0.9)",
+      shortcutInnerOuterBg: isDark ? "rgba(11,18,32,0.85)" : "#277A8C",
+      shortcutCardBg: isDark ? DM_CARD : "#fffffff2",
+
+      // buttons for "View All" and "Continue Reading"
+      btnBg: isDark ? "#000000" : "rgba(255,255,255,0.96)",
+      btnText: isDark ? DM_TEXT : "#222",
+
+      // checkbox in tasks list
+      taskIcon: isDark ? DM_TEXT : "#FFFFFF",
+
+      // loading indicator and scrollbar
+      indicator: isDark ? DM_TEXT : "#000000",
+      scrollIndicatorStyle: isDark ? "white" : "black",
+    };
+  }, [darkMode]);
+
   const [isUploading, setIsUploading] = useState(false);
 
   const [loadingDash, setLoadingDash] = useState(true);
@@ -301,8 +349,8 @@ export default function DashboardScreen() {
   }, [continueReadingDoc]);
 
   return (
-    <SafeAreaView style={styles.dashSafe}>
-      <View style={styles.dashContainer}>
+    <SafeAreaView style={[styles.dashSafe, { backgroundColor: C.bg }]}>
+      <View style={[styles.dashContainer, { backgroundColor: C.bg }]}>
         {/* Header */}
         <View style={styles.dashHeader}>
           <Pressable style={styles.dashHeaderIconBtn} onPress={() => { }}>
@@ -321,44 +369,48 @@ export default function DashboardScreen() {
           style={{ flex: 1 }}
           contentContainerStyle={{ paddingTop: 6, paddingBottom: 20}}
           showsVerticalScrollIndicator
-          indicatorStyle="white"
+          indicatorStyle={C.scrollIndicatorStyle as any}
         >
           {/* Scan New Text */}
           <View style={[styles.dashContent, { paddingTop: 6 }]}>
             <AppText style={styles.dashSectionTitle}>Scan New Text</AppText>
 
             <View style={[styles.dashScanRow, { marginTop: 12 }]}>
-              <Pressable style={styles.dashScanBtn} onPress={() => router.replace("/camera")}>
-                <FontAwesome name="camera" size={24} color="#000000" />
+              <Pressable style={[styles.dashScanBtn, { backgroundColor: C.scanBtnBg }]} onPress={() => router.replace("/camera")}>
+                <FontAwesome name="camera" size={24} color={C.scanIcon} />
               </Pressable>
 
-              <Pressable style={[styles.dashScanBtn, isUploading && { opacity: 0.6 }]} onPress={handleUploadPress} disabled={isUploading}>
-                <FontAwesome name="upload" size={24} color="#000000" />
+              <Pressable style={[styles.dashScanBtn, { backgroundColor: C.scanBtnBg }, isUploading && { opacity: 0.6 }]} 
+                onPress={handleUploadPress} disabled={isUploading}
+              >
+                <FontAwesome name="upload" size={24} color={C.scanIcon}/>
               </Pressable>
             </View>
 
             {/* Continue Reading */}
             <View style={[styles.dashContinueCardWrap, { paddingHorizontal: 16 }]}>
               <View style={styles.dashBookmark}>
-                <View style={styles.dashBookmarkNotch} />
+                <View style={[styles.dashBookmarkNotch, { borderBottomColor: C.notchColor}]}/>
               </View>
-              <View style={styles.dashContinueCard}>
-                <AppText style={styles.dashContinueTitle}>{continueReadingLabel}</AppText>
+              <View style={[styles.dashContinueCard, { backgroundColor: C.continueBg, borderWidth: C.isDark ? 2 : 1.5 }]}>
+                <AppText style={[styles.dashContinueTitle, { color: C.continueText }]}>{continueReadingLabel}</AppText>
 
                 {loadingDash ? (
                   <View style={{ paddingTop: 10, paddingBottom: 2 }}>
-                    <ActivityIndicator />
+                    <ActivityIndicator color={C.indicator}/>
                   </View>
                 ) : (
-                  <AppText style={styles.dashBullet}>
+                  <AppText style={[styles.dashBullet, { color: C.continueText }]}>
                     {lastScanSummary
                       ? lastScanSummary
                       : "Capture or upload a picture and we will show a quick preview here!"}
                   </AppText>
                 )}
-                <Pressable style={styles.dashContinueBtn} onPress={() => router.replace("/(tabs)/camera/reader")}>
-                  <AppText style={styles.dashContinueBtnText}>Continue Reading</AppText>
-                  <AppText style={styles.dashContinueBtnArrow}>›</AppText>
+                <Pressable style={[styles.dashContinueBtn, { backgroundColor: C.btnBg }]}
+                  onPress={() => router.replace("/(tabs)/camera/reader")}
+                >
+                  <AppText style={[styles.dashContinueBtnText, { color: C.btnText }]}>Continue Reading</AppText>
+                  <AppText style={[styles.dashContinueBtnArrow, { color: C.btnText }]}>›</AppText>
                 </Pressable>
               </View>
             </View>
@@ -370,14 +422,18 @@ export default function DashboardScreen() {
 
             {/* Urgent Tasks */}
             <View style={styles.dashShortcutRow}>
-              <View style={styles.dashShortcutCardOuter}>
-                <View style={styles.dashShortcutCardInnerOuter}>
-                  <View style={styles.dashShortcutCard}>
-                    <AppText style={styles.dashShortcutTitle}>Urgent Tasks</AppText>
+              <View style={[styles.dashShortcutCardOuter,
+                C.isDark && { backgroundColor: C.shortcutCardBg }]}
+              >
+                <View style={[styles.dashShortcutCardInnerOuter, 
+                  C.isDark && { backgroundColor: C.scanBtnBg }]}
+                >
+                  <View style={[styles.dashShortcutCard, { backgroundColor: C.shortcutCardBg }]}>
+                    <AppText style={[styles.dashShortcutTitle, { color: C.text }]}>Urgent Tasks</AppText>
 
                     <View style={styles.dashBulletGroup}>
                       {loadingDash ? (
-                        <ActivityIndicator />
+                        <ActivityIndicator color={C.indicator}/>
                       ) : tasks.length ? (
                         tasks.slice(0, 2).map((t) => {
                           const checked = t.completed === true;
@@ -389,52 +445,62 @@ export default function DashboardScreen() {
                               <Ionicons
                                 name={checked ? "checkbox-outline" : "square-outline"}
                                 size={18}
-                                color="#FFFFFF"
+                                color={C.taskIcon}
                               />
-                              <AppText style={styles.dashBullet}>{t.action_item}</AppText>
+                              <AppText style={[styles.dashBullet, { color: C.text }]}>
+                                {t.action_item}
+                              </AppText>
                             </View>
                           );
                         })
                       ) : (
-                        <AppText style={styles.dashBullet}>
-                          No urgent tasks yet. Add tasks in your to-do list and we’ll show the top ones here.
+                        <AppText style={[styles.dashBullet, { color: C.text }]}>
+                          No urgent tasks yet. Add tasks in your to-do list and we will show the top ones here.
                         </AppText>
                       )}
                     </View>
 
-                    <Pressable style={styles.dashViewAllBtn} onPress={() => router.replace("/(tabs)/todo-list")}>
-                      <AppText style={styles.dashViewAllText}>View All</AppText>
-                      <AppText style={styles.dashViewAllArrow}>›</AppText>
+                    <Pressable style={[styles.dashViewAllBtn, { backgroundColor: C.btnBg }]} 
+                      onPress={() => router.replace("/(tabs)/todo-list")}
+                    >
+                      <AppText style={[styles.dashViewAllText, { color: C.btnText }]}>View All</AppText>
+                      <AppText style={[styles.dashViewAllArrow, { color: C.btnText }]}>›</AppText>
                     </Pressable>
                   </View>
                 </View>
               </View>
 
               {/* Recent Scans */}
-              <View style={styles.dashShortcutCardOuter}>
-                <View style={styles.dashShortcutCardInnerOuter}>
-                  <View style={styles.dashShortcutCard}>
-                    <AppText style={styles.dashShortcutTitle}>Recent Scans</AppText>
+              <View style={[styles.dashShortcutCardOuter, 
+                C.isDark && { backgroundColor: C.shortcutCardBg }]}
+              >
+                <View style={[styles.dashShortcutCardInnerOuter, 
+                  C.isDark && { backgroundColor: C.scanBtnBg }]}
+                >
+                  <View style={[styles.dashShortcutCard, { backgroundColor: C.shortcutCardBg }]}>
+                    <AppText style={[styles.dashShortcutTitle, { color: C.text }]}>Recent Scans</AppText>
 
                     <View style={styles.dashBulletGroup}>
                       {loadingDash ? (
-                        <ActivityIndicator />
+                        <ActivityIndicator color={C.indicator}/>
                       ) : recentDocs.length ? (
                         recentDocs.slice(0, 5).map((d) => (
-                          <AppText key={d.id} style={styles.dashBullet}>
+                          <AppText key={d.id} style={[styles.dashBullet, { color: C.text }]}>
                             • {docLabel(d)}
                           </AppText>
                         ))
                       ) : (
-                        <AppText style={styles.dashBullet}>
+                        <AppText style={[styles.dashBullet, { color: C.text }]}>
                           Capture or upload an image and it will show up here!
                         </AppText>
                       )}
                     </View>
 
-                    <Pressable style={styles.dashViewAllBtn} onPress={() => router.push("/(tabs)/documents")}>
-                      <AppText style={styles.dashViewAllText}>View All</AppText>
-                      <AppText style={styles.dashViewAllArrow}>›</AppText>
+                    <Pressable style={[styles.dashViewAllBtn, { backgroundColor: C.btnBg }]} 
+                      onPress={() => router.push("/(tabs)/documents")}
+                    >
+                      <AppText style={[styles.dashViewAllText, { color: C.btnText }]}>View All</AppText>
+                      <AppText style={[styles.dashViewAllArrow, { color: C.btnText }]}>›</AppText>
                     </Pressable>
                   </View>
                 </View>
@@ -448,9 +514,9 @@ export default function DashboardScreen() {
           <View style={styles.dashLoginWrap}>
             <Pressable
               onPress={handleLogout}
-              style={styles.dashLoginBtn}
+              style={[styles.dashLoginBtn, { backgroundColor: C.scanBtnBg }]}
             >
-              <AppText style={styles.dashLoginText}>Log Out</AppText>
+              <AppText style={[styles.dashLoginText, { color: C.scanIcon }]}>Log Out</AppText>
             </Pressable>
           </View>
         </ScrollView>

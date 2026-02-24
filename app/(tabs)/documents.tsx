@@ -32,7 +32,7 @@ async function getAccessToken(): Promise<string | null> {
 function validateMode(raw: string): string | null {
   const v = (raw ?? "").trim();
   if (!v) return "Text is required";
-  if (v.length > 15) return "Input must be no longer than 15 characters";
+  if (v.length > 20) return "Input must be no longer than 20 characters";
   if (!/^[A-Za-z ]+$/.test(v)) return "Input must only contain letters and spaces";
   return null;
 }

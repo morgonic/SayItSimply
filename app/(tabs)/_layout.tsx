@@ -1,9 +1,11 @@
 import { Tabs, useRouter } from 'expo-router';
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { HapticTab } from '@/components/haptic-tab';
 
+import { useTheme } from '@/app/context/ThemeContext';
+import { getTheme } from '@/constants/theme';
 import Entypo from '@expo/vector-icons/Entypo';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
@@ -20,6 +22,10 @@ function TabIcon({
   focused: boolean;
   children: React.ReactNode;
 }) {
+  //placeholder vars if we choose to modify bottom nav for dark mode in the future
+  const { darkMode } = useTheme();
+  const theme = getTheme(darkMode);
+
   return (
     <View style={styles.iconSlot} pointerEvents="none">
       {focused && (
@@ -38,6 +44,8 @@ function TabIcon({
 
 export default function TabLayout() {
   const router = useRouter();
+  const { darkMode } = useTheme();
+  const theme = getTheme(darkMode);
   
   return (
     <Tabs

@@ -305,6 +305,69 @@ export const styles = StyleSheet.create({
 });
 
 //========= READER SCREEN STYLES =========//
+export const readerPalette = {
+  light: {
+    indicator: "black",
+    scrollIndicator: "black" as const,
+
+    bodyText: "#1B1B1B",
+    mutedText: "rgba(0,0,0,0.70)",
+    placeholder: "rgba(0,0,0,0.55)",
+
+    icon: "#1B1B1B",
+    iconDisabled: "transparent",
+
+    modalBackdrop: "rgba(0,0,0,0.55)",
+    modalCardBg: "#FFFFF2",
+
+    badgeLang: "#F2D3AC",
+
+    paperIconBg: "#ECC8AF",
+    paperIconBorder: "rgba(0,0,0,0.5)",
+
+    levelIcon: "#1B1B1B",
+
+    cardBorder: "#2C9AA4",
+
+    complexWord: "#8C311C",
+
+    badgeNotch: "#FFFFF2",
+
+    midCard: "#2C9AA4",
+    outerBorder: "#F2A679"
+  },
+  dark: {
+    indicator: "#E5E7EB",
+    scrollIndicator: "white" as const,
+
+    bodyText: "#E5E7EB",
+    mutedText: "rgba(229,231,235,0.70)",
+    placeholder: "rgba(229,231,235,0.55)",
+
+    icon: "#E5E7EB",
+    iconDisabled: "transparent",
+
+    modalBackdrop: "rgba(0,0,0,0.70)",
+    modalCardBg: "#2B2B2B",
+
+    badgeLang: "#F2D3AC",
+
+    paperIconBg: "rgba(255,255,255,0.10)",
+    paperIconBorder: "rgba(255,255,255,0.16)",
+
+    levelIcon: "#E5E7EB",
+
+    cardBorder: "#809BCE",
+
+    complexWord: "#F2D3AC",
+
+    badgeNotch: "#2B2B2B",
+
+    midCard: "#6B8FD6",
+    outerBorder: "#604D53"
+  },
+} as const;
+
 
 export const readerStyles = StyleSheet.create({
   safe: {
@@ -458,6 +521,22 @@ export const readerStyles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingTop: 14,
     paddingBottom: 18,
+  },
+
+  paperTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    maxWidth: "75%",
+  },
+
+  helpFab: {
+    width: 40,
+    height: 40,
+    borderRadius: 24,
+    borderWidth: 2,
+    justifyContent: "center",
+    alignContent: "center",
+    alignItems: "center",
   },
 
   paperMenuBtn: {
@@ -828,6 +907,150 @@ export const readerStyles = StyleSheet.create({
     justifyContent: 'center',
     textAlign: 'center'
   }
+});
+
+export const readerDarkStyles = StyleSheet.create({
+  safe: {
+    backgroundColor: "#0B1220",
+  },
+  container: {
+    backgroundColor: "#0B1220",
+  },
+
+  outerCard: {
+    backgroundColor: "#604D53",
+  },
+  innerPaper: {
+    backgroundColor: "#2B2B2B",
+  },
+  badgeNotch: {
+    borderBottomColor: "#809BCE",
+  },
+
+  headerTitle: {
+    color: "#E5E7EB",
+  },
+  bodyText: {
+    color: "#E5E7EB",
+  },
+  complexWord: {
+    color: "#F2D3AC",
+  },
+
+  actionItemBtn: {
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(255,255,255,0.16)",
+  },
+  actionItemBtnDisabled: {
+    backgroundColor: "transparent",
+    borderColor: "transparent",
+  },
+  helpFab: {
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(255,255,255,0.16)",
+  },
+
+  ctaBtn: {
+    backgroundColor: "#6B8FD6",
+  },
+  ctaText: {
+    color: "#0B1220",
+  },
+  ctaBtnDisabled: {
+    backgroundColor: "rgba(255,255,255,0.10)",
+    opacity: 0.5,
+  },
+
+  levelTabActive: {
+    backgroundColor: "rgba(107,143,214,0.35)",
+  },
+  levelTabInactive: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  levelTabText: {
+    color: "#E5E7EB",
+  },
+  levelTabHint: {
+    color: "#E5E7EB",
+  },
+
+  langPickerBtn: {
+    backgroundColor: "rgba(255,255,255,0.10)",
+    borderColor: "rgba(255,255,255,0.16)",
+  },
+  langPickerBtnText: {
+    color: "#E5E7EB",
+  },
+
+  langModalBg: {
+    backgroundColor: "rgba(0,0,0,0.70)",
+  },
+  langModalCard: {
+    backgroundColor: "#0F172A",
+  },
+  langModalTitle: {
+    color: "#E5E7EB",
+  },
+  langSearchWrap: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  langSearchInput: {
+    color: "#E5E7EB",
+  },
+  langCurrent: {
+    color: "rgba(229,231,235,0.70)",
+  },
+  langRow: {
+    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  langCode: {
+    color: "#E5E7EB",
+  },
+  langName: {
+    color: "#E5E7EB",
+  },
+
+  calibBackground: {
+    backgroundColor: "rgba(0,0,0,0.70)",
+  },
+  calibModalCard: {
+    backgroundColor: "#0F172A",
+  },
+  calibTitle: {
+    color: "#E5E7EB",
+  },
+  calibLoadTxt: {
+    color: "#E5E7EB",
+  },
+  calibOpt: {
+    borderColor: "rgba(255,255,255,0.14)",
+    backgroundColor: "rgba(255,255,255,0.06)"
+  },
+  calibOptHeader: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  calibOptHeaderTxt: {
+    color: "#E5E7EB",
+  },
+  calibOptTxt: {
+    color: "#E5E7EB",
+  },
+
+  definitionBackground: {
+    backgroundColor: "rgba(0,0,0,0.70)",
+  },
+  definitionModalCard: {
+    backgroundColor: "#0F172A",
+    borderColor: "rgba(255,255,255,0.14)",
+  },
+  definitionModalWordText: {
+    color: "#E5E7EB",
+  },
+  definitionModalDefinitionText: {
+    color: "#E5E7EB",
+  },
 });
 
 //========= CAMERA SCREEN STYLES =========//

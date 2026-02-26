@@ -378,49 +378,49 @@ type GeminiResponse = {
       await storage.setItem('access_token', access_token);
       await storage.setItem('token_type', token_type);
 
-    // verify jwt, get user email
-    const userResponse = await fetch(`${api_url}/users/me`, {
-      headers: {
-        Authorization: `${token_type} ${access_token}`
+      // verify jwt, get user email
+      const userResponse = await fetch(`${api_url}/users/me`, {
+        headers: {
+          Authorization: `${token_type} ${access_token}`
+        }
+      });
+
+      // invalid/fail, error
+      if (!userResponse.ok) {
+        throw new Error("Failed to sync Google account.");
       }
-    });
+      
+      const user = await userResponse.json();
+      const newEmail = (user.email ?? "").trim().toLowerCase();
 
-    // invalid/fail, error
-    if (!userResponse.ok) {
-      throw new Error("Failed to sync Google account.");
-    }
-    
-    const user = await userResponse.json();
-    const newEmail = (user.email ?? "").trim().toLowerCase();
+      // if google email and existing email don't match, revert auth and inform user
+      if (oldEmail && newEmail && newEmail !== oldEmail) {
+        if (oldToken) {
+          await storage.setItem('access_token', oldToken);
+        }
 
-    // if google email and existing email don't match, revert auth and inform user
-    if (oldEmail && newEmail && newEmail !== oldEmail) {
-      if (oldToken) {
-        await storage.setItem('access_token', oldToken);
+        await storage.setItem('token_type', oldTokenType);
+
+        Alert.alert(
+          "Wrong Google account",
+          "The Google email MUST match your SayItSimply account email."
+        );
+        return;
       }
 
-      await storage.setItem('token_type', oldTokenType);
+      // refresh oauth so ui disabled link button
+      const responseAuth = await fetch(`${api_url}/users/me/auth-method`, {
+        headers: {
+          Authorization: `${token_type} ${access_token}`
+        }
+      });
 
-      Alert.alert(
-        "Wrong Google account",
-        "The Google email MUST match your SayItSimply account email."
-      );
-      return;
-    }
+      const data = await responseAuth.json();
 
-    // refresh oauth so ui disabled link button
-    const responseAuth = await fetch(`${api_url}/users/me/auth-method`, {
-      headers: {
-        Authorization: `${token_type} ${access_token}`
-      }
-    });
-
-    const data = await responseAuth.json();
-
-    setIsOAuthUser(!!data.is_oauth);
-    
-    // success message
-    Alert.alert("Success!", "Your account has been synced with Google.");
+      setIsOAuthUser(!!data.is_oauth);
+      
+      // success message
+      Alert.alert("Success!", "Your account has been synced with Google.");
     }
     catch (e: any) {
       // fail message

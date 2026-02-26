@@ -9,8 +9,12 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Image, Modal, Pressable, ScrollView, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
+
+WebBrowser.maybeCompleteAuthSession();
 
 type RowProps = {
   label: string;
@@ -142,6 +146,39 @@ type GeminiResponse = {
   const [calibExpandVis, setCalibExpandVis] = useState(false);
   const [calibExpandTitle, setCalibExpandTitle] = useState<string>("");
   const [calibExpandText, setCalibExpandText] = useState<string>("");
+
+  // state to track whether google is currently being linked (in the process)
+  const [linkingGoogle, setLinkingGoogle] = useState(false);
+
+  function parseOAuthFragment(url: string) {
+    // get everything after # to get oauth fragment
+    const fragment = url.split('#')[1] ?? "";
+
+    // split fragment into key/value pairs
+    const pairs = fragment.split('&').filter(Boolean);
+
+    // build map of parameters
+    const params: Record<string, string> = {};
+
+    for (const pair of pairs) {
+      // split pairs into key, value
+      const [key, val] = pair.split('=');
+
+      // no key, skip
+      if (!key) {
+        continue;
+      }
+
+      // decode and store params
+      params[decodeURIComponent(key)] = decodeURIComponent(val ?? "");
+    }
+
+    // return token and token type for auth header
+    return {
+      access_token: params['access_token'],
+      token_type: params['token_type'] || "bearer"
+    }
+  }
 
   const getTokenOrRedirect = async (): Promise<string | null> => {
     const token = await storage.getItem("access_token");
@@ -298,6 +335,101 @@ type GeminiResponse = {
 
   const onAccountDetails = () => {
     setAccountModalVisible(true);
+  };
+
+  const onLinkGoogle = async () => {
+    // if already linked or in linking process, just return
+    if (isOAuthUser || linkingGoogle) {
+      return;
+    }
+
+    // storing the current auth to revert in case of mismatch/failure
+    const oldToken = await storage.getItem('access_token');
+    const oldTokenType = (await storage.getItem('token_type')) ?? "bearer";
+    const oldEmail = (accountEmail ?? "").trim().toLowerCase();
+
+    // build redirect and auth urls for oauth webbrowser flow
+    const redirectUrl = process.env.EXPO_PUBLIC_MOBILE_REDIRECT_URL ?? Linking.createURL("oauth");
+    const authUrl = `${api_url}/auth/google/authorize`;
+
+    try{
+      // lock button and show loading state
+      setLinkingGoogle(true);
+
+      // open browser session for google oauth
+      const response = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
+
+      // anything other than success or no url in response, return
+      if (response.type !== 'success' || !('url' in response)) {
+        return;
+      }
+
+      // get jwt from deep link
+      const url = response.url;
+      const { access_token, token_type } = parseOAuthFragment(url);
+
+      // no token, oauth failed
+      if (!access_token) {
+        Alert.alert("Google sync failed.", "No token was returned.");
+        return;
+      }
+
+      // save new jwt from oauth
+      await storage.setItem('access_token', access_token);
+      await storage.setItem('token_type', token_type);
+
+    // verify jwt, get user email
+    const userResponse = await fetch(`${api_url}/users/me`, {
+      headers: {
+        Authorization: `${token_type} ${access_token}`
+      }
+    });
+
+    // invalid/fail, error
+    if (!userResponse.ok) {
+      throw new Error("Failed to sync Google account.");
+    }
+    
+    const user = await userResponse.json();
+    const newEmail = (user.email ?? "").trim().toLowerCase();
+
+    // if google email and existing email don't match, revert auth and inform user
+    if (oldEmail && newEmail && newEmail !== oldEmail) {
+      if (oldToken) {
+        await storage.setItem('access_token', oldToken);
+      }
+
+      await storage.setItem('token_type', oldTokenType);
+
+      Alert.alert(
+        "Wrong Google account",
+        "The Google email MUST match your SayItSimply account email."
+      );
+      return;
+    }
+
+    // refresh oauth so ui disabled link button
+    const responseAuth = await fetch(`${api_url}/users/me/auth-method`, {
+      headers: {
+        Authorization: `${token_type} ${access_token}`
+      }
+    });
+
+    const data = await responseAuth.json();
+
+    setIsOAuthUser(!!data.is_oauth);
+    
+    // success message
+    Alert.alert("Success!", "Your account has been synced with Google.");
+    }
+    catch (e: any) {
+      // fail message
+      Alert.alert("Google sync failed.", e?.message ?? "Please try again.");
+    }
+    finally {
+      // unlock ui
+      setLinkingGoogle(false);
+    }
   };
 
   const onChangePassword = () => {
@@ -567,6 +699,21 @@ type GeminiResponse = {
           <View style={[profileStyles.card, { backgroundColor: C.card }]}>
             <Row label="Account Details" onPress={onAccountDetails} />
           </View>
+
+          <View style={profileStyles.card}>
+            <Row
+              label={linkingGoogle ? "Linking Google..." : "Link Google"}
+              onPress={onLinkGoogle}
+              disabled={isOAuthUser || linkingGoogle}
+              rightIcon='logo-google'
+            />
+          </View>
+
+          {isOAuthUser ? (
+            <AppText style={[profileStyles.oauthHint, { color: C.text }]}>
+              Your account is already linked to Google.
+            </AppText>
+          ) : null}
 
           <View style={profileStyles.card}>
             <Row label="Change Password" onPress={onChangePassword} disabled={isOAuthUser}/>

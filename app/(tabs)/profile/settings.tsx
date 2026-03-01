@@ -520,7 +520,7 @@ export default function SettingsScreen() {
               ) : (
                 <Slider
                   style={settingsStyles.slider}
-                  minimumValue={0.5}
+                  minimumValue={-2.0}
                   maximumValue={2.0}
                   value={settings.tts_rate}
                   onValueChange={(v) => {
@@ -544,7 +544,7 @@ export default function SettingsScreen() {
               ) : (
                 <Slider
                   style={settingsStyles.slider}
-                  minimumValue={0.5}
+                  minimumValue={-2.0}
                   maximumValue={2.0}
                   value={settings.tts_pitch}
                   onValueChange={(v) => {

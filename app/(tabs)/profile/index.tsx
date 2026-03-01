@@ -781,6 +781,14 @@ type GeminiResponse = {
               <AppText style={profileStyles.detailValue}>
                 {isOAuthUser ? "Google" : "Email"}
               </AppText>
+              <View style={{height: 12}}/>
+              <Row
+                label={linkingGoogle ? "Linking Google..." : "Link Google"}
+                onPress={onLinkGoogle}
+                disabled={isOAuthUser || linkingGoogle}
+                rightIcon='logo-google'
+                pressedBg="rgba(0,0,0,0.1)"
+              />
             </View>
 
             <Pressable

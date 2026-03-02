@@ -60,3 +60,6 @@ __pycache__/
 
 # user uploads
 backend/uploads/*
+
+# sound files
+backend/tts_cache/

@@ -5,11 +5,15 @@ import HelpModal from '@/components/HelpModal';
 import AppText from "@/components/TextSize";
 import { readerDarkStyles, readerPalette, readerStyles } from '@/constants/styles';
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system/legacy";
 import { useLocalSearchParams } from "expo-router";
 import ISO6391 from "iso-639-1";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   FlatList,
   KeyboardAvoidingView,
@@ -20,6 +24,36 @@ import {
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+function getCacheDir(): string {
+  const anyFS = FileSystem as any;
+  const cacheDir: string | null | undefined = anyFS.cacheDirectory ?? FileSystem.documentDirectory;
+  return (cacheDir ?? "");
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000; //32KB
+  let binary = "";
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+
+  const btoaFn =
+    (globalThis as any).btoa ||
+    ((str: string) => {
+      throw new Error("btoa is not available.");
+    });
+
+  return btoaFn(binary);
+}
+
+function sliderToRateMultiplier(v: number): number {
+  const rate = Math.pow(2, v / 2);
+  return Math.max(0.5, Math.min(2.0, rate));
+}
 
 // reader screen tabs
 type ReaderTab = "Overview" | "Easy Read" | "Translate";
@@ -171,6 +205,8 @@ export default function ReaderScreen() {
 
   const P = darkMode ? readerPalette.dark : readerPalette.light;
 
+  const ctaIcon = darkMode ? "#0B1220" : "white";
+
   const reading_levels = {
     standard: 9,
     simple: 6,
@@ -211,6 +247,174 @@ export default function ReaderScreen() {
   const [geminiLoading, setGeminiLoading] = useState(false);
   const [geminiError, setGeminiError] = useState<string | null>(null);
   const [geminiData, setGeminiData] = useState<GeminiResponse | null>(null);
+
+  //gemini TTS
+  const [ttsLoading, setTtsLoading] = useState(false);
+  const [ttsRateSlider, setTtsRateSlider] = useState<number>(0.0);
+  const [ttsRate, setTtsRate] = useState<number>(1.0);
+  const [ttsPitch, setTtsPitch] = useState<number>(0.0);
+  const [ttsIsPlaying, setTtsIsPlaying] = useState(false);
+
+  const loadTtsSettings = useCallback(async () => {
+    try {
+      const token = await storage.getItem("access_token");
+      const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+      if (!api_url || !token) return;
+
+      const res = await fetch(`${api_url}/users/me/settings`, {
+        headers: { Authorization: `${tokenType} ${token}` },
+      });
+      if (!res.ok) return;
+
+      const json = await res.json();
+
+      if (typeof json.tts_rate === "number") {
+        setTtsRateSlider(json.tts_rate);
+        setTtsRate(sliderToRateMultiplier(json.tts_rate));
+      }
+
+      if (typeof json.tts_pitch === "number") {
+        setTtsPitch(json.tts_pitch);
+      }
+    } catch {}
+  }, []);
+
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const ttsTempFileRef = useRef<string | null>(null);
+
+  function mapPitchToGemini(p: number): number {
+    const v = Number(p);
+    if (!Number.isFinite(v)) return 0;
+    const out = v <= 1.0 ? (v - 1.0) / 0.5 : (v - 1.0);
+    return Math.max(-1, Math.min(1, out));
+  }
+
+  async function stopAndCleanSound() {
+    try {
+      if (soundRef.current) {
+        await soundRef.current.stopAsync().catch(() => {});
+        await soundRef.current.unloadAsync().catch(() => {});
+      }
+    } finally {
+      soundRef.current = null;
+    }
+    try {
+      if (ttsTempFileRef.current) {
+        await FileSystem.deleteAsync(ttsTempFileRef.current, { idempotent: true }).catch(() => {});
+      }
+    } finally {
+      ttsTempFileRef.current = null;
+    }
+    setTtsIsPlaying(false);
+  }
+
+  // fetch TTS from backend
+  useFocusEffect(
+    useCallback(() => {
+      loadTtsSettings();
+    }, [loadTtsSettings])
+  );
+
+  //clean sound
+  useEffect(() => {
+    return () => {
+      stopAndCleanSound();
+    };
+  }, []);
+
+  function getSpeechText(): string {
+    if (ocrLoading || geminiLoading) return "";
+
+    if (tab === "Overview") {
+      if (showOriginal) return (ocrText ?? "").trim();
+      return (geminiData?.summary ?? "").trim();
+    }
+    if (tab === "Easy Read") {
+      const txt = (simplifyMoreText === null ? (geminiData?.simplification ?? "") : simplifyMoreText ?? "").trim();
+      return txt;
+    }
+    if (tab === "Translate") {
+      const translated = (geminiData?.translation ?? "").trim();
+      if (translated) return translated;
+
+      const userLanguage = (userLang ?? "not set").toUpperCase();
+      const ocrLang = (ocrLanguage ?? "unknown").toUpperCase();
+      return `No translation available. Your language and the text are both set to ${langCodeToName(userLanguage)}.`;
+    }
+    return "";
+  }
+
+  async function speechCurrentTab() {
+    const textToSpeech = getSpeechText();
+    if (!textToSpeech) {
+      Alert.alert("Nothing to read", "There is not any text available to play yet.");
+      return;
+    }
+
+    if (ttsLoading) return;
+    setTtsLoading(true);
+
+    try {
+      await stopAndCleanSound();
+
+      const token = await storage.getItem("access_token");
+      const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+
+      const body = {
+        text: textToSpeech,
+        rate: ttsRateSlider,
+        pitch: mapPitchToGemini(ttsPitch),
+        voice: "Autonoe",
+        model: "gemini-2.5-flash-preview-tts",
+      };
+
+      const res = await fetch(`${api_url}/tts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `${tokenType} ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(msg || `TTS failed (HTTP ${res.status})`);
+      }
+
+      const wavArrayBuffer = await res.arrayBuffer();
+      const tmpPath = `${FileSystem.cacheDirectory}sayitsimply_tts_${Date.now()}.wav`;
+      const b64 = arrayBufferToBase64(wavArrayBuffer);
+
+      await FileSystem.writeAsStringAsync(tmpPath, b64, { encoding: FileSystem.EncodingType.Base64 });
+      ttsTempFileRef.current = tmpPath;
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+      });
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: tmpPath },
+        { shouldPlay: false }
+      );
+
+      soundRef.current = sound;
+
+      await sound.setRateAsync(ttsRate, true);
+
+      await sound.playAsync();
+      setTtsIsPlaying(true);
+    } catch (e: any) {
+      console.warn("TTS play failed:", e?.message ?? e);
+      Alert.alert("TTS Error", e?.message ?? "Failed to generate or play audio.");
+      await stopAndCleanSound();
+    } finally {
+      setTtsLoading(false);
+    }
+  }
 
   // fetch user language from backend
   useEffect(() => {
@@ -1342,96 +1546,143 @@ export default function ReaderScreen() {
                   )}
               </ScrollView>
 
-              {/* Bottom CTA */}
+              {/* Bottom CTA and TTS */}
               {tab !== "Translate" && (
-                <Pressable
-                  style={[
-                    readerStyles.ctaBtn,
-                    darkMode && readerDarkStyles.ctaBtn,
-                    (ocrLoading || geminiLoading || !ocrText || simplifiedMost) &&
-                    (darkMode ? readerDarkStyles.ctaBtnDisabled : { opacity: 0.5 })
-                  ]}
-                  onPress={async () => {
-                    if (tab === "Overview") {
-                      setShowOriginal(!showOriginal)
-                    }
-                    else if (tab === "Easy Read") {
-                      if (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1) {
-                        return;
+                <View style={readerStyles.ctaRow}>
+                  <Pressable
+                    style={[
+                      readerStyles.ctaBtn,
+                      darkMode && readerDarkStyles.ctaBtn,
+                      (ocrLoading || geminiLoading || !ocrText || simplifiedMost) &&
+                      (darkMode ? readerDarkStyles.ctaBtnDisabled : { opacity: 0.5 }), { flex: 1 }
+                    ]}
+                    onPress={async () => {
+                      if (tab === "Overview") {
+                        setShowOriginal(!showOriginal)
                       }
-                      if (ocrLoading || geminiLoading || !ocrText) {
-                        return;
-                      }
-                      if (!api_url) {
-                        return;
-                      }
-
-                      setGeminiLoading(true);
-                      setGeminiError(null);
-
-                      try {
-                        const token = await storage.getItem("access_token");
-                        const tokenType = (await storage.getItem("token_type")) ?? "bearer";
-
-                        const nextSimplifyStep = simplifyMoreCount + 1;
-                        setSimplifyMoreCount(nextSimplifyStep);
-
-                        const simplifyMoreBy = 2 * nextSimplifyStep;
-
-
-                        const response = await fetch(`${api_url}/gemini`, {
-                          method: 'POST',
-                          headers: {
-                            "Content-Type": "application/json",
-                            ...(token ? { Authorization: `${tokenType} ${token}` } : {})
-                          },
-                          body: JSON.stringify({
-                            text: ocrText,
-                            mode: mode ?? "Document",
-                            simplify_more_by: simplifyMoreBy,
-                            ...(sessionReadingLevel !== null ? { reading_level: sessionReadingLevel } : {}),
-                          })
-                        });
-
-                        if (!response.ok) {
-                          const text = await response.text();
-                          throw new Error(text || `Gemini response failed (HTTP ${response.status})`);
+                      else if (tab === "Easy Read") {
+                        if (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1) {
+                          return;
+                        }
+                        if (ocrLoading || geminiLoading || !ocrText) {
+                          return;
+                        }
+                        if (!api_url) {
+                          return;
                         }
 
-                        const json: GeminiResponse = await response.json();
+                        setGeminiLoading(true);
+                        setGeminiError(null);
 
-                        setSimplifyMoreText(json.simplification);
-                        setSimplifiedReadingLevel(json.reading_level ?? null);
-                        setSimplifiedMost(json.reading_level === 1);
-                        if (json.reading_level != null) {
-                          await patchReadingLevel(json.reading_level);
-                        }
-                        if (docId) {
-                          const text_preview = clampToTwoSentences(json.simplification || json.summary || "");
-                          if (text_preview) {
-                            await updatePreview(docId, text_preview);
+                        try {
+                          const token = await storage.getItem("access_token");
+                          const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+
+                          const nextSimplifyStep = simplifyMoreCount + 1;
+                          setSimplifyMoreCount(nextSimplifyStep);
+
+                          const simplifyMoreBy = 2 * nextSimplifyStep;
+
+
+                          const response = await fetch(`${api_url}/gemini`, {
+                            method: 'POST',
+                            headers: {
+                              "Content-Type": "application/json",
+                              ...(token ? { Authorization: `${tokenType} ${token}` } : {})
+                            },
+                            body: JSON.stringify({
+                              text: ocrText,
+                              mode: mode ?? "Document",
+                              simplify_more_by: simplifyMoreBy,
+                              ...(sessionReadingLevel !== null ? { reading_level: sessionReadingLevel } : {}),
+                            })
+                          });
+
+                          if (!response.ok) {
+                            const text = await response.text();
+                            throw new Error(text || `Gemini response failed (HTTP ${response.status})`);
+                          }
+
+                          const json: GeminiResponse = await response.json();
+
+                          setSimplifyMoreText(json.simplification);
+                          setSimplifiedReadingLevel(json.reading_level ?? null);
+                          setSimplifiedMost(json.reading_level === 1);
+                          if (json.reading_level != null) {
+                            await patchReadingLevel(json.reading_level);
+                          }
+                          if (docId) {
+                            const text_preview = clampToTwoSentences(json.simplification || json.summary || "");
+                            if (text_preview) {
+                              await updatePreview(docId, text_preview);
+                            }
                           }
                         }
+                        catch (e: any) {
+                          setGeminiError(e?.message ?? "Request failed");
+                        }
+                        finally {
+                          setGeminiLoading(false);
+                          setDefinitionModal({ isVisible: false, word: "", definition: "" })
+                        }
                       }
-                      catch (e: any) {
-                        setGeminiError(e?.message ?? "Request failed");
-                      }
-                      finally {
-                        setGeminiLoading(false);
-                        setDefinitionModal({ isVisible: false, word: "", definition: "" })
-                      }
-                    }
-                  }}
-                  disabled={ocrLoading || geminiLoading || !ocrText
-                    || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1))}>
-                  <AppText style={[readerStyles.ctaText, darkMode && readerDarkStyles.ctaText]}>
-                    {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
-                      : (tab === "Overview" && !showOriginal) ? "See Original Text"
-                        : (tab === "Overview" && showOriginal) ? "See Simplified Text"
-                          : (tab != "Overview") ? "Simplify More"
-                            : "Simplify More"}
-                  </AppText>
-                </Pressable>
+                    }}
+                    disabled={ocrLoading || geminiLoading || !ocrText
+                      || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1))}>
+                    <AppText style={[readerStyles.ctaText, darkMode && readerDarkStyles.ctaText]}>
+                      {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
+                        : (tab === "Overview" && !showOriginal) ? "See Original Text"
+                          : (tab === "Overview" && showOriginal) ? "See Simplified Text"
+                            : (tab != "Overview") ? "Simplify More"
+                              : "Simplify More"}
+                    </AppText>
+                  </Pressable>
+                  <View style={readerStyles.ttsRow}>
+                    <Pressable
+                      style={[
+                        readerStyles.ttsBtn,
+                        (ttsLoading || isLoading || !getSpeechText()) && readerStyles.ttsBtnDisabled,
+                        darkMode && readerDarkStyles.ttsBtn,
+                        (ttsLoading || isLoading || !getSpeechText()) && darkMode && readerDarkStyles.ttsBtnDisabled,
+                      ]}
+                      onPress={() => {
+                        closeDefinitionModal();
+                        speechCurrentTab();
+                      }}
+                      disabled={ttsLoading || isLoading || !getSpeechText()}
+                      hitSlop={10}
+                    >
+                      <Ionicons
+                        name={ttsLoading ? "time-outline" : (ttsIsPlaying ? "volume-high-outline" : "play-circle-outline")}
+                        size={28}
+                        color={(ttsLoading || isLoading || !getSpeechText()) ? P.iconDisabled : ctaIcon}
+                      />
+                    </Pressable>
+
+                    <Pressable
+                      style={[
+                        readerStyles.ttsBtn,
+                        readerStyles.ttsStopBtn,
+                        (!ttsIsPlaying && !ttsLoading) && readerStyles.ttsBtnDisabled,
+                        darkMode && readerDarkStyles.ttsBtn,
+                        darkMode && readerDarkStyles.ttsStopBtn,
+                        (!ttsIsPlaying && !ttsLoading) && darkMode && readerDarkStyles.ttsBtnDisabled,
+                      ]}
+                      onPress={() => {
+                        closeDefinitionModal();
+                        stopAndCleanSound();
+                      }}
+                      disabled={!ttsIsPlaying && !ttsLoading}
+                      hitSlop={10}
+                    >
+                      <Ionicons
+                        name="stop-circle-outline"
+                        size={28}
+                        color={(!ttsIsPlaying && !ttsLoading) ? P.iconDisabled : ctaIcon}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
               )}
             </View>
           </View>
@@ -1471,16 +1722,64 @@ export default function ReaderScreen() {
         {/* Language picker */}
         {tab === "Translate" && (
           <View style={readerStyles.translateControlsWrap}>
-            <Pressable
-              style={[readerStyles.langPickerBtn, darkMode && readerDarkStyles.langPickerBtn]}
-              onPress={() => setLangPickerVisible(true)}
-              hitSlop={10}
-            >
-              <Ionicons name="language-outline" size={22} color={P.icon}/>
-              <AppText style={[readerStyles.langPickerBtnText, darkMode && readerDarkStyles.langPickerBtnText]}>
-                {(userLang ?? "EN").toUpperCase()}
-              </AppText>
-            </Pressable>
+            <View style={readerStyles.translateControlsRow}>
+              <Pressable
+                style={[readerStyles.langPickerBtn, darkMode && readerDarkStyles.langPickerBtn]}
+                onPress={() => setLangPickerVisible(true)}
+                hitSlop={10}
+              >
+                <Ionicons name="language-outline" size={22} color={P.icon}/>
+                <AppText style={[readerStyles.langPickerBtnText, darkMode && readerDarkStyles.langPickerBtnText]}>
+                  {(userLang ?? "EN").toUpperCase()}
+                </AppText>
+              </Pressable>
+
+              <View style={readerStyles.ttsRow}>
+                <Pressable
+                  style={[
+                    readerStyles.ttsBtn,
+                    (ttsLoading || isLoading || !getSpeechText()) && readerStyles.ttsBtnDisabled,
+                    darkMode && readerDarkStyles.ttsBtn,
+                    (ttsLoading || isLoading || !getSpeechText()) && darkMode && readerDarkStyles.ttsBtnDisabled,
+                  ]}
+                  onPress={() => {
+                    closeDefinitionModal();
+                    speechCurrentTab();
+                  }}
+                  disabled={ttsLoading || isLoading || !getSpeechText()}
+                  hitSlop={10}
+                >
+                  <Ionicons
+                    name={ttsLoading ? "time-outline" : (ttsIsPlaying ? "volume-high-outline" : "play-circle-outline")}
+                    size={28}
+                    color={(ttsLoading || isLoading || !getSpeechText()) ? P.iconDisabled : P.icon}
+                  />
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    readerStyles.ttsBtn,
+                    readerStyles.ttsStopBtn,
+                    (!ttsIsPlaying && !ttsLoading) && readerStyles.ttsBtnDisabled,
+                    darkMode && readerDarkStyles.ttsBtn,
+                    darkMode && readerDarkStyles.ttsStopBtn,
+                    (!ttsIsPlaying && !ttsLoading) && darkMode && readerDarkStyles.ttsBtnDisabled,
+                  ]}
+                  onPress={() => {
+                    closeDefinitionModal();
+                    stopAndCleanSound();
+                  }}
+                  disabled={!ttsIsPlaying && !ttsLoading}
+                  hitSlop={10}
+                >
+                  <Ionicons
+                    name="stop-circle-outline"
+                    size={28}
+                    color={(!ttsIsPlaying && !ttsLoading) ? P.iconDisabled : P.icon}
+                  />
+                </Pressable>
+              </View>
+            </View>
           </View>
         )}
       </View>

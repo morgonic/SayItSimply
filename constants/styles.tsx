@@ -568,9 +568,7 @@ export const readerStyles = StyleSheet.create({
   },
 
   ctaBtn: {
-    marginTop: 14,
-    alignSelf: "center",
-    width: "88%",
+    flex: 1,
     height: 46,
     borderRadius: 12,
     backgroundColor: CTA,
@@ -578,9 +576,41 @@ export const readerStyles = StyleSheet.create({
     justifyContent: "center",
     shadowOpacity: 0.16,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 6 },
+    shadowOffset: { width: 0, height: 6 }
   },
   ctaText: { color: "white", fontWeight: "900", fontSize: 16 },
+
+  ctaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 14
+  },
+  ttsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+
+  ttsBtn: {
+    height: 46,
+    width: 46,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: CTA
+  },
+
+  ttsStopBtn: { backgroundColor: CTA },
+
+  ttsBtnDisabled: { opacity: 0.35 },
+
+  translateControlsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10
+  },
 
   complexWord: {
     color: '#8C311C',
@@ -960,6 +990,12 @@ export const readerDarkStyles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.10)",
     opacity: 0.5,
   },
+
+  ttsBtn: { backgroundColor: "#6B8FD6" },
+
+  ttsStopBtn: { backgroundColor: "#6B8FD6" },
+
+  ttsBtnDisabled: { opacity: 0.35 },
 
   levelTabActive: {
     backgroundColor: "rgba(107,143,214,0.35)",

@@ -1,14 +1,84 @@
+import storage from "@/app/storage";
+import AppText from "@/components/TextSize";
+import { cameraStyles } from '@/constants/styles';
 import { CameraView, useCameraPermissions } from "expo-camera";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Dimensions, Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Dimensions, Image, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { addCapture } from "../../doc-storage";
+
+const api_url = process.env.EXPO_PUBLIC_API_URL;
 
 const MODES = ["Auto-detect", "Sign", "Menu", "Form", "Label", "Receipt", "Document",  "Medical", "Instructions", "Article", "Book", "Board"] as const;
 type Mode = (typeof MODES)[number];
 
+async function getAccessToken(): Promise<string | null> {
+  const token = await storage.getItem("access_token");
+  return token ?? null;
+}
 
+function normalizeBaseUrl(url?: string) {
+  if (!url) return "";
+  return url.replace(/\/$/, "");
+}
+
+async function uploadDocument(params: {
+  imageUri: string;
+  mode: string;
+  sourceAssetId?: string | null;
+}): Promise<string> {
+  const baseUrl = normalizeBaseUrl(api_url);
+  if (!baseUrl) throw new Error("EXPO_PUBLIC_API_URL is not set.");
+
+  const token = await getAccessToken();
+  if (!token) throw new Error("Not logged in.");
+
+  const thumb = await manipulateAsync(
+    params.imageUri,
+    [{ resize: { width: 96 } }],
+    { compress: 0.6, format: SaveFormat.JPEG }
+  );
+
+  const form = new FormData();
+
+  // mode
+  form.append("mode", params.mode);
+
+  // full image
+  form.append("image", {
+    uri: params.imageUri,
+    name: "capture.jpg",
+    type: "image/jpeg",
+  } as any);
+
+  // thumb
+  form.append("thumb", {
+    uri: thumb.uri,
+    name: "thumb.jpg",
+    type: "image/jpeg",
+  } as any);
+
+  form.append("source_asset_id", params.sourceAssetId ?? "");
+
+  const res = await fetch(`${baseUrl}/documents`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      // DO NOT set Content-Type manually for FormData in RN
+    },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Upload failed (${res.status}). ${text}`.trim());
+  }
+  const data = (await res.json().catch(() => null)) as any;
+  const docId = data?.id ? String(data.id) : null;
+  if (!docId) throw new Error("Upload succeeded but no document ID returned");
+  return docId;
+}
 
 export default function CameraScreen() {
   const [mode, setMode] = useState<Mode>("Auto-detect");
@@ -49,14 +119,12 @@ export default function CameraScreen() {
       });
       if (!pic?.uri) throw new Error("Photo path not returned");
 
-      const saved = await addCapture({
-        tempUri: pic.uri, mode, source: "camera",
-      });
+      setLastCaptureUri(pic.uri)
 
-      setLastCaptureUri(saved.uri)
+      const docId = await uploadDocument({ imageUri: pic.uri, mode, sourceAssetId: null  });
 
       router.push({
-        pathname: "/camera/reader", params: { imageUri: saved.uri, mode },
+        pathname: "/camera/reader", params: { imageUri: pic.uri, mode, docId },
       });
     } catch (e: any) {
       console.error(e);
@@ -69,45 +137,45 @@ export default function CameraScreen() {
    const showPermissionUI = permission && !permission.granted;
 
     return (
-      <SafeAreaView style={styles.safe}>
-        <View style={styles.container}>
-          <View style={styles.header}>
-            <Pressable style={styles.headerIconBtn} onPress={() => {}}>
-              <Text style={styles.headerIcon}>☰</Text>
+      <SafeAreaView style={cameraStyles.safe}>
+        <View style={cameraStyles.container}>
+          <View style={cameraStyles.header}>
+            <Pressable style={cameraStyles.headerIconBtn} onPress={() => {}}>
+              <AppText style={cameraStyles.headerIcon}>☰</AppText>
             </Pressable>
 
-            <Text style={styles.headerTitle}>SayItSimply</Text>
+            <AppText style={cameraStyles.headerTitle}>SayItSimply</AppText>
 
-            <Pressable style={styles.avatarBtn} onPress={() => {}}>
-              <View style={styles.avatarPlaceholder} />
+            <Pressable style={cameraStyles.avatarBtn} onPress={() => {}}>
+              <View style={cameraStyles.avatarPlaceholder} />
             </Pressable>
           </View>
 
           {/* Camera Preview */}
-          <View style={[styles.previewWrap, { height: previewHeight }]}>
-            <View style={styles.preview}>
+          <View style={[cameraStyles.previewWrap, { height: previewHeight }]}>
+            <View style={cameraStyles.preview}>
               {!permission && (
-                <View style={styles.previewOverlay}>
+                <View style={cameraStyles.previewOverlay}>
                   <ActivityIndicator />
-                  <Text style={styles.previewHintDark}>Checking permissions</Text>
+                  <AppText style={cameraStyles.previewHintDark}>Checking permissions</AppText>
                 </View>
               )}
               {showPermissionUI && (
-                <View style={styles.previewOverlay}>
+                <View style={cameraStyles.previewOverlay}>
                 </View>
               )}
               {permission?.granted && (
                 <>
                 <CameraView
                   ref={cameraRef}
-                  style={styles.camera}
+                  style={cameraStyles.camera}
                   facing="back"
                   onCameraReady={() => setCameraReady(true)}
                 />
                 {!cameraReady && (
-                  <View style={styles.previewOverlay}>
+                  <View style={cameraStyles.previewOverlay}>
                     <ActivityIndicator />
-                    <Text style={styles.previewHintDark}>Activating camera</Text>
+                    <AppText style={cameraStyles.previewHintDark}>Activating camera</AppText>
                   </View>
                   )}
                 </>
@@ -119,7 +187,7 @@ export default function CameraScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.modeScrollContent}
+            contentContainerStyle={cameraStyles.modeScrollContent}
           >
             {MODES.map((m) => {
               const selected = m === mode;
@@ -127,161 +195,36 @@ export default function CameraScreen() {
                 <Pressable
                   key={m}
                   onPress={() => setMode(m)}
-                  style={styles.modeItem}
+                  style={cameraStyles.modeItem}
                   hitSlop={10}
                   disabled={isCapturing}
                 >
-                  <Text style={[styles.modeText, selected && styles.modeTextSelected]}>
+                  <AppText style={[cameraStyles.modeText, selected && cameraStyles.modeTextSelected]}>
                     {m}
-                  </Text>
-                  <View style={[styles.modeUnderline, selected && styles.modeUnderlineSelected]} />
+                  </AppText>
+                  <View style={[cameraStyles.modeUnderline, selected && cameraStyles.modeUnderlineSelected]} />
                 </Pressable>
               );
             })}
           </ScrollView>
 
           {/* Shutter Row */}
-          <View style={styles.shutterRow}>
-            <Pressable style={styles.thumbBtn} onPress={() => router.push("/(tabs)/documents")}
+          <View style={cameraStyles.shutterRow}>
+            <Pressable style={cameraStyles.thumbBtn} onPress={() => router.push("/(tabs)/documents")}
               disabled={isCapturing}>
               <Image source={ lastCaptureUri ? { uri: lastCaptureUri } : require("../../../assets/images/logo.png")}
-                style={styles.thumbImage} resizeMode={lastCaptureUri ? "cover" : "contain"} />
+                style={cameraStyles.thumbImage} resizeMode={lastCaptureUri ? "cover" : "contain"} />
             </Pressable>
 
-            <Pressable style={styles.shutterBtn} onPress={handleTakePic} disabled={!permission?.granted || !cameraReady || isCapturing}>
-              <View style={[styles.shutterOuter, isCapturing && { opacity: 0.6 }]}>
-                <View style={styles.shutterInner} />
+            <Pressable style={cameraStyles.shutterBtn} onPress={handleTakePic} disabled={!permission?.granted || !cameraReady || isCapturing}>
+              <View style={[cameraStyles.shutterOuter, isCapturing && { opacity: 0.6 }]}>
+                <View style={cameraStyles.shutterInner} />
               </View>
             </Pressable>
 
-            <View style={styles.smallBtnPlaceholder} />
+            <View style={cameraStyles.smallBtnPlaceholder} />
           </View>
         </View>
       </SafeAreaView>
     );
 }
-
-const BG = "#0B1020";
-const ACCENT = "#E9C6A6";
-const PREVIEW_BG = "#C8D7F0";
-const TEXT_MUTED = "rgba(255,255,255,0.65)";
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: BG },
-  container: { flex: 1, backgroundColor: BG, paddingHorizontal: 16 },
-
-  header: {
-    height: 56,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  headerIconBtn: {
-    width: 44,
-    height: 44,
-    alignItems: "flex-start",
-    justifyContent: "center",
-  },
-  headerIcon: { color: "white", fontSize: 22 },
-  headerTitle: {
-    color: ACCENT,
-    fontSize: 28,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-  avatarBtn: { width: 44, height: 44, alignItems: "flex-end", justifyContent: "center" },
-  avatarPlaceholder: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.35)" },
-  avatar: { width: 32, height: 32, borderRadius: 16 },
-
-  thumbBtn: {
-  width: 52,
-  height: 52,
-  borderRadius: 14,
-  overflow: "hidden",
-  alignItems: "center",
-  justifyContent: "center",
-  backgroundColor: "rgba(255,255,255,0.06)",
-},
-thumbImage: { width: "100%", height: "100%" },
-
-  previewWrap: {
-    marginTop: 6,
-    borderRadius: 36,
-    overflow: "hidden",
-  },
-  preview: {
-    flex: 1,
-    backgroundColor: PREVIEW_BG,
-    borderRadius: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  camera: { flex: 1, width: "100%", height: "100%", },
-  previewOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
-    backgroundColor: "rgba(255,255,255,0.35)",
-  },
-  previewHintDark: { color: "rgba(0,0,0,0.45)", fontWeight: "600" },
-  permissionBtn: {
-    marginTop: 12,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  permissionBtnText: { color: "white", fontWeight: "700" },
-
-  modeScrollContent: {
-    paddingHorizontal: 6,
-    paddingVertical: 10,
-    alignItems: "center",
-    gap: 22,
-  },
-  modeItem: {alignItems: "center", minWidth: 64,},
-  modeText: { color: TEXT_MUTED, fontSize: 16, fontWeight: "600" },
-  modeTextSelected: { color: "white" },
-  modeUnderline: {
-    height: 2,
-    width: 52,
-    borderRadius: 2,
-    backgroundColor: "transparent",
-  },
-  modeUnderlineSelected: { backgroundColor: "white" },
-
-  shutterRow: {
-    marginTop: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 8,
-  },
-  smallBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  smallBtnIcon: { fontSize: 26, color: "white" },
-  smallBtnPlaceholder: { width: 52, height: 52 },
-
-  shutterBtn: { alignItems: "center", justifyContent: "center" },
-  shutterOuter: {
-    width: 84,
-    height: 84,
-    borderRadius: 42,
-    borderWidth: 4,
-    borderColor: "rgba(255,255,255,0.75)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  shutterInner: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    backgroundColor: "rgba(255,255,255,0.25)",
-  }
-});

@@ -1,13 +1,20 @@
+import { useTheme } from "@/app/context/ThemeContext";
 import storage from "@/app/storage";
+import AppText from "@/components/TextSize";
+import { profileStyles } from "@/constants/styles";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Image, Modal, Pressable, ScrollView, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
+
+WebBrowser.maybeCompleteAuthSession();
 
 type RowProps = {
   label: string;
@@ -15,6 +22,12 @@ type RowProps = {
   rightContent?: React.ReactNode;
   rightIcon?: React.ComponentProps<typeof Ionicons>["name"] | null;
   disabled?: boolean;
+  //dark mode
+  iconColor?: string;
+  textColor?: string;
+  cardBg?: string;
+  borderColor?: string;
+  pressedBg?: string;
 };
 
 function Row({
@@ -23,25 +36,31 @@ function Row({
   rightContent,
   rightIcon = "chevron-forward",
   disabled = false,
+  textColor = "#111827",
+  iconColor = "#111827",
+  cardBg = "#FFFFFF",
+  borderColor = "rgba(17,24,39,0.08)",
+  pressedBg = "rgba(0,0,0,0.06)"
 }: RowProps) {
   return (
     <Pressable
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
       style={({ pressed }) => [
-        styles.row,
-        pressed && !disabled && styles.rowPressed,
-        disabled && styles.rowDisabled,
+        profileStyles.row,
+        { backgroundColor: cardBg, borderColor },
+        pressed && !disabled && {backgroundColor: pressedBg },
+        disabled && profileStyles.rowDisabled,
       ]}
-      android_ripple={disabled ? undefined : { color: "rgba(0,0,0,0.08)" }}
+      android_ripple={disabled ? undefined : { color: pressedBg }}
     >
-      <View style={styles.rowLeft}>
-        <Text style={[styles.rowLabel, disabled && styles.rowLabelDisabled]}>
+      <View style={profileStyles.rowLeft}>
+        <AppText style={[profileStyles.rowLabel, disabled && profileStyles.rowLabelDisabled]}>
           {label}
-        </Text>
+        </AppText>
       </View>
 
-      <View style={styles.rowRight}>
+      <View style={profileStyles.rowRight}>
         {rightContent}
         {rightIcon ? (
           <Ionicons
@@ -124,6 +143,43 @@ type GeminiResponse = {
   const [calibLowerTxt, setCalibLowerTxt] = useState<string>("");
   const [calibHigherTxt, setCalibHigherTxt] = useState<string>("");
 
+  const [calibExpandVis, setCalibExpandVis] = useState(false);
+  const [calibExpandTitle, setCalibExpandTitle] = useState<string>("");
+  const [calibExpandText, setCalibExpandText] = useState<string>("");
+
+  // state to track whether google is currently being linked (in the process)
+  const [linkingGoogle, setLinkingGoogle] = useState(false);
+
+  function parseOAuthFragment(url: string) {
+    // get everything after # to get oauth fragment
+    const fragment = url.split('#')[1] ?? "";
+
+    // split fragment into key/value pairs
+    const pairs = fragment.split('&').filter(Boolean);
+
+    // build map of parameters
+    const params: Record<string, string> = {};
+
+    for (const pair of pairs) {
+      // split pairs into key, value
+      const [key, val] = pair.split('=');
+
+      // no key, skip
+      if (!key) {
+        continue;
+      }
+
+      // decode and store params
+      params[decodeURIComponent(key)] = decodeURIComponent(val ?? "");
+    }
+
+    // return token and token type for auth header
+    return {
+      access_token: params['access_token'],
+      token_type: params['token_type'] || "bearer"
+    }
+  }
+
   const getTokenOrRedirect = async (): Promise<string | null> => {
     const token = await storage.getItem("access_token");
     return token;
@@ -159,17 +215,38 @@ type GeminiResponse = {
     })();
   }, []);
 
+  const { darkMode } = useTheme();
+
+  const C = useMemo(() => {
+    const isDark = !!darkMode;
+    return {
+      isDark,
+      bg: isDark ? "#0B1220" : "#F3F4F6",
+      card: isDark ? "#101A2D" : "#FFFFFF",
+      text: isDark ? "#E5E7EB" : "#111827",
+      subtext: isDark ? "#AAB4C3" : "#6B7280",
+      border: isDark ? "rgba(255,255,255,0.10)" : "rgba(17,24,39,0.08)",
+      icon: isDark ? "#E5E7EB" : "#111827",
+      overlay: isDark ? "rgba(0,0,0,0.70)" : "rgba(0,0,0,0.35)",
+      gradTop: isDark ? "#0F1B33" : "#B7D7E3",
+      gradBot: isDark ? "#0B1220" : "#F3F4F6",
+      inputBg: isDark ? "#0F1B33" : "#FFFFFF",
+      inputText: isDark ? "#E5E7EB" : "#111827",
+      placeholder: isDark ? "#94A3B8" : "#9CA3AF",
+    };
+  }, [darkMode]);
+
   const languageChip = useMemo(() => {
     return (
       <Pressable
         onPress={() => setLangModalVisible(true)}
         style={({ pressed }) => [
-          styles.languageChip,
+          profileStyles.languageChip,
           pressed && { opacity: 0.85 },
         ]}
       >
-        <Text style={styles.languageChipText}>{preferredLanguage}</Text>
-        <Ionicons name="chevron-down" size={14} color="#111827" />
+        <AppText style={profileStyles.languageChipText}>{preferredLanguage}</AppText>
+        <Ionicons name="chevron-down" size={14} color="#111827"/>
       </Pressable>
     );
   }, [preferredLanguage]);
@@ -258,6 +335,101 @@ type GeminiResponse = {
 
   const onAccountDetails = () => {
     setAccountModalVisible(true);
+  };
+
+  const onLinkGoogle = async () => {
+    // if already linked or in linking process, just return
+    if (isOAuthUser || linkingGoogle) {
+      return;
+    }
+
+    // storing the current auth to revert in case of mismatch/failure
+    const oldToken = await storage.getItem('access_token');
+    const oldTokenType = (await storage.getItem('token_type')) ?? "bearer";
+    const oldEmail = (accountEmail ?? "").trim().toLowerCase();
+
+    // build redirect and auth urls for oauth webbrowser flow
+    const redirectUrl = process.env.EXPO_PUBLIC_MOBILE_REDIRECT_URL ?? Linking.createURL("oauth");
+    const authUrl = `${api_url}/auth/google/authorize`;
+
+    try{
+      // lock button and show loading state
+      setLinkingGoogle(true);
+
+      // open browser session for google oauth
+      const response = await WebBrowser.openAuthSessionAsync(authUrl, redirectUrl);
+
+      // anything other than success or no url in response, return
+      if (response.type !== 'success' || !('url' in response)) {
+        return;
+      }
+
+      // get jwt from deep link
+      const url = response.url;
+      const { access_token, token_type } = parseOAuthFragment(url);
+
+      // no token, oauth failed
+      if (!access_token) {
+        Alert.alert("Google sync failed.", "No token was returned.");
+        return;
+      }
+
+      // save new jwt from oauth
+      await storage.setItem('access_token', access_token);
+      await storage.setItem('token_type', token_type);
+
+      // verify jwt, get user email
+      const userResponse = await fetch(`${api_url}/users/me`, {
+        headers: {
+          Authorization: `${token_type} ${access_token}`
+        }
+      });
+
+      // invalid/fail, error
+      if (!userResponse.ok) {
+        throw new Error("Failed to sync Google account.");
+      }
+      
+      const user = await userResponse.json();
+      const newEmail = (user.email ?? "").trim().toLowerCase();
+
+      // if google email and existing email don't match, revert auth and inform user
+      if (oldEmail && newEmail && newEmail !== oldEmail) {
+        if (oldToken) {
+          await storage.setItem('access_token', oldToken);
+        }
+
+        await storage.setItem('token_type', oldTokenType);
+
+        Alert.alert(
+          "Wrong Google account",
+          "The Google email MUST match your SayItSimply account email."
+        );
+        return;
+      }
+
+      // refresh oauth so ui disabled link button
+      const responseAuth = await fetch(`${api_url}/users/me/auth-method`, {
+        headers: {
+          Authorization: `${token_type} ${access_token}`
+        }
+      });
+
+      const data = await responseAuth.json();
+
+      setIsOAuthUser(!!data.is_oauth);
+      
+      // success message
+      Alert.alert("Success!", "Your account has been synced with Google.");
+    }
+    catch (e: any) {
+      // fail message
+      Alert.alert("Google sync failed.", e?.message ?? "Please try again.");
+    }
+    finally {
+      // unlock ui
+      setLinkingGoogle(false);
+    }
   };
 
   const onChangePassword = () => {
@@ -398,6 +570,7 @@ type GeminiResponse = {
   }
 
   function closeCalibModal() {
+    setCalibExpandVis(false);
     setCalibVis(false);
     setCalibLoad(false);
     setCalibErr(null);
@@ -428,6 +601,28 @@ type GeminiResponse = {
     }
   }
 
+  function openCalibExpanded(which: "lower" | "higher") {
+    if (calibLoad) return;
+    if (calibErr) return;
+
+    if (which === "lower") {
+      setCalibExpandTitle("Option A - Lower");
+      setCalibExpandText(calibLowerTxt || "");
+    } else {
+      setCalibExpandTitle("Option B - Higher");
+      setCalibExpandText(calibHigherTxt || "");
+    }
+    setCalibVis(false);
+    setTimeout(() => {
+      setCalibExpandVis(true);
+    }, 0);
+  }
+
+  function closeCalibExpanded() {
+    setCalibExpandVis(false);
+    setCalibVis(true);
+  }
+
   async function setCalibChoice(choice: "lower" | "stay" | "higher") {
     const currLevel = accountReadingLevel ?? 9;
     const lowLevel = calibLower ?? calibSimplificationLvl(currLevel).left;
@@ -450,17 +645,17 @@ type GeminiResponse = {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <LinearGradient colors={["#B7D7E3", "#F3F4F6"]} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.header}>
-          <Text style={styles.headerTitle}>Profile</Text>
+    <SafeAreaView style={[profileStyles.safe, { backgroundColor: C.bg }]}>
+      <ScrollView contentContainerStyle={profileStyles.scrollContent} showsVerticalScrollIndicator={false}>
+        <LinearGradient colors={[C.gradTop, C.gradBot]} start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={profileStyles.header}>
+          <AppText style={[profileStyles.headerTitle, { color: C.text }]}>Profile</AppText>
 
-          <View style={styles.avatarWrap}>
-            <View style={styles.avatarCircle}>
+          <View style={profileStyles.avatarWrap}>
+            <View style={profileStyles.avatarCircle}>
               {profilePictureUri ? (
                 <Image
                   source={{ uri: profilePictureUri }}
-                  style={styles.avatarImage}
+                  style={profileStyles.avatarImage}
                   resizeMode="cover"
                 />
               ) : (
@@ -470,7 +665,7 @@ type GeminiResponse = {
               <Pressable
                 onPress={pickProfilePicture}
                 style={({ pressed }) => [
-                  styles.pickProfileButton,
+                  profileStyles.pickProfileButton,
                   pressed && { opacity: 0.85 },
                 ]}
                 android_ripple={{ color: "rgba(255,255,255,0.25)" }}
@@ -481,10 +676,10 @@ type GeminiResponse = {
           </View>
         </LinearGradient>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Reading &amp; Language</Text>
+        <View style={profileStyles.section}>
+          <AppText style={[profileStyles.sectionTitle, { color: C.text }]}>Reading &amp; Language</AppText>
 
-          <View style={styles.card}>
+          <View style={[profileStyles.card, { backgroundColor: C.card }]}>
             <Row
               label="Preferred Language"
               onPress={undefined}
@@ -493,29 +688,44 @@ type GeminiResponse = {
             />
           </View>
 
-          <View style={styles.card}>
+          <View style={[profileStyles.card, { backgroundColor: C.card }]}>
             <Row label="Calibrate Simplification" onPress={onCalibrate} />
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account &amp; Security</Text>
+        <View style={profileStyles.section}>
+          <AppText style={[profileStyles.sectionTitle, { color: C.text }]}>Account &amp; Security</AppText>
 
-          <View style={styles.card}>
+          <View style={[profileStyles.card, { backgroundColor: C.card }]}>
             <Row label="Account Details" onPress={onAccountDetails} />
           </View>
 
-          <View style={styles.card}>
+          <View style={profileStyles.card}>
+            <Row
+              label={linkingGoogle ? "Linking Google..." : "Link Google"}
+              onPress={onLinkGoogle}
+              disabled={isOAuthUser || linkingGoogle}
+              rightIcon='logo-google'
+            />
+          </View>
+
+          {isOAuthUser ? (
+            <AppText style={[profileStyles.oauthHint, { color: C.text }]}>
+              Your account is already linked to Google.
+            </AppText>
+          ) : null}
+
+          <View style={profileStyles.card}>
             <Row label="Change Password" onPress={onChangePassword} disabled={isOAuthUser}/>
           </View>
 
           {isOAuthUser ? (
-            <Text style={styles.oauthHint}>
+            <AppText style={[profileStyles.oauthHint, { color: C.text }]}>
               Password changes are managed through your sign in provider.
-            </Text>
+            </AppText>
           ) : null}
 
-          <View style={styles.card}>
+          <View style={[profileStyles.card, { backgroundColor: C.card }]}>
             <Row
               label="Settings"
               onPress={onSettings}
@@ -527,26 +737,26 @@ type GeminiResponse = {
         <Pressable
           onPress={onLogout}
           style={({ pressed }) => [
-            styles.logoutButton,
-            pressed && styles.logoutButtonPressed,
+            profileStyles.logoutButton,
+            pressed && profileStyles.logoutButtonPressed,
           ]}
           android_ripple={{ color: "rgba(255,255,255,0.18)" }}
         >
-          <Text style={styles.logoutText}>Log Out</Text>
+          <AppText style={[profileStyles.logoutText, { color: C.text }]}>Log Out</AppText>
         </Pressable>
 
-        <Text style={styles.dangerTitle}>DANGER ZONE</Text>
-        <View style={styles.dangerWrap}>
+        <AppText style={[profileStyles.dangerTitle, { color: C.text }]}>DANGER ZONE</AppText>
+        <View style={profileStyles.dangerWrap}>
           <Pressable
             onPress={onDeleteAccount}
             style={({ pressed }) => [
-              styles.deleteButton,
-              pressed && styles.deleteButtonPressed,
+              profileStyles.deleteButton,
+              pressed && profileStyles.deleteButtonPressed,
             ]}
             android_ripple={{ color: "rgba(255,255,255,0.14)" }}
           >
-            <Text style={styles.deleteText}>Delete Account</Text>
-            <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
+            <AppText style={[profileStyles.deleteText, { color: C.text }]}>Delete Account</AppText>
+            <Ionicons name="trash-outline" size={20} color={C.icon} />
           </Pressable>
         </View>
 
@@ -555,33 +765,41 @@ type GeminiResponse = {
 
       {/* Modal to show account details */}
       <Modal visible={accountModalVisible} transparent animationType="fade" onRequestClose={() => setAccountModalVisible(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.accountModalCard}>
-            <Text style={styles.accountModalTitle}>Account Details</Text>
+        <View style={profileStyles.modalBackdrop}>
+          <View style={profileStyles.accountModalCard}>
+            <AppText style={profileStyles.accountModalTitle}>Account Details</AppText>
 
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Email</Text>
-              <Text style={styles.detailValue}>{accountEmail || "—"}</Text>
+            <View style={profileStyles.detailRow}>
+              <AppText style={profileStyles.detailLabel}>Email</AppText>
+              <AppText style={profileStyles.detailValue}>{accountEmail || "—"}</AppText>
             </View>
 
-            <View style={styles.detailDivider} />
+            <View style={profileStyles.detailDivider} />
 
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Account Type</Text>
-              <Text style={styles.detailValue}>
+            <View style={profileStyles.detailRow}>
+              <AppText style={profileStyles.detailLabel}>Account Type</AppText>
+              <AppText style={profileStyles.detailValue}>
                 {isOAuthUser ? "Google" : "Email"}
-              </Text>
+              </AppText>
+              <View style={{height: 12}}/>
+              <Row
+                label={linkingGoogle ? "Linking Google..." : "Link Google"}
+                onPress={onLinkGoogle}
+                disabled={isOAuthUser || linkingGoogle}
+                rightIcon='logo-google'
+                pressedBg="rgba(0,0,0,0.1)"
+              />
             </View>
 
             <Pressable
               onPress={() => setAccountModalVisible(false)}
               style={({ pressed }) => [
-                styles.detailCloseButton,
+                profileStyles.detailCloseButton,
                 pressed && { opacity: 0.85 },
               ]}
               android_ripple={{ color: "rgba(0,0,0,0.08)" }}
             >
-              <Text style={styles.detailCloseButtonText}>Close</Text>
+              <AppText style={profileStyles.detailCloseButtonText}>Close</AppText>
             </Pressable>
           </View>
         </View>
@@ -589,17 +807,17 @@ type GeminiResponse = {
 
       {/* Modal to select preferred language */}
       <Modal visible={langModalVisible} transparent animationType="fade" onRequestClose={() => setLangModalVisible(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setLangModalVisible(false)}>
-          <Pressable style={styles.dropdownCard} onPress={() => {}}>
-            <Text style={styles.dropdownTitle}>Select Preferred Language</Text>
+        <Pressable style={profileStyles.modalBackdrop} onPress={() => setLangModalVisible(false)}>
+          <Pressable style={profileStyles.dropdownCard} onPress={() => {}}>
+            <AppText style={profileStyles.dropdownTitle}>Select Preferred Language</AppText>
 
             {langOptions.map((opt) => {
               const selected = opt.label === preferredLanguage;
               return (
-                <Pressable key={opt.code} style={[styles.dropdownRow, selected && styles.dropdownRowSelected,]}
+                <Pressable key={opt.code} style={[profileStyles.dropdownRow, selected && profileStyles.dropdownRowSelected,]}
                   onPress={() => onSelectLanguage(opt.label)}
                 >
-                  <Text style={styles.dropdownRowText}>{opt.label}</Text>
+                  <AppText style={profileStyles.dropdownRowText}>{opt.label}</AppText>
                   {selected ? (
                     <Ionicons name="checkmark" size={18} color="#111827" />
                   ) : null
@@ -613,11 +831,11 @@ type GeminiResponse = {
 
       {/* Modal to change password */}
       <Modal visible={pwModalVisible} transparent animationType="fade" onRequestClose={() => setPwModalVisible(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.pwModalCard}>
-            <Text style={styles.pwModalTitle}>Change Password</Text>
+        <View style={profileStyles.modalBackdrop}>
+          <View style={profileStyles.pwModalCard}>
+            <AppText style={profileStyles.pwModalTitle}>Change Password</AppText>
 
-            <Text style={styles.modalLabel}>New Password</Text>
+            <AppText style={profileStyles.modalLabel}>New Password</AppText>
             <TextInput
               value={pw1}
               onChangeText={setPw1}
@@ -625,10 +843,10 @@ type GeminiResponse = {
               autoCapitalize="none"
               autoCorrect={false}
               placeholder="Enter new password"
-              style={styles.modalInput}
+              style={profileStyles.modalInput}
             />
 
-            <Text style={styles.modalLabel}>Confirm Password</Text>
+            <AppText style={profileStyles.modalLabel}>Confirm Password</AppText>
             <TextInput
               value={pw2}
               onChangeText={setPw2}
@@ -636,111 +854,160 @@ type GeminiResponse = {
               autoCapitalize="none"
               autoCorrect={false}
               placeholder="re-type password"
-              style={styles.modalInput}
+              style={profileStyles.modalInput}
             />
-            {pwError ? <Text style={styles.modalError}>{pwError}</Text> : null}
+            {pwError ? <AppText style={profileStyles.modalError}>{pwError}</AppText> : null}
 
-            <View style={styles.modalButtons}>
+            <View style={profileStyles.modalButtons}>
               <Pressable
                 onPress={() => setPwModalVisible(false)}
                 style={({ pressed }) => [
-                  styles.modalButton,
-                  styles.modalCancelButton,
-                  pressed && styles.modalButtonPressed,
+                  profileStyles.modalButton,
+                  profileStyles.modalCancelButton,
+                  pressed && profileStyles.modalButtonPressed,
                 ]}
                 android_ripple={{ color: "rgba(0,0,0,0.08)" }}
                 disabled={pwSubmitting}
               >
-                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+                <AppText style={profileStyles.modalCancelButtonText}>Cancel</AppText>
               </Pressable>
 
               <Pressable
                 onPress={submitPasswordChange}
                 disabled={pwSubmitting}
                 style={({ pressed }) => [
-                  styles.modalButton,
-                  styles.modalButtonPrimary,
-                  pressed && styles.modalButtonPressed,
+                  profileStyles.modalButton,
+                  profileStyles.modalButtonPrimary,
+                  pressed && profileStyles.modalButtonPressed,
                   pwSubmitting && { opacity: 0.6 },
                 ]}
               >
-                <Text style={styles.modalButtonPrimaryText}>{pwSubmitting ? "Saving..." : "Submit"}</Text>
+                <AppText style={profileStyles.modalButtonPrimaryText}>{pwSubmitting ? "Saving..." : "Submit"}</AppText>
               </Pressable>
             </View>
           </View>
         </View>
       </Modal>
 
+      {/* Calibration Modal */}
       <Modal
         transparent
         visible={calibVis}
         animationType="fade"
         onRequestClose={closeCalibModal}
       >
-        <View style={styles.calibBackground}>
-          <Pressable style={styles.fullFill} onPress={closeCalibModal}/>
-          <View style={styles.calibCenter} pointerEvents='box-none'>
-            <View style={styles.calibModalCard}>
-              <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.calibBodyContent}
+        <View style={profileStyles.calibBackground}>
+          <Pressable style={profileStyles.calibBackdrop} onPress={closeCalibModal}/>
+          <View style={profileStyles.calibCenter} pointerEvents="box-none">
+            <View style={profileStyles.calibModalCard}>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={profileStyles.calibBodyContent}
                 showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
               >
-                <Text style={styles.calibTitle}>Calibrate Simplification</Text>
+                <AppText style={profileStyles.calibTitle}>Calibrate Simplification</AppText>
 
                 {calibLoad ? (
-                  <View style={styles.calibLoadRow}>
-                    <Text style={styles.calibLoadTxt}>Loading...</Text>
+                  <View style={profileStyles.calibLoadRow}>
+                    <AppText style={profileStyles.calibLoadTxt}>Loading...</AppText>
                   </View>
                 ) : calibErr ? (
-                  <Text style={styles.calibErrTxt}>{calibErr}</Text>
+                  <AppText style={profileStyles.calibErrTxt}>{calibErr}</AppText>
                 ) : (
-                  <View style={styles.calibOptsRow}>
-                    <View style={styles.calibOpt}>
-                      <View style={styles.calibOptHeader}>
-                        <Text style={styles.calibOptHeaderTxt}> Option A - Lower</Text>
+                  <View style={profileStyles.calibOptsRow}>
+                    <Pressable
+                      style={profileStyles.calibOpt}
+                      onPress={() => openCalibExpanded("lower")}
+                      disabled={calibLoad || !!calibErr}
+                    >
+                      <View style={profileStyles.calibOptHeader}>
+                        <AppText style={profileStyles.calibOptHeaderTxt}> Option A - Lower</AppText>
                       </View>
-                      <Text style={styles.calibOptTxt}>{calibLowerTxt}</Text>
-                    </View>
+                      <AppText style={profileStyles.calibOptTxt}>{calibLowerTxt}</AppText>
+                    </Pressable>
 
-                    <View style={styles.calibOpt}>
-                      <View style={styles.calibOptHeader}>
-                        <Text style={styles.calibOptHeaderTxt}> Option B - Higher</Text>
+                    <Pressable
+                      style={profileStyles.calibOpt}
+                      onPress={() => openCalibExpanded("higher")}
+                      disabled={calibLoad || !!calibErr}
+                    >
+                      <View style={profileStyles.calibOptHeader}>
+                        <AppText style={profileStyles.calibOptHeaderTxt}> Option B - Higher</AppText>
                       </View>
-                      <Text style={styles.calibOptTxt}>{calibHigherTxt}</Text>
-                    </View>
+                      <AppText style={profileStyles.calibOptTxt}>{calibHigherTxt}</AppText>
+                    </Pressable>
                   </View>
                 )}
 
-                <View style={styles.calibBtnRow}>
+                <View style={profileStyles.calibBtnRow}>
                   <Pressable
-                    style={[styles.calibBtn, styles.calibBtnLow]}
+                    style={[profileStyles.calibBtn, profileStyles.calibBtnLow]}
                     disabled={calibLoad}
                     onPress={async () => {
                       await setCalibChoice("lower");
                     }}
                   >
-                    <Text style={styles.calibChoiceTxt}>Choose Option A</Text>
+                    <AppText style={profileStyles.calibChoiceTxt}>Choose Option A</AppText>
                   </Pressable>
 
                   <Pressable
-                    style={[styles.calibBtn, styles.calibBtnStay]}
+                    style={[profileStyles.calibBtn, profileStyles.calibBtnStay]}
                     disabled={calibLoad}
                     onPress={async () => {
                       await setCalibChoice("stay");
                     }}
                   >
-                    <Text style={styles.calibChoiceDarkTxt}>Neither - Don't change</Text>
+                    <AppText style={profileStyles.calibChoiceDarkTxt}>Neither - Don't change</AppText>
                   </Pressable>
 
                   <Pressable
-                    style={[styles.calibBtn, styles.calibBtnHigh]}
+                    style={[profileStyles.calibBtn, profileStyles.calibBtnHigh]}
                     disabled={calibLoad}
                     onPress={async () => {
                       await setCalibChoice("higher");
                     }}
                   >
-                    <Text style={styles.calibChoiceTxt}>Choose Option B</Text>
+                    <AppText style={profileStyles.calibChoiceTxt}>Choose Option B</AppText>
                   </Pressable>
                 </View>
+              </ScrollView>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Option Expander Modal */}
+      <Modal
+        transparent
+        visible={calibExpandVis}
+        animationType="fade"
+        onRequestClose={closeCalibExpanded}
+      >
+        <View style={profileStyles.calibBackground}>
+          <Pressable style={profileStyles.calibBackdrop} onPress={closeCalibExpanded}/>
+          <View style={profileStyles.calibCenter} pointerEvents="box-none">
+            <View style={profileStyles.calibModalCard}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  paddingHorizontal: 6,
+                  paddingTop: 4,
+                  marginBottom: 6,
+                }}
+              >
+                <AppText style={profileStyles.calibTitle}>{calibExpandTitle}</AppText>
+                <Pressable onPress={closeCalibExpanded} hitSlop={10}>
+                  <Ionicons name="close" size={26} color={"black"} />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={profileStyles.calibBodyContent}
+                showsVerticalScrollIndicator
+                keyboardShouldPersistTaps="handled"
+              >
+                <AppText style={profileStyles.calibOptTxt}>{calibExpandText}</AppText>
               </ScrollView>
             </View>
           </View>
@@ -749,505 +1016,3 @@ type GeminiResponse = {
     </SafeAreaView>
   );
 }
-
-const TAB_INACTIVE = "#E9C6A6";
-const CARD_BORDER = "#2C9AA4";
-const PAPER = "#FFFFF2";
-const CTA = "#2C9AA4";
-
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: "#F3F4F6",
-  },
-  scrollContent: {
-    paddingBottom: 8,
-  },
-
-  header: {
-    paddingTop: 8,
-    paddingBottom: 18,
-    alignItems: "center",
-    borderBottomLeftRadius: 18,
-    borderBottomRightRadius: 18,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: "800",
-    color: "#111827",
-    marginTop: 6,
-  },
-
-  avatarWrap: {
-    marginTop: 10,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarCircle: {
-    width: 92,
-    height: 92,
-    borderRadius: 46,
-    backgroundColor: "#E5E7EB",
-    alignItems: "center",
-    justifyContent: "center",
-
-    shadowColor: "#000",
-    shadowOpacity: 0.18,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-  },
-  avatarImage: {
-  width: "100%",
-  height: "100%",
-  borderRadius: 46, // match avatarCircle borderRadius
-},
-pickProfileButton: {
-  position: "absolute",
-  right: -2,
-  bottom: -2,
-  width: 30,
-  height: 30,
-  borderRadius: 15,
-  backgroundColor: "#1F7A88",
-  alignItems: "center",
-  justifyContent: "center",
-  borderWidth: 2,
-  borderColor: "#F3F4F6",
-  shadowColor: "#000",
-  shadowOpacity: 0.15,
-  shadowRadius: 6,
-  shadowOffset: { width: 0, height: 3 },
-  elevation: 3,
-},
-
-  section: {
-    paddingHorizontal: 18,
-    marginTop: 14,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#111827",
-    marginBottom: 10,
-    textAlign: "center",
-  },
-
-  card: {
-    backgroundColor: "#E9E6F4",
-    borderRadius: 14,
-    overflow: "hidden",
-    marginBottom: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
-
-  row: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  rowPressed: { opacity: 0.75 },
-  rowDisabled: { 
-    backgroundColor: "rgba(229,231,235,0.6)",
-    opacity: 0.55
-  },
-  rowLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  rowLabel: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  rowLabelDisabled: {
-    color: "#6B7280",
-  },
-  rowRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-
-  languageChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: "#F3F4F6",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "rgba(17,24,39,0.15)",
-  },
-  languageChipText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#111827",
-  },
-
-  oauthHint: {
-    textAlign: "center",
-    color: "#6B7280",
-    marginTop: -4,
-    marginBottom: 8,
-    fontWeight: "700",
-    paddingHorizontal: 18,
-  },
-
-  accountModalCard: {
-  backgroundColor: "#FFFFFF",
-  borderRadius: 14,
-  padding: 16,
-  },
-
-  accountModalTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: "#111827",
-    marginBottom: 12,
-    textAlign: "center",
-  },
-
-  detailRow: {
-    paddingVertical: 10,
-  },
-
-  detailLabel: {
-    fontSize: 12,
-    fontWeight: "900",
-    color: "#6B7280",
-    marginBottom: 6,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-
-  detailValue: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#111827",
-  },
-
-  detailDivider: {
-    height: 1,
-    backgroundColor: "rgba(17,24,39,0.1)",
-  },
-
-  detailCloseButton: {
-    marginTop: 14,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#E5E7EB",
-  },
-
-  detailCloseButtonText: {
-    color: "#111827",
-    fontWeight: "900",
-  },
-
-  logoutButton: {
-    marginTop: 6,
-    marginHorizontal: 18,
-    borderRadius: 12,
-    paddingVertical: 14,
-    backgroundColor: "#1F7A88",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.14,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  logoutButtonPressed: { opacity: 0.85 },
-  logoutText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "800",
-    letterSpacing: 0.3,
-  },
-
-  dangerTitle: {
-    marginTop: 14,
-    textAlign: "center",
-    fontWeight: "900",
-    color: "#B42318",
-    letterSpacing: 0.7,
-  },
-  dangerWrap: {
-    marginTop: 10,
-    marginHorizontal: 18,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: "rgba(180,35,24,0.55)",
-    borderStyle: "dashed",
-    backgroundColor: "rgba(255,255,255,0.55)",
-  },
-
-  deleteButton: {
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    backgroundColor: "#8B2C1B",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-  },
-  deleteButtonPressed: { opacity: 0.85 },
-  deleteText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "900",
-  },
-  rowDanger: {},
-  rowLabelDanger: {
-    color: "#B42318",
-  },
-
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.25)",
-    justifyContent: "center",
-    paddingHorizontal: 18,
-  },
-
-  dropdownCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    paddingVertical: 10,
-    overflow: "hidden",
-  },
-  dropdownTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#111827",
-    textAlign: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(17,24,39,0.1)",
-  },
-  dropdownRow: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  dropdownRowSelected: {
-    backgroundColor: "rgba(31, 122, 136, 0.08)",
-  },
-  dropdownRowText: {
-    fontSize: 14,
-    fontWeight: "800",
-    color: "#111827",
-  },
-
-  pwModalCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    padding: 16,
-  },
-  pwModalTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: "#111827",
-    marginBottom: 12,
-    textAlign: "center",
-  },
-  modalLabel: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#111827",
-    marginTop: 8,
-    marginBottom: 6,
-  },
-  modalInput: {
-    borderWidth: 1,
-    borderColor: "rgba(17,24,39,0.15)",
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: "#F9FAFB",
-  },
-  modalError: {
-    marginTop: 10,
-    color: "#B42318",
-    fontWeight: "800",
-  },
-
-  modalButtons: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 14,
-  },
-  modalButton: {
-    flex: 1,
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalButtonPressed: {
-    opacity: 0.85,
-  },
-  modalCancelButton: {
-    backgroundColor: "#E5E7EB",
-  },
-  modalCancelButtonText: {
-    color: "#111827",
-    fontWeight: "900",
-  },
-  modalButtonPrimary: {
-    backgroundColor: "#1F7A88",
-  },
-  modalButtonPrimaryText: {
-    color: "#FFFFFF",
-    fontWeight: "900",
-  },
-
-  fullFill: {
-    position: "absolute",
-    top: 0, left: 0, right: 0, bottom: 0,
-    width: "100%",
-    height: "100%",
-  },
-  calibBackground: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.55)',
-    },
-    calibModalCard: {
-      width: '100%',
-      maxWidth: 420,
-      height: "78%",
-      backgroundColor: PAPER,
-      borderRadius: 18,
-      borderWidth: 10,
-      borderColor: CARD_BORDER,
-      shadowOpacity: 0.22,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: 8,
-      overflow: "hidden",
-    },
-    calibTitle: {
-      fontSize: 18,
-      fontWeight: '900',
-      color: "#1B1B1B",
-      marginBottom: 4,
-    },
-    calibLoadRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 10,
-      paddingVertical: 18,
-    },
-    calibLoadTxt: {
-      fontWeight: "800",
-      color: "#1B1B1B",
-    },
-    calibCenter: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-      padding: 16,
-    },
-    calibBodyScroll: {
-      flex: 1,
-    },
-    calibBodyContent: {
-      padding: 14,
-      flexGrow: 1,
-    },
-    calibErrTxt: {
-      fontWeight: "800",
-      color: "#8C311C",
-      paddingVertical: 14,
-    },
-    calibOptsRow: {
-      flexDirection: "row",
-      gap: 10,
-      marginBottom: 12,
-    },
-    calibOpt: {
-      flex: 1,
-      borderRadius: 14,
-      borderWidth: 2,
-      borderColor: "rgba(0,0,0,0.15)",
-      backgroundColor: "rgba(0,0,0,0.03)",
-      overflow: "hidden",
-    },
-    calibOptHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      paddingHorizontal: 10,
-      paddingVertical: 8,
-      backgroundColor: "rgba(0,0,0,0.06)",
-    },
-    calibOptHeaderTxt: {
-      fontWeight: "900",
-      color: "#1B1B1B",
-      fontSize: 12,
-    },
-    calibOptScroll: {
-      flex: 1,
-      paddingHorizontal: 10,
-      paddingVertical: 10,
-    },
-    calibOptTxt: {
-      fontWeight: "600",
-      color: "#1B1B1B",
-      lineHeight: 20,
-      fontSize: 13,
-      paddingHorizontal: 10,
-      paddingVertical: 10,
-    },
-    calibBtnRow: {
-      flexDirection: "row",
-      gap: 10,
-    },
-    calibBtn: {
-      flex: 1,
-      minHeight: 52,
-      borderRadius: 12,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 8,
-      paddingVertical: 8,
-    },
-    calibBtnLow: {
-      backgroundColor: CTA,
-    },
-    calibBtnHigh: {
-      backgroundColor: CTA,
-    },
-    calibBtnStay: {
-      backgroundColor: TAB_INACTIVE,
-      borderWidth: 1,
-      borderColor: "#1B1B1B",
-    },
-    calibChoiceTxt: {
-      color: "white",
-      fontWeight: "900",
-      fontSize: 12,
-      textAlign: "center",
-      lineHeight: 14,
-      flexWrap: "wrap",
-    },
-    calibChoiceDarkTxt: {
-      color: "#1B1B1B",
-      fontWeight: "900",
-    }
-});

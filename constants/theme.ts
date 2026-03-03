@@ -27,6 +27,12 @@ export const Colors = {
   },
 };
 
+export type ThemeMode = keyof typeof Colors;
+
+export function getTheme(darkMode: boolean) {
+  return darkMode ? Colors.dark : Colors.light;
+}
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */

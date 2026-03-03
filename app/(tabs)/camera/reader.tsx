@@ -1,27 +1,76 @@
+import { useTheme } from '@/app/context/ThemeContext';
 import storage from '@/app/storage';
+import ActionItemModal from '@/components/ActionItemModal';
+import HelpModal from '@/components/HelpModal';
+import AppText from "@/components/TextSize";
+import { readerDarkStyles, readerPalette, readerStyles } from '@/constants/styles';
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system/legacy";
 import { useLocalSearchParams } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import ISO6391 from "iso-639-1";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
+  FlatList,
+  KeyboardAvoidingView,
   Modal,
   Pressable,
   ScrollView,
-  StyleSheet,
-  Text,
+  TextInput,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+function getCacheDir(): string {
+  const anyFS = FileSystem as any;
+  const cacheDir: string | null | undefined = anyFS.cacheDirectory ?? FileSystem.documentDirectory;
+  return (cacheDir ?? "");
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000; //32KB
+  let binary = "";
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+
+  const btoaFn =
+    (globalThis as any).btoa ||
+    ((str: string) => {
+      throw new Error("btoa is not available.");
+    });
+
+  return btoaFn(binary);
+}
+
+function sliderToRateMultiplier(v: number): number {
+  const rate = Math.pow(2, v / 2);
+  return Math.max(0.5, Math.min(2.0, rate));
+}
+
 // reader screen tabs
 type ReaderTab = "Overview" | "Easy Read" | "Translate";
+
+// custom action item type to match gemini output
+type ActionItem = {
+  id?: string;
+  action_item: string;
+  deadline: string | null; // null if no deadline
+  completed: boolean;
+}
 
 // structured gemini output
 type GeminiResponse = {
   summary: string;
   simplification: string;
-  action_items: string[];
+  action_items: ActionItem[];
   translation?: string | null;
   mode: string;
   reading_level?: number;
@@ -38,6 +87,11 @@ type DefinitionModalState = {
   definition: string;
 }
 
+type LanguageRow = {
+  code2: string;
+  name: string;
+}
+
 const calibScanCountKey = "calib_scan_count";
 const calibFreqKey = "calib_freq";
 const calibReadingLevelKey = "user_reading_level";
@@ -45,14 +99,32 @@ const calibReadingLevelKey = "user_reading_level";
 // backend fastapi url
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
+// takes in language code, returns full language name
+function langCodeToName(code: string): string {
+  const c = (code ?? "").trim().toLowerCase();
+  if (!c) return "Unknown";
+  const lang = ISO6391.getName(c);
+  return lang || code;
+}
+
 // convert image file uri to base64
 async function uriToBase64(uri: string): Promise<string> {
+  const token = await storage.getItem("access_token");
+  const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+
+  const isRemote = 
+  typeof uri === "string" && !!api_url && uri.startsWith(api_url.replace(/\/$/, ""));
   // fetch local image file uri
-  const response = await fetch(uri);
+  const response = await fetch(uri, {
+    headers: {
+      ...(isRemote && token ? { Authorization: `${tokenType} ${token}` } : {}),
+    },
+  });
   // if fail to read file, throw error
   if (!response.ok) {
     throw new Error("Failed to read image file.");
   }
+  
   // convert response into blob for filereader to process
   const blob = await response.blob();
 
@@ -68,13 +140,9 @@ async function uriToBase64(uri: string): Promise<string> {
       // strip off prefixes and keep base64
       const base64 = result.split(",")[1] ?? "";
       // reject if something goes wrong
-      if (!base64) {
-        reject(new Error("Failed to convert image to base64."));
-      }
+      if (!base64) reject(new Error("Failed to convert image to base64."));
       // otherwise return base64 string to caller
-      else {
-        resolve(base64);
-      }
+      else resolve(base64);
     };
     // read blob, create base64 data url in reader.result
     reader.readAsDataURL(blob);
@@ -91,6 +159,36 @@ function randomIntInclusive(min: number, max: number) {
   return Math.floor(Math.random() * (_max - _min + 1)) + _min;
 }
 
+function clampToTwoSentences(text: string): string {
+  const cleaned = (text || "").replace(/\s+/g, " ").trim();
+  if (!cleaned) return "";
+  const parts = cleaned.split(/(?<=[.!?])\s+/).filter(Boolean);
+  return parts.slice(0, 2).join(" ");
+}
+
+async function updatePreview(docId: string, previewText: string) {
+  const token = await storage.getItem("access_token");
+  const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+  if (!token) return;
+
+  try {
+    const res =await fetch(`${api_url}/documents/${docId}/preview_text`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `${tokenType} ${token}`,
+      },
+      body: JSON.stringify({ preview_text: (previewText ?? "").trim().slice(0, 250) }),
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => "");
+      console.warn("Preview PATCH failed:", res.status, txt);
+    }
+  } catch (e) {
+    console.warn("Failed to update preview text:", e);
+  }
+}
+
 /**
  * 
  * reading level pulled from db. left option is 1 reading lvl lower, right option is 1 reading lvl higher
@@ -103,6 +201,11 @@ function CalibrateReadingLvl(current: number) {
   return { left: clampInt(current - 1, 1, 9), right: clampInt(current + 1, 1, 9) };
 }
 export default function ReaderScreen() {
+  const { darkMode } = useTheme();
+
+  const P = darkMode ? readerPalette.dark : readerPalette.light;
+
+  const ctaIcon = darkMode ? "#0B1220" : "white";
 
   const reading_levels = {
     standard: 9,
@@ -119,25 +222,268 @@ export default function ReaderScreen() {
 
   // read route params passed in from camerascreen
   // imageuri - local image file uri; mode - selected scan mode
-  const { imageUri, mode } = useLocalSearchParams<{
+  const params = useLocalSearchParams<{
     imageUri?: string;
     mode?: string;
+    docId?: string;
   }>();
+
+  const imageUri = Array.isArray(params.imageUri) ? params.imageUri[0] : params.imageUri;
+  const mode = Array.isArray(params.mode) ? params.mode[0] : params.mode;
+  const docId = Array.isArray(params.docId) ? params.docId[0] : params.docId;
 
   // ocr request states
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [ocrText, setOcrText] = useState<string>("");
   const [ocrLanguage, setOcrLanguage] = useState<string>("unknown");
-  const [ocrLanguageConfidence, setOcrLanguageConfidence] = useState<number | null>(null);
 
-  const langLabel = ocrLanguage && ocrLanguage !== "unknown" ? ocrLanguage.toUpperCase() : "N/A";
-  const confLabel = ocrLanguageConfidence == null ? "" : ` (${Math.round(ocrLanguageConfidence * 100)}%)`;
+  const [userLang, setUserLang] = useState<string | null>(null);
+
+  const [langPickerVisible, setLangPickerVisible] = useState(false);
+  const [langSearch, setLangSearch] = useState("");
 
   // gemini request states
   const [geminiLoading, setGeminiLoading] = useState(false);
   const [geminiError, setGeminiError] = useState<string | null>(null);
   const [geminiData, setGeminiData] = useState<GeminiResponse | null>(null);
+
+  //gemini TTS
+  const [ttsLoading, setTtsLoading] = useState(false);
+  const [ttsRateSlider, setTtsRateSlider] = useState<number>(0.0);
+  const [ttsRate, setTtsRate] = useState<number>(1.0);
+  const [ttsPitch, setTtsPitch] = useState<number>(0.0);
+  const [ttsIsPlaying, setTtsIsPlaying] = useState(false);
+
+  const loadTtsSettings = useCallback(async () => {
+    try {
+      const token = await storage.getItem("access_token");
+      const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+      if (!api_url || !token) return;
+
+      const res = await fetch(`${api_url}/users/me/settings`, {
+        headers: { Authorization: `${tokenType} ${token}` },
+      });
+      if (!res.ok) return;
+
+      const json = await res.json();
+
+      if (typeof json.tts_rate === "number") {
+        setTtsRateSlider(json.tts_rate);
+        setTtsRate(sliderToRateMultiplier(json.tts_rate));
+      }
+
+      if (typeof json.tts_pitch === "number") {
+        setTtsPitch(json.tts_pitch);
+      }
+    } catch {}
+  }, []);
+
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const ttsTempFileRef = useRef<string | null>(null);
+
+  function mapPitchToGemini(p: number): number {
+    const v = Number(p);
+    if (!Number.isFinite(v)) return 0;
+    const out = v <= 1.0 ? (v - 1.0) / 0.5 : (v - 1.0);
+    return Math.max(-1, Math.min(1, out));
+  }
+
+  async function stopAndCleanSound() {
+    try {
+      if (soundRef.current) {
+        await soundRef.current.stopAsync().catch(() => {});
+        await soundRef.current.unloadAsync().catch(() => {});
+      }
+    } finally {
+      soundRef.current = null;
+    }
+    try {
+      if (ttsTempFileRef.current) {
+        await FileSystem.deleteAsync(ttsTempFileRef.current, { idempotent: true }).catch(() => {});
+      }
+    } finally {
+      ttsTempFileRef.current = null;
+    }
+    setTtsIsPlaying(false);
+  }
+
+  // fetch TTS from backend
+  useFocusEffect(
+    useCallback(() => {
+      loadTtsSettings();
+    }, [loadTtsSettings])
+  );
+
+  //clean sound
+  useEffect(() => {
+    return () => {
+      stopAndCleanSound();
+    };
+  }, []);
+
+  function getSpeechText(): string {
+    if (ocrLoading || geminiLoading) return "";
+
+    if (tab === "Overview") {
+      if (showOriginal) return (ocrText ?? "").trim();
+      return (geminiData?.summary ?? "").trim();
+    }
+    if (tab === "Easy Read") {
+      const txt = (simplifyMoreText === null ? (geminiData?.simplification ?? "") : simplifyMoreText ?? "").trim();
+      return txt;
+    }
+    if (tab === "Translate") {
+      const translated = (geminiData?.translation ?? "").trim();
+      if (translated) return translated;
+
+      const userLanguage = (userLang ?? "not set").toUpperCase();
+      const ocrLang = (ocrLanguage ?? "unknown").toUpperCase();
+      return `No translation available. Your language and the text are both set to ${langCodeToName(userLanguage)}.`;
+    }
+    return "";
+  }
+
+  async function speechCurrentTab() {
+    const textToSpeech = getSpeechText();
+    if (!textToSpeech) {
+      Alert.alert("Nothing to read", "There is not any text available to play yet.");
+      return;
+    }
+
+    if (ttsLoading) return;
+    setTtsLoading(true);
+
+    try {
+      await stopAndCleanSound();
+
+      const token = await storage.getItem("access_token");
+      const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+
+      const body = {
+        text: textToSpeech,
+        rate: ttsRateSlider,
+        pitch: mapPitchToGemini(ttsPitch),
+        voice: "Autonoe",
+        model: "gemini-2.5-flash-preview-tts",
+      };
+
+      const res = await fetch(`${api_url}/tts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `${tokenType} ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const msg = await res.text().catch(() => "");
+        throw new Error(msg || `TTS failed (HTTP ${res.status})`);
+      }
+
+      const wavArrayBuffer = await res.arrayBuffer();
+      const tmpPath = `${FileSystem.cacheDirectory}sayitsimply_tts_${Date.now()}.wav`;
+      const b64 = arrayBufferToBase64(wavArrayBuffer);
+
+      await FileSystem.writeAsStringAsync(tmpPath, b64, { encoding: FileSystem.EncodingType.Base64 });
+      ttsTempFileRef.current = tmpPath;
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+      });
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: tmpPath },
+        { shouldPlay: false }
+      );
+
+      soundRef.current = sound;
+
+      await sound.setRateAsync(ttsRate, true);
+
+      await sound.playAsync();
+      setTtsIsPlaying(true);
+    } catch (e: any) {
+      console.warn("TTS play failed:", e?.message ?? e);
+      Alert.alert("TTS Error", e?.message ?? "Failed to generate or play audio.");
+      await stopAndCleanSound();
+    } finally {
+      setTtsLoading(false);
+    }
+  }
+
+  // fetch user language from backend
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try{
+        const token = await storage.getItem("access_token");
+        const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+        if (!api_url || !token) {
+          return;
+        }
+
+        const response = await fetch(`${api_url}/users/me`, {
+          headers: {Authorization: `${tokenType} ${token}`}
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const user = await response.json();
+        const lang = (user.language ?? null) as string | null;
+
+        if (!cancelled) {
+          setUserLang(lang);
+        }
+      }
+      catch {
+        if (!cancelled) {
+          setUserLang(null);
+        }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, []);
+
+  const Languages: LanguageRow[] = useMemo(() => {
+    const codes = ISO6391.getAllCodes();
+    const rows = codes.map((c) => ({
+      code2: c.toUpperCase(),
+      name: ISO6391.getName(c) || c.toUpperCase(),
+    }))
+    .filter((r) => r.code2.length === 2 && !!r.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
+    return rows;
+  }, []);
+
+  const filteredLangs = useMemo(() => {
+    const q = langSearch.trim().toLowerCase();
+    if (!q) return Languages;
+    return Languages.filter((l) =>
+      l.name.toLowerCase().includes(q) || l.code2.toLowerCase().includes(q)
+    );
+  }, [langSearch, Languages]);
+
+  // overall loading state
+  const isLoading = ocrLoading || geminiLoading;
+
+  const badgeLang = useMemo(() => {
+    if (tab === "Translate") return (userLang ?? "EN").toUpperCase();
+    const o = (ocrLanguage ?? "unknown").toUpperCase();
+    return o === "UNKNOWN" ? "N/A" : o;
+  }, [tab, userLang, ocrLanguage]);
+
+  // only show language label under these conditions
+  const showLangLabel = !isLoading && !ocrError && !!ocrText && badgeLang !== "N/A";
+  // formatted language label (capitalized or N/A)
+  const langLabel = badgeLang;
 
   // simplify more states
   const [simplifyMoreText, setSimplifyMoreText] = useState<string | null>(null);
@@ -152,6 +498,34 @@ export default function ReaderScreen() {
     definition: "" // definition of word, starts empty
   });
 
+  // action items modal states
+  const [actionItemsVisible, setActionItemsVisible] = useState(false);
+  // extract action items from gemini data
+  const actionItems = useMemo(() => {
+    return Array.isArray(geminiData?.action_items) ? geminiData!.action_items : [];
+  }, [geminiData?.action_items]);
+  // action items button disabled when loading or no action items
+  const actionItemsDisabled = (
+    isLoading || actionItems.length === 0
+  );
+
+  // normalize action items from gemini
+  function normalizeActionItems(input: any): ActionItem[] {
+    if (!Array.isArray(input)) {
+      return [];
+    }
+    // return normalized action items
+    return input.map((i) => ({
+      id: String(i.id ?? undefined),
+      action_item: String(i?.action_item ?? "").trim(),
+      deadline: i?.deadline ? String(i.deadline) : null,
+      completed: false // forcing completed to always be false at first
+    })).filter((i) => i.action_item.length > 0); // no empty items
+  }
+
+  // help modal states
+  const [helpVisible, setHelpVisible] = useState(false);
+
   // Calibration states
   const [calibVis, setCalibVis] = useState(false);
   const [calibLoad, setCalibLoad] = useState(false);
@@ -161,6 +535,10 @@ export default function ReaderScreen() {
   const [calibHigher, setCalibHigher] = useState<number | null>(null);
   const [calibLowerTxt, setCalibLowerTxt] = useState<string>("");
   const [calibHigherTxt, setCalibHigherTxt] = useState<string>("");
+
+  const [calibExpandVis, setCalibExpandVis] = useState(false);
+  const [calibExpandTitle, setCalibExpandTitle] = useState<string>("");
+  const [calibExpandText, setCalibExpandText] = useState<string>("");
 
   // prevents scan count from updating every render
   const imageUriRef = useRef<string | null>(null);
@@ -274,9 +652,9 @@ export default function ReaderScreen() {
 
       // render original token with highlights applied to matching words
       return (
-        <Text
+        <AppText
           key={i}
-          style={match ? styles.complexWord : styles.bodyText}
+          style={[match ? readerStyles.complexWord : readerStyles.bodyText, { color: match ? P.complexWord : P.bodyText }]}
           onPress={() => {
             if (match) {
               openDefinitionModal(clean_words);
@@ -284,10 +662,10 @@ export default function ReaderScreen() {
           }}
         >
           {part}
-        </Text>
+        </AppText>
       );
     });
-  }, [ocrText, geminiData?.complex_words]) // update when ocr text or complex_words list change
+  }, [ocrText, geminiData?.complex_words, darkMode]) // update when ocr text or complex_words list change
 
   // build version of simplification text with complex words highlighted
   const highlightedSimplified = useMemo(() => {
@@ -309,9 +687,9 @@ export default function ReaderScreen() {
 
       // render text component with highlighted complex words
       return (
-        <Text
+        <AppText
           key={i}
-          style={match ? styles.complexWord : styles.bodyText}
+          style={[match ? readerStyles.complexWord : readerStyles.bodyText, darkMode && (match ? readerDarkStyles.complexWord : readerDarkStyles.bodyText)]}
           onPress={() => {
             if (match) {
               openDefinitionModal(clean_words);
@@ -319,10 +697,10 @@ export default function ReaderScreen() {
           }}
         >
           {part}
-        </Text>
+        </AppText>
       );
     });
-  }, [simplifyMoreText, geminiData?.simplification, geminiData?.simple_words, tab]); // update when simplification text/words or tab state changes
+  }, [simplifyMoreText, geminiData?.simplification, geminiData?.simple_words, tab, darkMode]); // update when simplification text/words or tab or dark mode state changes
 
   // calculate whether simplified level has reached minimum
   useEffect(() => {
@@ -341,7 +719,6 @@ export default function ReaderScreen() {
     setDefinitionModal({ isVisible: false, word: "", definition: "" })
     setSessionReadingLevel(null);
     setOcrLanguage("unknown");
-    setOcrLanguageConfidence(null);
 
     // reset calibration states as well
     setCalibVis(false);
@@ -366,6 +743,93 @@ export default function ReaderScreen() {
       ...(token ? { Authorization: `${tokenType} ${token}` } : {}),
     };
   }
+
+  //update preferred language in db
+  async function patchUserLang(newLang2: string): Promise<boolean> {
+    const code2 = (newLang2 ?? "").trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(code2)) return false;
+
+    try {
+      const token = await storage.getItem("access_token");
+      const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+      if (!token) return false;
+
+      const res = await fetch(`${api_url}/users/me`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `${tokenType} ${token}`,
+        },
+        body: JSON.stringify({ language: code2 }),
+      });
+      return res.ok;
+    } catch (e) {
+      console.warn("patchUserLang failed:", e);
+      return false;
+    }
+  }
+
+  //re-process gemini flow to refresh translation -- no OCR re-process
+  async function rerunGeminiWithNewLang(targetLang2: string) {
+    if (ocrLoading || geminiLoading) return;
+    if (!ocrText) return;
+
+    const code2 = (targetLang2 ?? "").trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(code2)) return;
+
+    setGeminiLoading(true);
+    setGeminiError(null);
+
+    try {
+      const token = await storage.getItem("access_token");
+      const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+
+      const normalizeMode =
+        typeof mode === "string" ? mode : Array.isArray(mode) ? mode[0] : geminiData?.mode ?? "Auto-detect";
+
+      const response = await fetch(`${api_url}/gemini`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `${tokenType} ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          text: ocrText,
+          mode: normalizeMode ?? "Document",
+          target_language: code2,
+          ...(sessionReadingLevel !== null ? { reading_level: sessionReadingLevel } : {}),
+        })
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `Gemini response failed (HTTP ${response.status})`);
+      }
+      const json: GeminiResponse = await response.json();
+
+      setGeminiData((prev) => {
+        if (!prev) return json;
+        return {
+          ...prev,
+          ...json,
+          translation: (json.translation ?? prev.translation) ?? null,
+        };
+      });
+    } catch (e: any) {
+      setGeminiError(e?.message ?? "Request failed");
+    } finally {
+      setGeminiLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (tab !== "Translate") return;
+    if (!ocrText) return;
+    if (!userLang) return;
+    if (!geminiData?.translation) {
+      rerunGeminiWithNewLang(userLang);
+    }
+  }, [tab, userLang, ocrText]);
 
   // get calibration state from db
   async function dbGetCalibState(): Promise<{
@@ -520,7 +984,30 @@ export default function ReaderScreen() {
     }
   }
 
+  function openCalibExpanded(which: "lower" | "higher") {
+    if (calibLoad) return;
+    if (calibErr) return;
+
+    if (which === "lower") {
+      setCalibExpandTitle("Option A - Lower");
+      setCalibExpandText(calibLowerTxt || "");
+    } else {
+      setCalibExpandTitle("Option B - Higher");
+      setCalibExpandText(calibHigherTxt || "");
+    }
+    setCalibVis(false);
+    setTimeout(() => {
+      setCalibExpandVis(true);
+    }, 0);
+  }
+
+  function closeCalibExpanded() {
+    setCalibExpandVis(false);
+    setCalibVis(true);
+  }
+
   function closeCalibModal() {
+    setCalibExpandVis(false);
     setCalibVis(false);
     setCalibLoad(false);
     setCalibErr(null);
@@ -563,11 +1050,6 @@ export default function ReaderScreen() {
     if (db) return;
 
     await incrScan();
-    const local = await incrScan();
-    const currLevel = sessionReadingLevel ?? local.reading_level ?? geminiData?.reading_level ?? reading_levels.standard;
-    if (local.prompt) {
-      return;
-    }
   }
 
   useEffect(() => {
@@ -660,12 +1142,13 @@ export default function ReaderScreen() {
         if (!cancelled) {
           setOcrText(data.text ?? "");
           setOcrLanguage(data.language ?? "unknown");
-          setOcrLanguageConfidence(
-            data.language_conf === null || data.language_conf === undefined
-              ? null
-              : Number(data.language_conf)
-          );
           setOcrLoading(false);
+          if (docId) {
+          const text_preview = clampToTwoSentences(data.text ?? "");
+          if (text_preview) {
+            await updatePreview(docId, text_preview);
+          }
+        }
         }
 
         const token = await storage.getItem("access_token");
@@ -689,7 +1172,12 @@ export default function ReaderScreen() {
           throw new Error(text || `Gemini response failed (HTTP ${geminiResponse.status})`);
         }
         // grab and set json data
-        const geminiJson: GeminiResponse = await geminiResponse.json();
+        const raw = await geminiResponse.json();
+        const geminiJson: GeminiResponse = {
+          ...raw,
+          action_items: normalizeActionItems(raw.action_items)
+        };
+
         console.log("\n---[ORIGINAL TEXT] COMPLEX WORDS/DEFS---\n")
         if (geminiJson.complex_words && geminiJson.complex_definitions) {
           for (const i in geminiJson.complex_words) {
@@ -758,7 +1246,7 @@ export default function ReaderScreen() {
     }
     // if loading states, show 'detecting...'
     if (ocrLoading || geminiLoading) {
-      return "Type";
+      return "";
     }
     // return the mode or auto-detect
     return geminiData?.mode ?? "Auto-detect";
@@ -790,16 +1278,15 @@ export default function ReaderScreen() {
     switch (tab) {
       case "Overview":
         // for now, format action items with summary as numbered list, n/a if no items
-        return (
-          `${geminiData.summary}\n\n` +
-          `Action items:\n\n${items.map((x, i) => `${i + 1}) ${x}`).join("\n\n") || "N/A"}`
-        );
+        return geminiData.summary;
       case "Easy Read":
         // simplified explanation for easy read tab
         return highlightedSimplified;
       case "Translate":
-        // translation for translate tab, tell user when no translation was provided
-        return geminiData.translation ?? "No translation available.\n\nPlease change your language settings in the Profile to receive translations in that language.";
+        const userLanguage = (userLang ?? "not set").toUpperCase();
+        const ocrLang = (ocrLanguage ?? "unknown").toUpperCase();
+        // translation for translate tab, tell user when no translation was provided and advise of user's saved language and ocr text language
+        return geminiData.translation ?? `No translation available.\n\nYour language is set to ${langCodeToName(userLanguage)} and the text is written in ${langCodeToName(ocrLang)}.`;
       default:
         return "";
     }
@@ -874,19 +1361,30 @@ export default function ReaderScreen() {
         throw new Error(text || `Gemini response failed (HTTP ${response.status})`);
       }
 
-      const json: GeminiResponse = await response.json();
+      // noramlize action items in gemini data
+      const raw = await response.json();
+      const json: GeminiResponse = {
+        ...raw,
+        action_items: normalizeActionItems(raw.action_items)
+      }
+      const newLevel = (typeof json.reading_level === "number" ? json.reading_level : level);
+      setSessionReadingLevel(newLevel);
+      setSimplifyMoreCount(0);
 
       setGeminiData(json);
-      setSimplifyMoreText(json.simplification);
-      setSimplifiedReadingLevel(json.reading_level ?? level);
-      setSimplifiedMost((json.reading_level ?? level) === 1);
+      setSimplifyMoreText(json.simplification ?? null);
+      setSimplifiedReadingLevel(newLevel);
+      setSimplifiedMost(newLevel === 1);
       try {
-        setSessionReadingLevel(json.reading_level!!);
-        setSimplifyMoreCount(0);
-        await patchReadingLevel(level);
-      }
-      catch (e: any) {
+        await patchReadingLevel(newLevel);
+      } catch (e: any) {
         console.warn("Failed to store reading level:", e?.message ?? e);
+      }
+      if (docId) {
+        const text_preview = clampToTwoSentences(json.simplification || json.summary || "");
+        if (text_preview) {
+          await updatePreview(docId, text_preview);
+        }
       }
     } catch (e: any) {
       setGeminiError(e?.message ?? "Request failed");
@@ -895,56 +1393,107 @@ export default function ReaderScreen() {
     }
   }
 
+  async function onSelectLanguage(code2: string) {
+    const newCode2 = (code2 ?? "").trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(newCode2)) return;
+
+    setLangPickerVisible(false);
+    setLangSearch("");
+    setUserLang(newCode2);
+
+    const ok = await patchUserLang(newCode2);
+    if (!ok) {
+      console.warn("Failed to update user language in db");
+    }
+    await rerunGeminiWithNewLang(newCode2);
+  }
+
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
+    <SafeAreaView style={[readerStyles.safe, darkMode && readerDarkStyles.safe]}>
+      <View style={[readerStyles.container, darkMode && readerDarkStyles.container]}>
         {/* Header */}
-        <View style={styles.header}>
-          <Pressable style={styles.headerIconBtn} onPress={() => { }}>
-            <Text style={styles.headerIcon}>☰</Text>
+        <View style={readerStyles.header}>
+          <Pressable style={readerStyles.headerIconBtn} onPress={() => { }}>
+            <AppText style={readerStyles.headerIcon}>☰</AppText>
           </Pressable>
 
-          <Text style={styles.headerTitle}>SayItSimply</Text>
+          <AppText style={readerStyles.headerTitle}>SayItSimply</AppText>
 
-          <Pressable style={styles.avatarBtn} onPress={() => { }}>
-            <View style={styles.avatarPlaceholder} />
+          <Pressable style={readerStyles.avatarBtn} onPress={() => { }}>
+            <View style={readerStyles.avatarPlaceholder} />
           </Pressable>
         </View>
 
         <ScrollView
           style={{ flex: 1 }}
           showsVerticalScrollIndicator
-          indicatorStyle='white'
+          indicatorStyle={P.scrollIndicator as any}
           onScrollBeginDrag={closeDefinitionModal}
         >
 
           {/* Top Tabs */}
-          <View style={styles.tabRow}>
+          <View style={readerStyles.tabRow}>
             <TopTab label="Overview" active={tab === "Overview"} onPress={() => setTab("Overview")} />
             <TopTab label="Easy Read" active={tab === "Easy Read"} onPress={() => setTab("Easy Read")} />
             <TopTab label="Translate" active={tab === "Translate"} onPress={() => setTab("Translate")} />
           </View>
 
           {/* Card Area */}
-          <View style={[styles.outerCard, { height: cardHeight }]}>
+          <View style={[readerStyles.outerCard, darkMode && readerDarkStyles.outerCard, { height: cardHeight, borderColor: P.outerBorder, backgroundColor: P.midCard }]}>
             {/* Badge */}
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
+            <View style={readerStyles.badge}>
+              <AppText style={readerStyles.badgeText}>
                 {badgeMode}
-                {"\n\n"}
-                <Text style={[styles.badgeText, {fontSize: 16, color: '#F2D3AC', fontWeight: '900'}]}>
-                  {langLabel}
-                </Text>
-              </Text>
-              <View style={styles.badgeNotch} />
+                {showLangLabel ? "\n\n" : ""}
+                {showLangLabel ? (
+                  <AppText style={[readerStyles.badgeText, { fontSize: 16, color: '#F2D3AC', fontWeight: '900' }]}>
+                    {langLabel}
+                  </AppText>
+                ) : null}
+              </AppText>
+              <View style={[readerStyles.badgeNotch, { borderBottomColor: P.badgeNotch }]}/>
             </View>
 
             {/* Inner "paper" */}
-            <View style={styles.innerPaper}>
-              {/* little menu icon */}
-              <Pressable style={styles.paperMenuBtn} onPress={() => { }}>
-                <Text style={styles.paperMenuIcon}>≡</Text>
-              </Pressable>
+            <View style={[readerStyles.innerPaper, darkMode && readerDarkStyles.innerPaper]}>
+              <View style={readerStyles.paperTopRow}>
+                {/* action items icon */}
+                <Pressable
+                  style={[readerStyles.actionItemBtn,
+                    actionItemsDisabled && { backgroundColor: 'transparent', borderColor: 'transparent' },
+                    darkMode && readerDarkStyles.actionItemBtn, actionItemsDisabled && darkMode && readerDarkStyles.actionItemBtnDisabled
+                  ]}
+                  onPress={() => {
+                    closeDefinitionModal();
+                    setActionItemsVisible(true);
+                  }}
+                  disabled={actionItemsDisabled}
+                  hitSlop={10}
+                  accessibilityRole='button'
+                  accessibilityLabel="Open Action Items"
+                >
+                  <Ionicons
+                    name="menu-outline"
+                    size={30}
+                    color={actionItemsDisabled ? P.iconDisabled : P.icon}
+                  />
+                </Pressable>
+
+                {/*lang code fab*/}
+                {!isLoading && (  
+                  <Pressable
+                    style={[
+                      readerStyles.helpFab, darkMode && readerDarkStyles.helpFab
+                    ]}
+                    onPress={() => setHelpVisible(true)}
+                  >
+                    <Ionicons
+                      name="help"
+                      color={P.icon}
+                      size={32}
+                    />
+                  </Pressable>)}
+              </View>
 
               {/* Loading state + activity indicator */}
               {(ocrLoading || geminiLoading) && (
@@ -959,156 +1508,355 @@ export default function ReaderScreen() {
                 >
                   <ActivityIndicator
                     size={28}
-                    color={'black'}
+                    color={P.indicator}
                   />
-                  <Text style={{
+                  <AppText style={{
                     fontWeight: '600',
                     fontSize: 24,
                     textAlign: 'center',
-                    justifyContent: 'center'
+                    justifyContent: 'center',
+                    color: P.bodyText
                   }}
                   >
                     {ocrLoading ? "Reading your text..."
                       : "Rewriting your text..."}
-                  </Text>
+                  </AppText>
                 </View>
               )}
 
               {/* Body text */}
               <ScrollView
-                style={styles.bodyScroll}
-                contentContainerStyle={styles.bodyScrollContent}
+                style={readerStyles.bodyScroll}
+                contentContainerStyle={readerStyles.bodyScrollContent}
                 showsVerticalScrollIndicator
                 keyboardShouldPersistTaps='handled'
-                indicatorStyle='black'
+                indicatorStyle={P.scrollIndicator as any}
                 onScrollBeginDrag={closeDefinitionModal}
               >
-                <Text style={styles.bodyText}>
-                  {tab === "Overview" && showOriginal
-                    ? highlightedOriginal
-                    : tab === "Easy Read"
-                      ? highlightedSimplified
-                      : content
-                  }
-                </Text>
+                  {tab === "Overview" && showOriginal ? (
+                    <AppText style={{flexDirection: "row", flexWrap: "wrap"}}>
+                      {highlightedOriginal}
+                    </AppText>
+                  ) : tab === "Easy Read" ? (
+                    <AppText style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                      {highlightedSimplified}                    
+                    </AppText>
+                  ) : (
+                    <AppText style={[readerStyles.bodyText, { color: P.bodyText }]}>{content}</AppText>
+                  )}
               </ScrollView>
 
-              {/* Bottom CTA */}
+              {/* Bottom CTA and TTS */}
               {tab !== "Translate" && (
-                <Pressable
-                  style={[
-                    styles.ctaBtn,
-                    (ocrLoading || geminiLoading || !ocrText || simplifiedMost) &&
-                    { backgroundColor: '#6C6767', opacity: 0.5 }
-                  ]}
-                  onPress={async () => {
-                    if (tab === "Overview") {
-                      setShowOriginal(!showOriginal)
-                    }
-                    else if (tab === "Easy Read") {
-                      if (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1) {
-                        return;
+                <View style={readerStyles.ctaRow}>
+                  <Pressable
+                    style={[
+                      readerStyles.ctaBtn,
+                      darkMode && readerDarkStyles.ctaBtn,
+                      (ocrLoading || geminiLoading || !ocrText || simplifiedMost) &&
+                      (darkMode ? readerDarkStyles.ctaBtnDisabled : { opacity: 0.5 }), { flex: 1 }
+                    ]}
+                    onPress={async () => {
+                      if (tab === "Overview") {
+                        setShowOriginal(!showOriginal)
                       }
-                      if (ocrLoading || geminiLoading || !ocrText) {
-                        return;
-                      }
-                      if (!api_url) {
-                        return;
-                      }
-
-                      setGeminiLoading(true);
-                      setGeminiError(null);
-
-                      try {
-                        const token = await storage.getItem("access_token");
-                        const tokenType = (await storage.getItem("token_type")) ?? "bearer";
-
-                        const nextSimplifyStep = simplifyMoreCount + 1;
-                        setSimplifyMoreCount(nextSimplifyStep);
-
-                        const simplifyMoreBy = 2 * nextSimplifyStep;
-
-
-                        const response = await fetch(`${api_url}/gemini`, {
-                          method: 'POST',
-                          headers: {
-                            "Content-Type": "application/json",
-                            ...(token ? { Authorization: `${tokenType} ${token}` } : {})
-                          },
-                          body: JSON.stringify({
-                            text: ocrText,
-                            mode: mode ?? "Document",
-                            simplify_more_by: simplifyMoreBy,
-                            ...(sessionReadingLevel !== null ? { reading_level: sessionReadingLevel } : {}),
-                          })
-                        });
-
-                        if (!response.ok) {
-                          const text = await response.text();
-                          throw new Error(text || `Gemini response failed (HTTP ${response.status})`);
+                      else if (tab === "Easy Read") {
+                        if (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1) {
+                          return;
+                        }
+                        if (ocrLoading || geminiLoading || !ocrText) {
+                          return;
+                        }
+                        if (!api_url) {
+                          return;
                         }
 
-                        const json: GeminiResponse = await response.json();
+                        setGeminiLoading(true);
+                        setGeminiError(null);
 
-                        setSimplifyMoreText(json.simplification);
-                        setSimplifiedReadingLevel(json.reading_level ?? null);
-                        setSimplifiedMost(json.reading_level === 1);
-                        if (json.reading_level != null) {
-                          await patchReadingLevel(json.reading_level);
+                        try {
+                          const token = await storage.getItem("access_token");
+                          const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+
+                          const nextSimplifyStep = simplifyMoreCount + 1;
+                          setSimplifyMoreCount(nextSimplifyStep);
+
+                          const simplifyMoreBy = 2 * nextSimplifyStep;
+
+
+                          const response = await fetch(`${api_url}/gemini`, {
+                            method: 'POST',
+                            headers: {
+                              "Content-Type": "application/json",
+                              ...(token ? { Authorization: `${tokenType} ${token}` } : {})
+                            },
+                            body: JSON.stringify({
+                              text: ocrText,
+                              mode: mode ?? "Document",
+                              simplify_more_by: simplifyMoreBy,
+                              ...(sessionReadingLevel !== null ? { reading_level: sessionReadingLevel } : {}),
+                            })
+                          });
+
+                          if (!response.ok) {
+                            const text = await response.text();
+                            throw new Error(text || `Gemini response failed (HTTP ${response.status})`);
+                          }
+
+                          const json: GeminiResponse = await response.json();
+
+                          setSimplifyMoreText(json.simplification);
+                          setSimplifiedReadingLevel(json.reading_level ?? null);
+                          setSimplifiedMost(json.reading_level === 1);
+                          if (json.reading_level != null) {
+                            await patchReadingLevel(json.reading_level);
+                          }
+                          if (docId) {
+                            const text_preview = clampToTwoSentences(json.simplification || json.summary || "");
+                            if (text_preview) {
+                              await updatePreview(docId, text_preview);
+                            }
+                          }
+                        }
+                        catch (e: any) {
+                          setGeminiError(e?.message ?? "Request failed");
+                        }
+                        finally {
+                          setGeminiLoading(false);
+                          setDefinitionModal({ isVisible: false, word: "", definition: "" })
                         }
                       }
-                      catch (e: any) {
-                        setGeminiError(e?.message ?? "Request failed");
-                      }
-                      finally {
-                        setGeminiLoading(false);
-                        setDefinitionModal({ isVisible: false, word: "", definition: "" })
-                      }
-                    }
-                  }}
-                  disabled={ocrLoading || geminiLoading || !ocrText
-                    || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1))}>
-                  <Text style={styles.ctaText}>
-                    {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
-                      : (tab === "Overview" && !showOriginal) ? "See Original Text"
-                        : (tab === "Overview" && showOriginal) ? "See Simplified Text"
-                          : (tab != "Overview") ? "Simplify More"
-                            : "Simplify More"}
-                  </Text>
-                </Pressable>
+                    }}
+                    disabled={ocrLoading || geminiLoading || !ocrText
+                      || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1))}>
+                    <AppText style={[readerStyles.ctaText, darkMode && readerDarkStyles.ctaText]}>
+                      {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
+                        : (tab === "Overview" && !showOriginal) ? "See Original Text"
+                          : (tab === "Overview" && showOriginal) ? "See Simplified Text"
+                            : (tab != "Overview") ? "Simplify More"
+                              : "Simplify More"}
+                    </AppText>
+                  </Pressable>
+                  <View style={readerStyles.ttsRow}>
+                    <Pressable
+                      style={[
+                        readerStyles.ttsBtn,
+                        (ttsLoading || isLoading || !getSpeechText()) && readerStyles.ttsBtnDisabled,
+                        darkMode && readerDarkStyles.ttsBtn,
+                        (ttsLoading || isLoading || !getSpeechText()) && darkMode && readerDarkStyles.ttsBtnDisabled,
+                      ]}
+                      onPress={() => {
+                        closeDefinitionModal();
+                        speechCurrentTab();
+                      }}
+                      disabled={ttsLoading || isLoading || !getSpeechText()}
+                      hitSlop={10}
+                    >
+                      <Ionicons
+                        name={ttsLoading ? "time-outline" : (ttsIsPlaying ? "volume-high-outline" : "play-circle-outline")}
+                        size={28}
+                        color={(ttsLoading || isLoading || !getSpeechText()) ? P.iconDisabled : ctaIcon}
+                      />
+                    </Pressable>
+
+                    <Pressable
+                      style={[
+                        readerStyles.ttsBtn,
+                        readerStyles.ttsStopBtn,
+                        (!ttsIsPlaying && !ttsLoading) && readerStyles.ttsBtnDisabled,
+                        darkMode && readerDarkStyles.ttsBtn,
+                        darkMode && readerDarkStyles.ttsStopBtn,
+                        (!ttsIsPlaying && !ttsLoading) && darkMode && readerDarkStyles.ttsBtnDisabled,
+                      ]}
+                      onPress={() => {
+                        closeDefinitionModal();
+                        stopAndCleanSound();
+                      }}
+                      disabled={!ttsIsPlaying && !ttsLoading}
+                      hitSlop={10}
+                    >
+                      <Ionicons
+                        name="stop-circle-outline"
+                        size={28}
+                        color={(!ttsIsPlaying && !ttsLoading) ? P.iconDisabled : ctaIcon}
+                      />
+                    </Pressable>
+                  </View>
+                </View>
               )}
             </View>
           </View>
         </ScrollView>
 
         {tab === "Easy Read" && (
-          <View style={styles.levelControlsWrap}>
+          <View style={readerStyles.levelControlsWrap}>
             <DetailLevelTab
               label="Standard"
               hint="More detail"
-              icon={<Ionicons name="book-outline" size={22} color="#1B1B1B" />}
+              icon={<Ionicons name="book-outline" size={22} color={P.icon}/>}
               active={sessionReadingLevel === reading_levels.standard}
               onPress={() => rerunGeminiWithLevel(reading_levels.standard)}
+              darkMode={darkMode}
             />
 
             <DetailLevelTab
               label="Simple"
               hint="Easier words"
-              icon={<Ionicons name="reader-outline" size={22} color="#1B1B1B" />}
+              icon={<Ionicons name="reader-outline" size={22} color={P.icon}/>}
               active={sessionReadingLevel === reading_levels.simple}
               onPress={() => rerunGeminiWithLevel(reading_levels.simple)}
+              darkMode={darkMode}
             />
 
             <DetailLevelTab
               label="Super"
               hint="Most simple"
-              icon={<Ionicons name="sparkles-outline" size={22} color="#1B1B1B" />}
+              icon={<Ionicons name="sparkles-outline" size={22} color={P.icon}/>}
               active={sessionReadingLevel === reading_levels.super_simple}
               onPress={() => rerunGeminiWithLevel(reading_levels.super_simple)}
+              darkMode={darkMode}
             />
           </View>
         )}
+
+        {/* Language picker */}
+        {tab === "Translate" && (
+          <View style={readerStyles.translateControlsWrap}>
+            <View style={readerStyles.translateControlsRow}>
+              <Pressable
+                style={[readerStyles.langPickerBtn, darkMode && readerDarkStyles.langPickerBtn]}
+                onPress={() => setLangPickerVisible(true)}
+                hitSlop={10}
+              >
+                <Ionicons name="language-outline" size={22} color={P.icon}/>
+                <AppText style={[readerStyles.langPickerBtnText, darkMode && readerDarkStyles.langPickerBtnText]}>
+                  {(userLang ?? "EN").toUpperCase()}
+                </AppText>
+              </Pressable>
+
+              <View style={readerStyles.ttsRow}>
+                <Pressable
+                  style={[
+                    readerStyles.ttsBtn,
+                    (ttsLoading || isLoading || !getSpeechText()) && readerStyles.ttsBtnDisabled,
+                    darkMode && readerDarkStyles.ttsBtn,
+                    (ttsLoading || isLoading || !getSpeechText()) && darkMode && readerDarkStyles.ttsBtnDisabled,
+                  ]}
+                  onPress={() => {
+                    closeDefinitionModal();
+                    speechCurrentTab();
+                  }}
+                  disabled={ttsLoading || isLoading || !getSpeechText()}
+                  hitSlop={10}
+                >
+                  <Ionicons
+                    name={ttsLoading ? "time-outline" : (ttsIsPlaying ? "volume-high-outline" : "play-circle-outline")}
+                    size={28}
+                    color={(ttsLoading || isLoading || !getSpeechText()) ? P.iconDisabled : P.icon}
+                  />
+                </Pressable>
+
+                <Pressable
+                  style={[
+                    readerStyles.ttsBtn,
+                    readerStyles.ttsStopBtn,
+                    (!ttsIsPlaying && !ttsLoading) && readerStyles.ttsBtnDisabled,
+                    darkMode && readerDarkStyles.ttsBtn,
+                    darkMode && readerDarkStyles.ttsStopBtn,
+                    (!ttsIsPlaying && !ttsLoading) && darkMode && readerDarkStyles.ttsBtnDisabled,
+                  ]}
+                  onPress={() => {
+                    closeDefinitionModal();
+                    stopAndCleanSound();
+                  }}
+                  disabled={!ttsIsPlaying && !ttsLoading}
+                  hitSlop={10}
+                >
+                  <Ionicons
+                    name="stop-circle-outline"
+                    size={28}
+                    color={(!ttsIsPlaying && !ttsLoading) ? P.iconDisabled : P.icon}
+                  />
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        )}
       </View>
+
+      {/* Language Modal */}
+      <Modal
+        transparent
+        visible={langPickerVisible}
+        animationType="fade"
+        onRequestClose={() => setLangPickerVisible(false)}
+      >
+        <View style={[readerStyles.langModalBg, darkMode && readerDarkStyles.langModalBg]}>
+          <Pressable style={readerStyles.fullFill} onPress={() => setLangPickerVisible(false)} />
+
+          <KeyboardAvoidingView
+            style={readerStyles.langModalCenter}
+          >
+            <View style={[readerStyles.langModalCard, darkMode && readerDarkStyles.langModalCard]}>
+              <AppText style={[readerStyles.langModalTitle, darkMode && { color: P.bodyText }]}>Choose Language</AppText>
+
+              <View style={[readerStyles.langSearchWrap, darkMode && readerDarkStyles.langSearchWrap]}>
+                <Ionicons name="search-outline" size={18} color={darkMode ? P.bodyText : "#1B1B1B"}/>
+                <TextInput
+                  value={langSearch}
+                  onChangeText={setLangSearch}
+                  placeholder="Search language..."
+                  placeholderTextColor={P.placeholder}
+                  style={[readerStyles.langSearchInput, darkMode && readerDarkStyles.langSearchInput]}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {!!langSearch && (
+                  <Pressable onPress={() => setLangSearch("")} hitSlop={10}>
+                    <Ionicons name="close-circle" size={18} color={darkMode ? P.placeholder : "rgba(0,0,0,0.55)"}/>
+                  </Pressable>
+                )}
+              </View>
+
+              <AppText style={[readerStyles.langCurrent, darkMode && { color: P.mutedText }]}>
+                Current: <AppText style={{ fontWeight: "900", color: P.bodyText }}>{(userLang ?? "EN").toUpperCase()}</AppText>{" "}
+                ({langCodeToName((userLang ?? "EN").toUpperCase())})
+              </AppText>
+
+              <FlatList
+                data={filteredLangs}
+                keyExtractor={(item) => item.code2}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ paddingBottom: 10 }}
+                renderItem={({ item }) => {
+                  const isSelected = (userLang ?? "EN").toUpperCase() === item.code2;
+                  return (
+                    <Pressable
+                      style={[readerStyles.langRow, isSelected && readerStyles.langRowSelected]}
+                      onPress={() => onSelectLanguage(item.code2)}
+                    >
+                      <View style={readerStyles.langRowLeft}>
+                        <AppText style={[readerStyles.langCode, darkMode && { color: P.bodyText }]}>{item.code2}</AppText>
+                        <AppText style={[readerStyles.langName, darkMode && { color: P.bodyText }]}>{item.name}</AppText>
+                      </View>
+                      {isSelected && (
+                        <Ionicons name="checkmark-circle" size={20} color="#2C9AA4" />
+                      )}
+                    </Pressable>
+                  );
+                }}
+              />
+
+              <Pressable
+                style={readerStyles.langCloseBtn}
+                onPress={() => setLangPickerVisible(false)}
+              >
+                <AppText style={readerStyles.langCloseBtnText}>Close</AppText>
+              </Pressable>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
 
       {/* Calibration Modal */}
       <Modal
@@ -1117,71 +1865,113 @@ export default function ReaderScreen() {
         animationType="fade"
         onRequestClose={closeCalibModal}
       >
-        <View style={styles.calibBackground}>
-          <Pressable style={styles.fullFill} onPress={closeCalibModal} />
-          <View style={styles.calibCenter} pointerEvents='box-none'>
-            <View style={styles.calibModalCard}>
-              <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.calibBodyContent}
-                showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
+        <View style={[readerStyles.calibBackground, darkMode && { backgroundColor: P.modalBackdrop }]}>
+          <Pressable style={readerStyles.calibBackdrop} onPress={closeCalibModal}/>
+          <View style={readerStyles.calibCenter} pointerEvents="box-none">
+            <View style={[readerStyles.calibModalCard,  { backgroundColor: P.modalCardBg, borderColor: P.cardBorder }]}>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={readerStyles.calibBodyContent}
+                showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" indicatorStyle={P.scrollIndicator as any}
               >
-                <Text style={styles.calibTitle}>Calibrate Simplification</Text>
+                <AppText style={[readerStyles.calibTitle, darkMode && { color: P.bodyText }]}>Calibrate Simplification</AppText>
 
                 {calibLoad ? (
-                  <View style={styles.calibLoadRow}>
-                    <ActivityIndicator size={22} color={"black"} />
-                    <Text style={styles.calibLoadTxt}>Loading...</Text>
+                  <View style={readerStyles.calibLoadRow}>
+                    <ActivityIndicator size={22} color={P.indicator} />
+                    <AppText style={[readerStyles.calibLoadTxt, darkMode && { color: P.bodyText }]}>Loading...</AppText>
                   </View>
                 ) : calibErr ? (
-                  <Text style={styles.calibErrTxt}>{calibErr}</Text>
+                  <AppText style={[readerStyles.calibErrTxt, darkMode && { color: P.bodyText }]}>{calibErr}</AppText>
                 ) : (
-                  <View style={styles.calibOptsRow}>
-                    <View style={styles.calibOpt}>
-                      <View style={styles.calibOptHeader}>
-                        <Text style={styles.calibOptHeaderTxt}> Option A - Lower</Text>
+                  <View style={readerStyles.calibOptsRow}>
+                    <Pressable
+                      style={[readerStyles.calibOpt, darkMode && readerDarkStyles.calibOpt]}
+                      onPress={() => openCalibExpanded("lower")}
+                      disabled={calibLoad || !!calibErr}
+                    >
+                      <View style={[readerStyles.calibOptHeader, darkMode && readerDarkStyles.calibOptHeader]}>
+                        <AppText style={[readerStyles.calibOptHeaderTxt, darkMode && { color: P.bodyText }]}> Option A - Lower</AppText>
                       </View>
-                      <Text style={styles.calibOptTxt}>{calibLowerTxt}</Text>
-                    </View>
+                      <AppText style={[readerStyles.calibOptTxt, darkMode && { color: P.bodyText }]}>{calibLowerTxt}</AppText>
+                    </Pressable>
 
-                    <View style={styles.calibOpt}>
-                      <View style={styles.calibOptHeader}>
-                        <Text style={styles.calibOptHeaderTxt}> Option B - Higher</Text>
+                    <Pressable
+                      style={[readerStyles.calibOpt, darkMode && readerDarkStyles.calibOpt]}
+                      onPress={() => openCalibExpanded("higher")}
+                      disabled={calibLoad || !!calibErr}
+                    >
+                      <View style={[readerStyles.calibOptHeader, darkMode && readerDarkStyles.calibOptHeader]}>
+                        <AppText style={[readerStyles.calibOptHeaderTxt, darkMode && { color: P.bodyText }]}> Option B - Higher</AppText>
                       </View>
-                      <Text style={styles.calibOptTxt}>{calibHigherTxt}</Text>
-                    </View>
+                      <AppText style={[readerStyles.calibOptTxt, darkMode && { color: P.bodyText }]}>{calibHigherTxt}</AppText>
+                    </Pressable>
                   </View>
                 )}
 
-                <View style={styles.calibBtnRow}>
+                <View style={readerStyles.calibBtnRow}>
                   <Pressable
-                    style={[styles.calibBtn, styles.calibBtnLow]}
+                    style={[readerStyles.calibBtn, readerStyles.calibBtnLow, darkMode && { backgroundColor: "#809BCE"}]}
                     disabled={calibLoad}
                     onPress={async () => {
                       await setCalibChoice("lower");
                     }}
                   >
-                    <Text style={styles.calibChoiceTxt}>Choose Option A</Text>
+                    <AppText style={readerStyles.calibChoiceDarkTxt}>Choose Option A</AppText>
                   </Pressable>
 
                   <Pressable
-                    style={[styles.calibBtn, styles.calibBtnStay]}
+                    style={[readerStyles.calibBtn, readerStyles.calibBtnStay, darkMode && { backgroundColor: "#604D53"}]}
                     disabled={calibLoad}
                     onPress={async () => {
                       await setCalibChoice("stay");
                     }}
                   >
-                    <Text style={styles.calibChoiceDarkTxt}>Neither - Don't change</Text>
+                    <AppText style={darkMode ? readerStyles.calibChoiceTxt : readerStyles.calibChoiceDarkTxt}>Neither - Don't change</AppText>
                   </Pressable>
 
                   <Pressable
-                    style={[styles.calibBtn, styles.calibBtnHigh]}
+                    style={[readerStyles.calibBtn, readerStyles.calibBtnHigh, darkMode && { backgroundColor: "#809BCE"}]}
                     disabled={calibLoad}
                     onPress={async () => {
                       await setCalibChoice("higher");
                     }}
                   >
-                    <Text style={styles.calibChoiceTxt}>Choose Option B</Text>
+                    <AppText style={readerStyles.calibChoiceDarkTxt}>Choose Option B</AppText>
                   </Pressable>
                 </View>
+              </ScrollView>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Option Expander Modal */}
+      <Modal
+        transparent
+        visible={calibExpandVis}
+        animationType="fade"
+        onRequestClose={closeCalibExpanded}
+      >
+        <View style={[readerStyles.calibBackground, darkMode && { backgroundColor: P.modalBackdrop }]}>
+          <Pressable style={readerStyles.calibBackdrop} onPress={closeCalibExpanded}/>
+          <View style={readerStyles.calibCenter} pointerEvents="box-none">
+            <View style={[readerStyles.calibModalCard, darkMode && { backgroundColor: P.modalCardBg, borderColor: P.cardBorder }]}>
+              <View
+                style={readerStyles.paperTopRow}
+              >
+                <AppText style={[readerStyles.calibTitle, darkMode && { color: P.bodyText }]}>{calibExpandTitle}</AppText>
+                <Pressable onPress={closeCalibExpanded} hitSlop={10}>
+                  <Ionicons name="close" size={26} color={darkMode ? P.bodyText : "black"} />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={readerStyles.calibBodyContent}
+                showsVerticalScrollIndicator
+                keyboardShouldPersistTaps="handled"
+                indicatorStyle={P.scrollIndicator as any}
+              >
+                <AppText style={[readerStyles.calibOptTxt, darkMode && { color: P.bodyText }]}>{calibExpandText}</AppText>
               </ScrollView>
             </View>
           </View>
@@ -1196,22 +1986,73 @@ export default function ReaderScreen() {
         onRequestClose={closeDefinitionModal}
       >
         <Pressable
-          style={styles.definitionBackground}
+          style={[readerStyles.definitionBackground, darkMode && readerDarkStyles.definitionBackground]}
           onPress={closeDefinitionModal}
         >
           <Pressable
-            style={styles.definitionModalCard}
+            style={[readerStyles.definitionModalCard, darkMode && readerDarkStyles.definitionModalCard]}
             onPress={() => { }}
           >
-            <Text style={styles.definitionModalWordText}>
+            <AppText style={[readerStyles.definitionModalWordText, darkMode && readerDarkStyles.definitionModalWordText]}>
               {definitionModal.word}
-            </Text>
-            <Text style={styles.definitionModalDefinitionText}>
+            </AppText>
+            <AppText style={[readerStyles.definitionModalDefinitionText, darkMode && readerDarkStyles.definitionModalDefinitionText]}>
               {definitionModal.definition}
-            </Text>
+            </AppText>
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Action Items Modal */}
+      <ActionItemModal
+        visible={actionItemsVisible}
+        onClose={() => setActionItemsVisible(false)}
+        actionItems={actionItems}
+        onAddItems={async (selected) => {
+          console.log("Add to To-Do:", selected);
+
+          try {
+            if (!api_url) {
+              return;
+            }
+            // get access token and token type
+            const token = await storage.getItem("access_token");
+            const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+            if (!token) {
+              return;
+            }
+            // post to todo endpoint selected action items
+            const response = await fetch(`${api_url}/users/me/todo`, {
+              method: "POST",
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `${tokenType} ${token}`
+              },
+              body: JSON.stringify({ action_items: selected})
+            });
+            // error if bad response
+            if (!response.ok) {
+              const text = await response.text();
+              throw new Error(text || `Failed to add to To-Do - HTTP ${response.status}`);
+            }
+            // capture updated to-do list
+            const updated = await response.json();
+            // log to console
+            console.log("Updated To-Do List:", updated);
+            // close the action items modal
+            setActionItemsVisible(false);
+          }
+          catch (e: any) {
+            // console warning if failure
+            console.warn("Failed to add to To-Do:", e?.message ?? e);
+          }
+        }}
+      />
+
+      <HelpModal
+        visible={helpVisible}
+        onClose={() => setHelpVisible(false)}
+      />
 
     </SafeAreaView>
   );
@@ -1229,12 +2070,12 @@ function TopTab({
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.topTab, active ? styles.topTabActive : styles.topTabInactive]}
+      style={[readerStyles.topTab, active ? readerStyles.topTabActive : readerStyles.topTabInactive]}
       hitSlop={8}
     >
-      <Text style={[styles.topTabText, active ? styles.topTabTextActive : styles.topTabTextInactive]}>
+      <AppText style={[readerStyles.topTabText, active ? readerStyles.topTabTextActive : readerStyles.topTabTextInactive]}>
         {label}
-      </Text>
+      </AppText>
     </Pressable>
   );
 }
@@ -1245,405 +2086,32 @@ function DetailLevelTab({
   icon,
   active,
   onPress,
+  darkMode
 }: {
   label: string;
   hint: string;
   icon: React.ReactNode;
   active: boolean;
   onPress: () => void;
+  darkMode: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
       style={[
-        styles.levelTab,
-        active ? styles.levelTabActive : styles.levelTabInactive,
+        readerStyles.levelTab,
+        active ? readerStyles.levelTabActive : readerStyles.levelTabInactive,
+        darkMode && (active ? readerDarkStyles.levelTabActive : readerDarkStyles.levelTabInactive)
       ]}
       hitSlop={8}
     >
       {icon}
-      <Text
-        style={[
-          styles.levelTabText,
-          active ? styles.levelTabText : styles.levelTabText,
-        ]}
-      >
+      <AppText style={[ readerStyles.levelTabText, darkMode && readerDarkStyles.levelTabText]}>
         {label}
-      </Text>
-      <Text
-        style={[
-          styles.levelTabHint,
-          active ? styles.levelTabHint : styles.levelTabHint,
-        ]}
-      >
+      </AppText>
+      <AppText style={[ readerStyles.levelTabHint, darkMode && readerDarkStyles.levelTabHint]}>
         {hint}
-      </Text>
+      </AppText>
     </Pressable>
   );
 }
-
-const BG = "#0B1020";
-const ACCENT = "#E9C6A6";
-const TAB_ACTIVE = "#C97E6F";
-const TAB_INACTIVE = "#E9C6A6";
-const CARD_BORDER = "#2C9AA4";
-const PAPER = "#FFFFF2";
-const BADGE = "#B65A43";
-const CTA = "#2C9AA4";
-
-const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: BG
-  },
-  fullFill: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    width: '100%',
-    height: '100%',
-  },
-  container: {
-    flex: 1,
-    backgroundColor: BG,
-    paddingHorizontal: 16
-  },
-
-  header: {
-    height: 56,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  headerIconBtn: { width: 44, height: 44, justifyContent: "center", marginRight: 8 },
-  headerIcon: { color: "white", fontSize: 36, marginTop: 8, marginLeft: 8 },
-  headerTitle: { color: ACCENT, fontSize: 26, fontWeight: "700" },
-  avatarBtn: { width: 44, height: 44, justifyContent: "center", alignItems: "flex-end" },
-  avatarPlaceholder: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.35)",
-  },
-
-  tabRow: {
-    marginTop: Dimensions.get('window').height * 0.034,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 10,
-    paddingHorizontal: 6
-  },
-  topTab: {
-    flex: 1,
-    height: 44,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  topTabActive: { backgroundColor: TAB_ACTIVE },
-  topTabInactive: { backgroundColor: TAB_INACTIVE },
-  topTabText: { fontSize: 14, fontWeight: "800" },
-  topTabTextActive: { color: "#1B1B1B" },
-  topTabTextInactive: { color: "#1B1B1B" },
-
-  outerCard: {
-    marginTop: 15,
-    borderRadius: 24,
-    borderWidth: 12,
-    borderColor: TAB_INACTIVE,
-    backgroundColor: CARD_BORDER,
-    padding: 12,
-    position: "relative",
-  },
-
-  badge: {
-    position: "absolute",
-    right: 14,
-    top: -20,
-    width: 80,
-    height: 100,
-    borderRadius: 8,
-    backgroundColor: BADGE,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 5,
-    elevation: 3,
-  },
-  badgeText: {
-    color: "white",
-    fontWeight: "800",
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 24,
-    lineHeight: 14,
-  },
-  badgeNotch: {
-    position: 'absolute',
-    bottom: 0,
-    left: '50%',
-    transform: [{ translateX: -40 }],
-    width: 0,
-    height: 0,
-    borderLeftWidth: 40,
-    borderRightWidth: 40,
-    borderBottomWidth: 36,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderBottomColor: '#FFFFF2',
-  },
-
-  innerPaper: {
-    flex: 1,
-    backgroundColor: PAPER,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 18,
-  },
-
-  paperMenuBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: "rgba(0,0,0,0.08)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-  paperMenuIcon: { color: "#222", fontSize: 20, fontWeight: "900" },
-
-  bodyScroll: {
-    flex: 1
-  },
-  bodyScrollContent: {
-    paddingVertical: 24,
-    paddingHorizontal: 12,
-    width: '100%'
-  },
-  bodyText: {
-    color: "#1B1B1B",
-    fontSize: 16.67,
-    lineHeight: 24,
-    fontWeight: "600",
-    flexShrink: 1,
-    flexWrap: 'wrap'
-  },
-
-  ctaBtn: {
-    marginTop: 14,
-    alignSelf: "center",
-    width: "88%",
-    height: 46,
-    borderRadius: 12,
-    backgroundColor: CTA,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowOpacity: 0.16,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 6 },
-  },
-  ctaText: { color: "white", fontWeight: "900", fontSize: 16 },
-
-  complexWord: {
-    color: '#8C311C',
-    fontWeight: '800',
-    textDecorationLine: 'underline'
-  },
-
-  definitionBackground: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16
-  },
-  definitionModalCard: {
-    backgroundColor: PAPER,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 8,
-    borderColor: CARD_BORDER,
-    shadowOpacity: 0.2,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-    width: '100%',
-    maxWidth: 340
-  },
-  definitionModalWordText: {
-    fontWeight: '900',
-    color: '#000000',
-    marginBottom: 6
-  },
-  definitionModalDefinitionText: {
-    fontWeight: '600',
-    color: '#000000',
-    lineHeight: 20
-  },
-
-  levelControlsWrap: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: -25,
-  },
-
-  levelTab: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    backgroundColor: "#1B1B1B",
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#1B1B1B",
-  },
-
-  levelTabActive: { backgroundColor: TAB_ACTIVE },
-  levelTabInactive: { backgroundColor: TAB_INACTIVE },
-
-  levelTabText: {
-    marginTop: 4,
-    fontWeight: "900",
-    fontSize: 12,
-    color: "#1B1B1B",
-  },
-
-  levelTabHint: {
-    marginTop: 2,
-    fontWeight: "700",
-    fontSize: 10,
-    color: "#1B1B1B",
-  },
-
-  calibBackground: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-  },
-  calibModalCard: {
-    width: '100%',
-    maxWidth: 420,
-    height: Dimensions.get("window").height * 0.72,
-    backgroundColor: PAPER,
-    borderRadius: 18,
-    borderWidth: 10,
-    borderColor: CARD_BORDER,
-    shadowOpacity: 0.22,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
-    overflow: "hidden",
-  },
-  calibTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: "#1B1B1B",
-    marginBottom: 4,
-  },
-  calibLoadRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    paddingVertical: 18,
-  },
-  calibLoadTxt: {
-    fontWeight: "800",
-    color: "#1B1B1B",
-  },
-  calibCenter: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
-  },
-  calibBodyScroll: {
-    flex: 1,
-  },
-  calibBodyContent: {
-    padding: 14,
-    flexGrow: 1,
-  },
-  calibErrTxt: {
-    fontWeight: "800",
-    color: "#8C311C",
-    paddingVertical: 14,
-  },
-  calibOptsRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 12,
-  },
-  calibOpt: {
-    flex: 1,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: "rgba(0,0,0,0.15)",
-    backgroundColor: "rgba(0,0,0,0.03)",
-    overflow: "hidden",
-  },
-  calibOptHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: "rgba(0,0,0,0.06)",
-  },
-  calibOptHeaderTxt: {
-    fontWeight: "900",
-    color: "#1B1B1B",
-    fontSize: 12,
-  },
-  calibOptScroll: {
-    flex: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-  },
-  calibOptTxt: {
-    fontWeight: "600",
-    color: "#1B1B1B",
-    lineHeight: 20,
-    fontSize: 13,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
-  },
-  calibBtnRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  calibBtn: {
-    flex: 1,
-    minHeight: 52,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-  },
-  calibBtnLow: {
-    backgroundColor: CTA,
-  },
-  calibBtnHigh: {
-    backgroundColor: CTA,
-  },
-  calibBtnStay: {
-    backgroundColor: TAB_INACTIVE,
-    borderWidth: 1,
-    borderColor: "#1B1B1B",
-  },
-  calibChoiceTxt: {
-    color: "white",
-    fontWeight: "900",
-    fontSize: 12,
-    textAlign: "center",
-    lineHeight: 14,
-    flexWrap: "wrap",
-  },
-  calibChoiceDarkTxt: {
-    color: "#1B1B1B",
-    fontWeight: "900",
-  }
-});

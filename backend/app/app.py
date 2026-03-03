@@ -1,9 +1,10 @@
 import base64
-import math
 import os, json
+import uuid
+
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -16,11 +17,12 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import RedirectResponse, Response
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import User, OAuthAccount, create_db_and_tables, engine, get_async_session
-from app.schemas import UserCreate, UserRead, UserUpdate, GeminiRequest, GeminiResponse, OCRRequest, OCRResponse
+from app.db import User, UserSettings, OAuthAccount, create_db_and_tables, engine, get_async_session
+from app.schemas import ActionItem, AddToDoRequest, PatchItemRequest, UserCreate, UserRead, UserUpdate, GeminiRequest, OCRRequest, OCRResponse, SettingsRead, SettingsUpdate
 from app.users import auth_backend, current_active_user, fastapi_users, get_user_manager, google_oauth_client, SECRET
 
 from dotenv import load_dotenv
@@ -29,6 +31,8 @@ load_dotenv()
 from app.gemini_flash import get_gemini_response
 from app.calibration import router as calibration_router
 from app.detectlang import detect_language
+from app.documents import router as documents_router
+from app.tts import router as tts_router
 
 print("GOOGLE_OAUTH_CLIENT_ID loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_ID")))
 print("GOOGLE_OAUTH_CLIENT_SECRET loaded:", bool(os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")))
@@ -184,6 +188,10 @@ app.include_router(
 
 app.include_router(calibration_router)
 
+app.include_router(documents_router)
+
+app.include_router(tts_router)
+
 @app.delete("/users/me", tags=["users"])
 async def delete_me(
     user: User = Depends(current_active_user),
@@ -219,6 +227,78 @@ app.include_router(
     prefix="/auth/associate/google",
     tags=["auth"]
 )
+
+### Settings ###
+async def get_or_create_user_settings(
+    session: AsyncSession,
+    user: User
+) -> UserSettings:
+    result = await session.execute(
+        select(UserSettings).where(UserSettings.user_id == user.id)
+    )
+    scal = result.scalars().first()
+    if scal:
+        return scal
+    
+    scal = UserSettings(user_id=user.id)
+    session.add(scal)
+    await session.commit()
+    await session.refresh(scal)
+    return scal
+
+@app.get("/users/me/settings", response_model=SettingsRead, tags=["users"])
+async def get_my_settings(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    s = await get_or_create_user_settings(session, user)
+    
+    return SettingsRead(
+        challenge_mode=s.challenge_mode,
+        highlight_difficult_words=s.highlight_difficult_words,
+        dark_mode=s.dark_mode,
+        text_size=s.text_size,
+        scan_doc_save=s.scan_doc_save,
+        scan_doc_delete=s.scan_doc_delete,
+        save_photos=s.save_photos,
+        notif=s.notif,
+        face_id_supported=s.face_id_supported,
+        face_id=s.face_id,
+        tts_rate=s.tts_rate,
+        tts_pitch=s.tts_pitch,
+    )
+
+@app.patch("/users/me/settings", response_model=SettingsRead, tags=["users"])
+async def patch_my_settings(
+    payload: SettingsUpdate,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    s = await get_or_create_user_settings(session, user)
+    data = payload.model_dump(exclude_unset=True)
+    
+    for k, v in data.items():
+        if hasattr(s, k):
+            setattr(s, k, v)
+
+    session.add(s)
+    await session.commit()
+    
+    await session.refresh(s)
+    return SettingsRead(
+        challenge_mode=s.challenge_mode,
+        highlight_difficult_words=s.highlight_difficult_words,
+        dark_mode=s.dark_mode,
+        text_size=s.text_size,
+        scan_doc_save=s.scan_doc_save,
+        scan_doc_delete=s.scan_doc_delete,
+        save_photos=s.save_photos,
+        notif=s.notif,
+        face_id_supported=s.face_id_supported,
+        face_id=s.face_id,
+        tts_rate=s.tts_rate,
+        tts_pitch=s.tts_pitch,
+    )
 
 ### Password Change Logic ###
 # Disabled if user logged in via Oauth, so it checks for matching id/user_id between the 2 tables 
@@ -269,12 +349,14 @@ class ReadingLevelPatch(BaseModel):
 
 # gemini endpoint for main structured output
 @app.post("/gemini")
-async def gemini(request: GeminiRequest, user: User = Depends(current_active_user)):
+async def gemini(request: GeminiRequest, user: User = Depends(current_active_user), session: AsyncSession = Depends(get_async_session)):
 
     # check if text is valid, error if not
     text = (request.text or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Text is required")
+    # settings
+    s = await get_or_create_user_settings(session, user)
     # document type mode
     mode = request.mode or "Document"
     # default english if no user language found
@@ -293,7 +375,7 @@ async def gemini(request: GeminiRequest, user: User = Depends(current_active_use
         language=language, 
         reading_level=simplified_level,
         mode=mode,
-        challenge_mode=user.challenge_mode
+        challenge_mode=s.challenge_mode
     )
 
 # endpoint for updating user reading level
@@ -311,6 +393,179 @@ async def update_reading_level(
     await session.commit()
     # return reading level value
     return {"reading_level": user.reading_level}
+
+# endpoint for fetching to do list
+@app.get("/users/me/todo", response_model=list[ActionItem], tags=["users"])
+async def get_todo_list(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    # start with what is currently stored in user table
+    current = [dict(i) for i in (user.to_do or [])]
+    # track which ids have already been seen, no dupes
+    seen: set[str] = set()
+    # bool flag to track whether list has been changed/mutated/updated
+    updated = False
+
+    # iterate tjrpigj stpred items
+    for item in current:
+        # make sure completed is never none
+        if item.get("completed") is None:
+            item['completed'] = False
+            updated = True
+        # allow empty deadline to be none
+        if "deadline" in item and item["deadline"] == "":
+            item["deadline"] = None
+            updated = True
+
+    # iterate through stored items
+    for item in current:
+        # normalize item id
+        item_id = str(item.get("id") or "").strip()
+        # missing or dupe id, generate new uuid
+        if not item_id or item_id in seen:
+            item["id"] = str(uuid.uuid4())
+            item_id = item["id"]
+            updated = True
+        # record id as seen
+        seen.add(item_id)
+
+    # if anything was updated, write the updated list to the user table in db
+    if updated:
+        user.to_do = current
+        flag_modified(user, "to_do") # have sqlalchemy flag instance as modfiied
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+
+    # validate each dict into actionitem modal and return
+    return [ActionItem.model_validate(i) for i in current]
+
+# endpoint for adding items to to do list
+@app.post("/users/me/todo", response_model=list[ActionItem], tags=["users"])
+async def add_todo_items(
+    payload: AddToDoRequest, 
+    user: User = Depends(current_active_user), 
+    session: AsyncSession = Depends(get_async_session)
+):
+    # current to do list, empty if none
+    current = list(user.to_do or [])
+    # add each action item from the payload request
+    for item in payload.action_items:
+        # grab action item text, strip it
+        text = (item.action_item or "").strip()
+        # if there is no text, continue
+        if not text:
+            continue
+        # append action item text and deadline to current to do list
+        current.append({
+            "id": str(uuid.uuid4()),
+            "action_item": text,
+            "deadline": item.deadline,
+            "completed": item.completed
+        })
+    # update user to do with current
+    user.to_do = current
+    session.add(user)
+    # commit it
+    await session.commit()
+    # refresh attributes
+    await session.refresh(user)
+    # return ActionItem for each item in user's to do list, or empty list
+    return [ActionItem.model_validate(item) for item in (user.to_do or [])]
+
+
+# endpoint for patching to do list item
+@app.patch("/users/me/todo/{item_id}", response_model=ActionItem, tags=["users"])
+async def patch_todo_item(
+    item_id: str,
+    payload: PatchItemRequest,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    # current to do list from user table in db as copy of every dict
+    current = [dict(i) for i in (user.to_do or [])]
+    raw = payload.model_dump(exclude_unset=True)
+    data = payload.model_dump(exclude_unset=True, exclude_none=True)
+
+    if "deadline" in raw:
+        data["deadline"] = raw["deadline"]
+
+    # validate and normalize edits
+    if "action_item" in data:
+        text = (data['action_item'] or "").strip()
+        if not text:
+            raise HTTPException(status_code=400, detail='action_item cannot be empty')
+        data["action_item"] = text
+
+    if "deadline" in data:
+        if data['deadline'] is not None:
+            due_text = (data["deadline"] or "").strip()
+            if due_text:
+                data['deadline'] = due_text
+            else:
+                data['deadline'] = None
+    # will store updated dict if match is found
+    found = None
+
+    # iterate through to do list and patch completed flag
+    for index, item in enumerate(current):
+        if str(item.get("id")) == item_id:
+            #fix corrupt data
+            if item.get("completed") is None:
+                item["completed"] = False
+            
+            # only apply sent fields
+            patched = {**item, **data}
+
+            # do not allow none
+            if patched.get("completed") is None:
+                patched["completed"] = False
+            
+            current[index] = patched
+            found = patched
+            break
+    # no match, error 404 not found
+    if not found:
+        raise HTTPException(status_code=404, detail="To-do item not found.")
+    # persist patched list to user table in db
+    user.to_do = current
+    # make sqlalchemy flag the instance as modified
+    flag_modified(user, "to_do")
+
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    # return updated item as validated actionitem model
+    return ActionItem.model_validate(found)
+
+# endpoint for deleting to do item
+@app.delete("/users/me/todo/{item_id}", tags=["users"])
+async def delete_todo_item(
+    item_id: str,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    # current to do list from db
+    current = [dict(i) for i in (user.to_do or [])]
+    # updated to do list
+    updated = [i for i in current if str(i.get("id")) != item_id]
+
+    # different lengths between lists, error 404 not found
+    if len(updated) == len(current):
+        raise HTTPException(status_code=404, detail="To-do item not fuound.")
+    
+    # update to_do in db
+    user.to_do = updated
+    # mark to_do field as modified
+    flag_modified(user, "to_do")
+
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+
+    return {"deleted_item_id": item_id}
+
 
 
 ### OCR ###
@@ -365,23 +620,9 @@ async def ocr_text(payload: OCRRequest):
         if response.error.message:
             raise HTTPException(status_code=500, detail=response.error.message)
         # detect langauge from ocr text
-        lang, prob = await run_in_threadpool(detect_language, text)
-        # normalize prob into float
-        if prob is None:
-            pass
-        elif isinstance(prob, (int, float)):
-            prob = float(prob)
-        else:
-            try:
-                prob = float(prob)
-            except (TypeError, ValueError):
-                prob = None
-        # if prob returns nan sanitize it
-        if prob is not None and (math.isnan(prob) or math.isinf(prob)):
-            prob = None
-            print("lang/prob:", lang, prob, type(prob))
+        lang = await run_in_threadpool(detect_language, text)
         # return response to client
-        return OCRResponse(text=text, language=lang, language_conf=prob)
+        return OCRResponse(text=text, language=lang)
     
     except Exception as e:
         # 500 with error message

@@ -353,13 +353,13 @@ export default function DashboardScreen() {
       <View style={[styles.dashContainer, { backgroundColor: C.bg }]}>
         {/* Header */}
         <View style={styles.dashHeader}>
-          <Pressable style={styles.dashHeaderIconBtn} onPress={() => { }}>
+          <Pressable style={styles.dashHeaderIconBtn} onPress={() => router.push('/(tabs)/profile/settings')}>
             <AppText style={styles.dashHeaderIcon}>☰</AppText>
           </Pressable>
 
           <AppText style={styles.dashHeaderTitle}>SayItSimply</AppText>
 
-          <Pressable style={styles.dashAvatarBtn} onPress={() => { }}>
+          <Pressable style={styles.dashAvatarBtn} onPress={() => router.push('/(tabs)/profile')}>
             <View style={styles.dashAvatarPlaceholder} />
           </Pressable>
         </View>

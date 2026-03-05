@@ -8,6 +8,7 @@ import Slider from "@react-native-community/slider";
 import * as Application from "expo-application";
 import * as IntentLauncher from "expo-intent-launcher";
 import * as LocalAuth from "expo-local-authentication";
+import * as MediaLibrary from "expo-media-library";
 import { Stack } from 'expo-router';
 import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, ScrollView, View } from "react-native";
@@ -261,11 +262,60 @@ export default function SettingsScreen() {
       }}
     ]);
   };
+
+  //save photos to gallery logic
+  const handleSavePhotosToggle = async (next: boolean) => {
+    if (!next) {
+      await updateSetting("save_photos", false);
+      return;
+    }
+
+    try {
+      const perm = await MediaLibrary.getPermissionsAsync();
+
+      if (perm.granted) {
+        await updateSetting("save_photos", true);
+        return;
+      }
+
+      if (perm.canAskAgain === false) {
+        Alert.alert(
+          "Gallery Permission Required",
+          "Photo Gallery permission is currently disabled for SayItSimply.\nPlease enable it from device settings to save photos to the gallery.",
+          [
+            { text: "Cancel", style: "cancel", onPress: () => setSettings((c) => ({ ...c, save_photos: false })) },
+            { text: "Open Settings", onPress: openPermissions },
+          ]
+        );
+        setSettings((perm) => ({ ...perm, save_photos: false }));
+        return;
+      }
+
+      const req = await MediaLibrary.requestPermissionsAsync();
+      if (!req.granted) {
+        Alert.alert(
+          "Gallery Permission Required",
+          "To save photos to the gallery, enable Photo Library permissions for SayItSimply.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Open Permissions", onPress: openPermissions }
+          ]
+        );
+        setSettings((cur) => ({ ...cur, save_photos: false }));
+        return;
+      }
+
+      await updateSetting("save_photos", true);
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Could not enable 'Save Photos to Gallery'");
+      setSettings((cur) => ({ ...cur, save_photos: false }));
+    }
+  };
   
   //disable and gray out faceid toggle if device does not support (checked at onboarding to set flag in db)
   const disableFaceId = loading || isSaving("face_id") || !settings.face_id_supported;
   
-
+  //faceid logic
   const handleFaceIdToggle = async (next: boolean) => {
     if (!next) {
       await updateSetting("face_id", false);
@@ -464,7 +514,7 @@ export default function SettingsScreen() {
             ) : (
               <ToggleButton
                 value={settings.save_photos}
-                onChange={(next) => updateSetting("save_photos", next)}
+                onChange={handleSavePhotosToggle}
                 disabled={isSaving("save_photos")}
               />
             )}

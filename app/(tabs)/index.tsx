@@ -7,19 +7,42 @@ import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
+
+type SaveSetting = {
+  scan_doc_save: boolean;
+}
 
 async function getAccessToken(): Promise<string | null> {
   const token = await storage.getItem("access_token");
   return token ?? null;
 }
 
+async function getTokenHeaders(): Promise<Record<string, string>> {
+  const token = await storage.getItem("access_token");
+  const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+  return token ? { Authorization: `${tokenType} ${token}` } : {};
+}
+
 function normalizeBaseUrl(url?: string) {
   if (!url) return "";
   return url.replace(/\/$/, "");
+}
+
+async function fetchSaveSetting(): Promise<SaveSetting> {
+  if (!api_url) return { scan_doc_save: true };
+
+  const headers = await getTokenHeaders();
+  const res = await fetch(`${api_url}/users/me/settings`, { headers });
+  if (!res.ok) return { scan_doc_save: true };
+
+  const json = await res.json().catch(() => ({} as any));
+  return {
+    scan_doc_save: typeof json.scan_doc_save === "boolean" ? json.scan_doc_save : true
+  };
 }
 
 type DocumentListItem = {
@@ -311,9 +334,20 @@ export default function DashboardScreen() {
 
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert("Permission required", "Allow access to upload images");
+        const canAskAgain = (perm as any)?.canAskAgain;
+        Alert.alert(
+          "Gallery Permission Required", "To save photos to the gallery, enable Photo Library permissions for SayItSimply.",
+          canAskAgain === false
+            ? [
+                { text: "Cancel", style: "cancel" },
+                { text: "Open Settings", onPress: () => Linking.openSettings() },
+              ]
+            : [{ text: "OK" }]
+        );
         return;
       }
+      const saveSetting = await fetchSaveSetting();
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
@@ -329,11 +363,17 @@ export default function DashboardScreen() {
 
       const mode = "Auto-detect";
 
-      const docId = await uploadDocument({ imageUri: uri, mode, sourceAssetId });
+      let docId: string | undefined = undefined;
+      if (saveSetting.scan_doc_save) {
+        docId = await uploadDocument({ imageUri: uri, mode, sourceAssetId });
+      }
 
       router.push({
         pathname: "/camera/reader",
-        params: { imageUri: uri, mode: mode, docId }
+        params: {
+          imageUri: uri, mode: mode, 
+          ...(docId ? { docId } : {})
+        }
       });
     } catch (e: any) {
       console.error(e);

@@ -97,6 +97,12 @@ export default function toDoListScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [editCompleted, setEditCompleted] = useState(false);
   const [savingEdit, setSavingEdit] = useState(false);
+  // new custom item modal states
+  const [newVisible, setNewVisible] = useState(false);
+  const [newText, setNewText] = useState("");
+  const [newDeadlineDate, setNewDeadlineDate] = useState<Date | null>(null);
+  const [showNewDatePicker, setShowNewDatePicker] = useState(false);
+  const [savingNew, setSavingNew] = useState(false);
   // platform being used
   const platform = Platform.OS;
 
@@ -317,6 +323,10 @@ export default function toDoListScreen() {
         )
       );
     }
+    catch (e: any) {
+      console.warn("Failed to delete to-do item:", e);
+      Alert.alert("Delete To-Do Item Failed:", e?.message ?? "Could not delete item. Please try again.");
+    }
     finally {
       // finally, delete that item
       setDeletingId((prev) => 
@@ -354,6 +364,20 @@ export default function toDoListScreen() {
     setEditDeadlineDate(null);
     setEditCompleted(false);
     setShowDatePicker(false);
+  };
+
+  const openNewModal = () => {
+    setNewText("");
+    setNewDeadlineDate(null);
+    setShowNewDatePicker(false);
+    setNewVisible(true);
+  };
+
+  const closeNewModal = () => {
+    setNewVisible(false);
+    setNewText("");
+    setNewDeadlineDate(null);
+    setShowNewDatePicker(false);
   };
 
   const saveEdit = async () => {
@@ -448,6 +472,65 @@ export default function toDoListScreen() {
     }
   };
 
+  const saveNew = async () => {
+    const trimmedText = newText.trim();
+
+    if (!trimmedText) {
+      Alert.alert("Missing action item text.", "Action item text cannot be empty.");
+      return;
+    }
+
+    try{
+      setSavingNew(true);
+
+      const token = await storage.getItem("access_token");
+      const tokenType = (await storage.getItem("token_type") ?? "bearer");
+
+      if (!api_url) {
+        throw new Error("Missing EXPO_PUBLIC_API_URL");
+      }
+
+      if (!token) {
+        throw new Error("Missing auth/access token");
+      }
+
+      const payload = {
+        action_items: [
+          {
+            action_item: trimmedText,
+            deadline: newDeadlineDate ? formatDateToYdm(newDeadlineDate) : null,
+            completed: false
+          }
+        ]
+      };
+
+      const response = await fetch(`${api_url}/users/me/todo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `${tokenType} ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const bodyText = await response.text();
+
+      if (!response.ok) {
+        throw new Error(bodyText || `POST failed: ${response.status}`);
+      }
+
+      await fetchToDoList();
+      closeNewModal();
+    }
+    catch (e: any) {
+      console.warn("Failed to create custom to-do item:", e);
+      Alert.alert("Create Custom To-Do Item Failed:", e?.message ?? "Could not create new item.");
+    }
+    finally {
+      setSavingNew(false);
+    }
+  };
+
   // render list memoized so only rebuild when filtered items change
   const rendered = useMemo(() => {
     return filteredItems.map((item) => {
@@ -468,7 +551,7 @@ export default function toDoListScreen() {
               padding: 12,
               borderRadius: 12,
               borderColor: C.cardBorder,
-            backgroundColor: C.cardBg,
+              backgroundColor: C.cardBg,
               flexDirection: 'row',
               alignItems: 'flex-start',
               gap: 12
@@ -501,7 +584,7 @@ export default function toDoListScreen() {
               {/*optional due date*/}
               {!!due && (
                 <AppText style={{
-                  color: 'rgba(0,0,0,0.7)',
+                  color: C.subtitle,
                   marginTop: 4,
                   fontWeight: '700'
                 }}>
@@ -654,6 +737,25 @@ export default function toDoListScreen() {
           </AppText>
         </Pressable>
       </ScrollView>
+
+      <Pressable
+        onPress={openNewModal}
+        style={{
+          marginHorizontal: 48,
+          paddingVertical: 12,
+          backgroundColor: C.bg,
+          alignSelf: 'flex-end'
+        }}
+      >
+        <AppText style={{
+          color: C.text,
+          fontWeight: '700',
+          fontSize: 22
+        }}>
+          +  New
+        </AppText>
+
+      </Pressable>
 
       <View style={{ flex: 1, minHeight: 0 }}>
 
@@ -918,6 +1020,172 @@ export default function toDoListScreen() {
                 ) : (
                   <AppText style={{fontSize: 14, fontWeight: '700', color: 'black'}}>
                     Save
+                  </AppText>
+                )}
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={newVisible}
+        transparent
+        animationType='fade'
+        onRequestClose={closeNewModal}
+      >
+        <Pressable
+          onPress={closeNewModal}
+          style={{
+            flex: 1,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            padding: 18
+          }}
+        >
+          <Pressable
+            onPress={(event) => event?.stopPropagation?.()}
+            style={{
+              width: '100%',
+              maxWidth: 420,
+              backgroundColor: 'white',
+              borderRadius: 24,
+              padding: 12
+            }}
+          >
+            <AppText style={{ fontSize: 18, fontWeight: '800', color: 'black'}}>
+              New To-Do Item
+            </AppText>
+
+            <View style={{height: 12}}/>
+
+            <AppText style={{fontSize: 16, fontWeight: '700', color: 'black'}}>
+              Task
+            </AppText>
+
+            <TextInput
+              value={newText}
+              onChangeText={setNewText}
+              placeholder='Action Item'
+              placeholderTextColor='rgba(0,0,0,0.5)'
+              style={{
+                marginTop: 12,
+                backgroundColor: 'rgba(0,0,0,0.1)',
+                borderRadius: 12,
+                paddingHorizontal: 12,
+                paddingVertical: 12,
+                color: 'black',
+                fontWeight: '700'
+              }}
+            />
+
+            <View style={{height: 12}}/>
+
+            <AppText style={{fontSize: 16, fontWeight: '700'}}>
+              Deadline <AppText style={{fontWeight: '600', color: 'rgba(0,0,0,0.8)'}}>(optional)</AppText>
+            </AppText>
+
+            <View
+              style={{
+                marginTop: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12
+              }}
+            >
+              <Pressable
+                onPress={() => setShowNewDatePicker(true)}
+                style={{
+                  flex: 1,
+                  backgroundColor: 'rgba(0,0,0,0.1)',
+                  borderRadius: 12,
+                  paddingHorizontal: 12,
+                  paddingVertical: 12
+                }}
+              >
+                <AppText style={{fontWeight: '700', color: 'black'}}>
+                  {newDeadlineDate ? formatDateToYdm(newDeadlineDate) : "No deadline"}
+                </AppText>
+              </Pressable>
+
+              <Pressable  
+                onPress={() => setNewDeadlineDate(null)}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  backgroundColor: 'rgba(0,0,0,0.1)'
+                }}
+              >
+                <AppText style={{fontWeight: '800', color: 'black'}}>
+                  Clear
+                </AppText>
+              </Pressable>
+            </View>
+
+            {showNewDatePicker && (
+              <DateTimePicker
+                value={newDeadlineDate ?? new Date()}
+                mode='date'
+                display={platform === 'ios' ? 'spinner' : 'default'}
+                onChange={(_event: any, selected: Date | undefined) => {
+                  if (platform === 'android') {
+                    setShowNewDatePicker(false);
+                  }
+
+                  if (!selected) {
+                    return;
+                  }
+
+                  setNewDeadlineDate(selected);
+                }}
+                style={{alignSelf: 'center', justifyContent: 'center', marginTop: 12, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 24}}
+              />
+            )}
+
+            <View
+              style={{
+                marginTop: 16,
+                flexDirection: 'row',
+                justifyContent: 'flex-end',
+                gap: 10
+              }}
+            >
+              <Pressable
+                onPress={closeNewModal}
+                disabled={savingNew}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  backgroundColor: C.bg,
+                  opacity: savingNew ? 0.6 : 1
+                }}
+              >
+                <AppText style={{fontSize: 14, fontWeight: '700', color: 'white'}}>
+                  Cancel
+                </AppText>
+              </Pressable>
+
+              <Pressable
+                onPress={saveNew}
+                disabled={savingNew}
+                style={{
+                  paddingHorizontal: 12,
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  backgroundColor: C.bg,
+                  opacity: savingNew ? 0.6 : 1,
+                  minWidth: 90,
+                  alignItems: 'center'
+                }}
+              >
+                {savingNew ? (
+                  <ActivityIndicator color='black'/>
+                ) : (
+                  <AppText style={{fontSize: 14, fontWeight: '700', color: 'white'}}>
+                    Add
                   </AppText>
                 )}
               </Pressable>

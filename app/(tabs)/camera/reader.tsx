@@ -1264,11 +1264,11 @@ export default function ReaderScreen() {
 
     // if user wants original text, show ocr text
     if (tab === "Overview" && showOriginal) {
-      return ocrText || "No OCR text available.";
+      return ocrText || "No text available. Please scan or upload a document to see the extracted text here.";
     }
 
     if (!geminiData) {
-      return ocrText ? ocrText : "No Gemini response yet.";
+      return ocrText ? ocrText : "No text available. Please scan or upload a document to see the simplified text here.";
     }
 
     // grab returned action items if action items is an array, otherwise default to empty array

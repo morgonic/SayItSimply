@@ -140,13 +140,13 @@ export default function CameraScreen() {
       <SafeAreaView style={cameraStyles.safe}>
         <View style={cameraStyles.container}>
           <View style={cameraStyles.header}>
-            <Pressable style={cameraStyles.headerIconBtn} onPress={() => {}}>
+            <Pressable style={cameraStyles.headerIconBtn} onPress={() => router.push('/(tabs)/profile/settings')}>
               <AppText style={cameraStyles.headerIcon}>☰</AppText>
             </Pressable>
 
             <AppText style={cameraStyles.headerTitle}>SayItSimply</AppText>
 
-            <Pressable style={cameraStyles.avatarBtn} onPress={() => {}}>
+            <Pressable style={cameraStyles.avatarBtn} onPress={() => router.push('/(tabs)/profile')}>
               <View style={cameraStyles.avatarPlaceholder} />
             </Pressable>
           </View>

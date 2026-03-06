@@ -105,6 +105,33 @@ export default function toDoListScreen() {
   const [savingNew, setSavingNew] = useState(false);
   // platform being used
   const platform = Platform.OS;
+  // custom toast states
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // custom toast function
+  const showToast = (message: string, ms=1600) => {
+    // set the toast message to show
+    setToastMessage(message);
+    // clear existing timers
+    if (toastTimer.current) {
+      clearTimeout(toastTimer.current);
+    }
+    // set timer to clear after # of ms
+    toastTimer.current = setTimeout(() => {
+      setToastMessage(null);
+      toastTimer.current = null;
+    }, ms);
+  };
+
+  // use effect cleanup for toast timer
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) {
+        clearTimeout(toastTimer.current);
+      }
+    }
+  }, []);
 
   // starts/resets timer for item id so item stays visible briefly before disappearing/moving
   const delayFor = (id: string, ms=700) => {
@@ -531,6 +558,77 @@ export default function toDoListScreen() {
     }
   };
 
+  const clearAllToDoItems = async () => {
+
+    if (!api_url) {
+      Alert.alert("Configuration Error", "Missing EXPO_PUBLIC_API_URL environment variable. Cannot clear To-Do List.");
+      console.warn("MISSING EXPO_PUBLIC_API_URL");
+      return;
+    }
+
+    try{
+      // start loading at beginning of process
+      setLoading(true);
+
+      const token = await storage.getItem("access_token");
+      const tokenType = (await storage.getItem("token_type") ?? "bearer");
+
+      if (!token) {
+        throw new Error("Missing auth/access token");
+      }
+
+      // delete one by one
+      for (const item of items) {
+        const response = await fetch(`${api_url}/users/me/todo/${item.id}`, {
+          method: 'DELETE',
+          headers: {
+            Authorization: `${tokenType} ${token}`,
+            Accept: 'application/json'
+          }
+        });
+
+        const bodyText = await response.text();
+
+        if (!response.ok) {
+          throw new Error(bodyText || `Failed to delete item ${item.id}: ${response.status}`);
+        }
+      }
+      // empty list
+      setItems([]);
+      // refetch list just in case setItems does not update UI
+      await fetchToDoList();
+    }
+    catch (e: any) {
+      console.warn("Clear All To-Do Items Failed:", e);
+      Alert.alert("Clear All To-Do Items Failed:", e?.message ?? "Could not clear To-Do List. Please try again.");
+      // refresh list
+      fetchToDoList();
+    }
+    finally {
+      // stop loading
+      setLoading(false);
+    }
+  }
+
+  const confirmClearAll = () => {
+    // show custom toast message and return if already cleared
+    if (items.length === 0) {
+      showToast("No items to clear.");
+      return;
+    }
+    // user confirms or cancels using alert
+    Alert.alert(
+      "Clear all To-Do List items?",
+      "WARNING: This will permanently delete ALL items. This CANNOT be undone.",
+      [
+        {text: 'Cancel', style: 'cancel'},
+        // clear all button clears all to-do items onpress using async fucntion
+        {text: 'Clear All', style: 'destructive', onPress: clearAllToDoItems}
+      ],
+      {cancelable: true}
+    )
+  }
+
   // render list memoized so only rebuild when filtered items change
   const rendered = useMemo(() => {
     return filteredItems.map((item) => {
@@ -738,24 +836,43 @@ export default function toDoListScreen() {
         </Pressable>
       </ScrollView>
 
-      <Pressable
-        onPress={openNewModal}
-        style={{
-          marginHorizontal: 48,
-          paddingVertical: 12,
-          backgroundColor: C.bg,
-          alignSelf: 'flex-end'
-        }}
-      >
-        <AppText style={{
-          color: C.text,
-          fontWeight: '700',
-          fontSize: 22
-        }}>
-          +  New
-        </AppText>
+      <View style={{
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 48,
+        paddingVertical: 12
+      }}>
+        <Pressable
+          onPress={confirmClearAll}
+          style={{flexDirection: 'row', alignItems: 'center', gap: 8}}
+        >
+          <Ionicons name='close' size={22} color={C.text}/>
+          <AppText style={{
+            color: C.text,
+            fontWeight: '700',
+            fontSize: 22
+          }}>
+            Clear
+          </AppText>
 
-      </Pressable>
+        </Pressable>
+
+        <Pressable
+          onPress={openNewModal}
+          style={{flexDirection: 'row', alignItems: 'center', gap: 8}}
+        >
+          <Ionicons name='add' size={22} color={C.text}/>
+          <AppText style={{
+            color: C.text,
+            fontWeight: '700',
+            fontSize: 22
+          }}>
+            New
+          </AppText>
+
+        </Pressable>
+      </View>
 
       <View style={{ flex: 1, minHeight: 0 }}>
 
@@ -1193,6 +1310,27 @@ export default function toDoListScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {toastMessage && (
+        <View
+          style={{
+            position: 'absolute',
+            left: 48,
+            right: 48,
+            bottom: 24,
+            paddingVertical: 12,
+            paddingHorizontal: 18,
+            backgroundColor: C.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+            alignItems: 'center',
+            borderRadius: 12
+          }}
+          pointerEvents="none"
+        >
+          <AppText style={{color: C.isDark ? C.text : 'white', fontWeight: '700'}}>
+            {toastMessage}
+          </AppText>
+        </View>
+      )}
 
     </SafeAreaView>
   );

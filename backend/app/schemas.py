@@ -160,3 +160,23 @@ class DocumentDelete(BaseModel):
     
 class DocumentPreviewUpdate(BaseModel):
     preview_text: str = Field(min_length=20, max_length=250)
+    
+# FaceId schemas
+class FaceIdRegisterReq(BaseModel):
+    device_id: str
+    platform: str
+    label: Optional[str] = None
+
+class FaceIdRegisterRes(BaseModel):
+    ok: bool = True
+    face_id_token: str
+
+class FaceIdLoginReq(BaseModel):
+    device_id: str
+    face_id_token: str
+
+class FaceIdDisableReq(BaseModel):
+    device_id: str
+
+class FaceIdCapabilityRes(BaseModel):
+    enabled: bool

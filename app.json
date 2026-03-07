@@ -40,6 +40,18 @@
         }
       ],
       [
+        "expo-local-authentication",
+        {
+          "faceIdPermission": "Allow SayItSimply to use Face ID to log in"
+        }
+      ],
+      [
+        "expo-secure-store",
+        {
+          "faceIdPermission": "Allow SayItSimply to access Face ID secure store"
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/logo.png",
@@ -52,7 +64,6 @@
         }
       ],
       "expo-web-browser",
-      "expo-secure-store",
       "expo-font",
       "@react-native-community/datetimepicker"
     ],

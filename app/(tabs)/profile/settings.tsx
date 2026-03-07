@@ -1,5 +1,6 @@
 import { TextSizeValues, useTextSize } from "@/app/context/TextSizeContext";
 import { useTheme } from "@/app/context/ThemeContext";
+import { clearFaceIdCredentials, getDeviceId, getFaceIdCapability, promptFaceIdAuth, saveFaceIdCredentials } from "@/app/face_id";
 import storage from '@/app/storage';
 import AppText from '@/components/TextSize';
 import { settingsStyles } from '@/constants/styles';
@@ -7,7 +8,6 @@ import { Ionicons } from '@expo/vector-icons';
 import Slider from "@react-native-community/slider";
 import * as Application from "expo-application";
 import * as IntentLauncher from "expo-intent-launcher";
-import * as LocalAuth from "expo-local-authentication";
 import * as MediaLibrary from "expo-media-library";
 import { Stack } from 'expo-router';
 import React, { useEffect, useMemo, useState } from "react";
@@ -137,6 +137,63 @@ async function deleteAllDocScans(): Promise<void> {
   if (!res.ok) throw new Error("Could not delete document scans.");
 }
 
+//face id
+async function registerFaceIdLogin(deviceId: string): Promise<{ face_id_token: string }> {
+  const token = await getAccessToken();
+  const res = await fetch(`${api_url}/users/me/faceid/register`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      device_id: deviceId,
+      platform: Platform.OS,
+      label: Platform.OS === "ios" ? "iPhone" : "Android"
+    }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || "Could not enable Face ID sign in.");
+  }
+
+  return res.json();
+}
+
+async function disableFaceIdLogin(deviceId: string): Promise<void> {
+  const token = await getAccessToken();
+  const res = await fetch(`${api_url}/users/me/faceid`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ device_id: deviceId }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || "Could not disable Face ID sign in.");
+  }
+}
+
+async function faceIdSupportToBackend(next: boolean): Promise<void> {
+  const token = await getAccessToken();
+  const res = await fetch(`${api_url}/users/me/settings`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ face_id_supported: next }),
+  });
+
+  if (!res.ok) {
+    throw new Error("Unable to pull Face ID support status");
+  }
+}
+
 // settings screen
 export default function SettingsScreen() {
   const { setTextSize } = useTextSize();
@@ -172,6 +229,23 @@ export default function SettingsScreen() {
       }
     })();
   }, []); // run once on mount
+
+  useEffect(() => {
+    if (loading) return;
+    (async () => {
+      try {
+        const capability = await getFaceIdCapability();
+        const supported = capability.supportedForApp;
+
+        if (settings.face_id_supported !== supported) {
+          setSettings((cur) => ({ ...cur, face_id_supported: supported }));
+          await faceIdSupportToBackend(supported);
+        }
+      } catch (e) {
+        console.warn("Unable to push Face ID capability:", e);
+      }
+    })();
+  }, [loading, settings.face_id_supported]);
 
   const isSaving = (key: keyof UserSettings) => Boolean(saving[key]);
 
@@ -317,39 +391,59 @@ export default function SettingsScreen() {
   
   //faceid logic
   const handleFaceIdToggle = async (next: boolean) => {
+    const deviceId = await getDeviceId();
+
     if (!next) {
+      try {
+      await disableFaceIdLogin(deviceId);
+      await clearFaceIdCredentials();
       await updateSetting("face_id", false);
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Could not disable Face ID sign in.");
+      setSettings((cur) => ({ ...cur, face_id: true }));
+    }
       return;
     }
     try {
-      const enrolled = await LocalAuth.isEnrolledAsync();
-      if (!enrolled) {
-        Alert.alert("Face ID Required", "This needs to be set up within device settings. Enable it before attempting to use it within the app",
-          [
-            { text: "OK", onPress: () => {
-              setSettings((cur) => ({ ...cur, face_id: false }));
-            }}
-          ]
-        );
-        return;
-      }
-      const auth = await LocalAuth.authenticateAsync({
-        promptMessage: "Allow Face ID for Sign In",
-        cancelLabel: "No",
-        fallbackLabel: "Use Passcode",
-        disableDeviceFallback: false,
-      });
+      const capability = await getFaceIdCapability();
 
-      if (!auth.success) {
-        Alert.alert("Permission Required", "This requires device permissions to activate.");
-        setSettings((cur) => ({ ...cur, face_id: false }));
-        return;
-      }
+    if (!capability.hasHardware) {
+      Alert.alert(
+        "Face ID Sign In Unavailable",
+        "This device does not support Face ID authentication."
+      );
+      setSettings((cur) => ({ ...cur, face_id: false }));
+      return;
+    }
 
-      await updateSetting("face_id", true);
+    if (!capability.isEnrolled) {
+      Alert.alert(
+        "Face ID Setup Required",
+        "Set up Face ID in your device settings first."
+      );
+      setSettings((cur) => ({ ...cur, face_id: false }));
+      return;
+    }
+
+    const auth = await promptFaceIdAuth("Enable Face ID sign in");
+    if (!auth.success) {
+      setSettings((cur) => ({ ...cur, face_id: false }));
+      return;
+    }
+
+    const reg = await registerFaceIdLogin(deviceId);
+
+    await saveFaceIdCredentials({
+      faceIdToken: reg.face_id_token,
+    });
+
+    await updateSetting("face_id", true);
+    Alert.alert("Enabled", "Face ID sign in is enabled.");
+
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Face ID could not be enabled");
       setSettings((cur) => ({ ...cur, face_id: false }));
+      await clearFaceIdCredentials().catch(() => {});
     }
   };
 
@@ -537,7 +631,7 @@ export default function SettingsScreen() {
             )}
           </View>
           <AppText style={[settingsStyles.hint, { color: C.subtext }]}>
-            This enables login using FaceId. If grayed out, device does not have this capability
+            This enables login using Face ID. If grayed out, device does not have this capability
           </AppText>
 
           {/* Permissions */}

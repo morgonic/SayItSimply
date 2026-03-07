@@ -49,6 +49,7 @@ app-example
 .venv/
 env/
 venv/
+.idea/
 
 # python cache
 __pycache__/

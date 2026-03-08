@@ -3,9 +3,10 @@ import AppText from "@/components/TextSize";
 import { cameraStyles } from '@/constants/styles';
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import * as MediaLibrary from "expo-media-library";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Dimensions, Image, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Alert, Dimensions, Image, Linking, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
@@ -13,14 +14,47 @@ const api_url = process.env.EXPO_PUBLIC_API_URL;
 const MODES = ["Auto-detect", "Sign", "Menu", "Form", "Label", "Receipt", "Document",  "Medical", "Instructions", "Article", "Book", "Board"] as const;
 type Mode = (typeof MODES)[number];
 
+type SaveSettings = {
+  scan_doc_save: boolean;
+  save_photos: boolean;
+};
+
 async function getAccessToken(): Promise<string | null> {
   const token = await storage.getItem("access_token");
   return token ?? null;
 }
 
+async function getTokenHeaders(): Promise<Record<string, string>> {
+  const token = await storage.getItem("access_token");
+  const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+  return token ? { Authorization: `${tokenType} ${token}` } : {};
+}
+
 function normalizeBaseUrl(url?: string) {
   if (!url) return "";
   return url.replace(/\/$/, "");
+}
+
+async function fetchSaveSettings(): Promise<SaveSettings> {
+  if (!api_url) return { scan_doc_save: true, save_photos: false };
+
+  const headers = await getTokenHeaders();
+  const res = await fetch(`${api_url}/users/me/settings`, { headers });
+  if (!res.ok) return { scan_doc_save: true, save_photos: false };
+
+  const json = await res.json().catch(() => ({} as any));
+  return {
+    scan_doc_save: typeof json.scan_doc_save === "boolean" ? json.scan_doc_save : true,
+    save_photos: typeof json.save_photos === "boolean" ? json.save_photos : false
+  };
+}
+
+async function checkDevMediaPerms(): Promise<boolean> {
+  const cur = await MediaLibrary.getPermissionsAsync();
+  if (cur.granted) return true;
+
+  const req = await MediaLibrary.requestPermissionsAsync();
+  return req.granted;
 }
 
 async function uploadDocument(params: {
@@ -114,6 +148,8 @@ export default function CameraScreen() {
 
       setIsCapturing(true);
 
+      const saveSettings = await fetchSaveSettings();
+
       const pic = await cameraRef.current.takePictureAsync({
         quality: 0.9, skipProcessing: false,
       });
@@ -121,7 +157,31 @@ export default function CameraScreen() {
 
       setLastCaptureUri(pic.uri)
 
-      const docId = await uploadDocument({ imageUri: pic.uri, mode, sourceAssetId: null  });
+      if (saveSettings.save_photos) {
+        const ok = await checkDevMediaPerms();
+        if (!ok) {
+          Alert.alert(
+            "Gallery Permission Required",
+            "To save photos to the gallery, enable Photo Library permissions for SayItSimply.",
+            [
+              { text: "Cancel", style: "cancel" },
+              { text: "Open Settings", onPress: () => Linking.openSettings() },
+            ]
+          );
+        } else {
+          try {
+            await MediaLibrary.createAssetAsync(pic.uri);
+          } catch (e: any) {
+            Alert.alert("Error", e?.message ?? "Could not enable 'Save Photos to Gallery'");
+            console.warn("Unable to save photo to device gallery:", e?.message ?? e);
+          }
+        }
+      }
+
+      let docId: string | undefined = undefined;
+      if (saveSettings.scan_doc_save) {
+        docId = await uploadDocument({ imageUri: pic.uri, mode, sourceAssetId: null  });
+      }
 
       router.push({
         pathname: "/camera/reader", params: { imageUri: pic.uri, mode, docId },

@@ -1,10 +1,14 @@
 import base64
 import os, json
 import uuid
+import hashlib
+import secrets
 
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException
+from datetime import datetime, timedelta
+
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -21,9 +25,12 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import User, UserSettings, OAuthAccount, create_db_and_tables, engine, get_async_session
-from app.schemas import ActionItem, AddToDoRequest, PatchItemRequest, UserCreate, UserRead, UserUpdate, GeminiRequest, OCRRequest, OCRResponse, SettingsRead, SettingsUpdate
-from app.users import auth_backend, current_active_user, fastapi_users, get_user_manager, google_oauth_client, SECRET
+from app.db import User, UserSettings, OAuthAccount, create_db_and_tables, engine, FaceIdLoginToken, get_async_session
+from app.schemas import (
+    ActionItem, AddToDoRequest, PatchItemRequest, UserCreate, UserRead, UserUpdate, GeminiRequest, OCRRequest, OCRResponse, 
+    SettingsRead, SettingsUpdate,FaceIdRegisterReq, FaceIdRegisterRes, FaceIdLoginReq, FaceIdDisableReq
+)
+from app.users import auth_backend, current_active_user, fastapi_users, get_user_manager, google_oauth_client, get_jwt_strategy, SECRET
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -227,6 +234,148 @@ app.include_router(
     prefix="/auth/associate/google",
     tags=["auth"]
 )
+
+### FaceId ###
+def hash_faceid_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
+
+def create_faceid_token() -> str:
+    return secrets.token_urlsafe(48)
+
+@app.post(
+    "/users/me/faceid/register",
+    response_model=FaceIdRegisterRes,
+    tags=["users"]
+)
+async def register_faceid_login(
+    payload: FaceIdRegisterReq,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    device_id = (payload.device_id or "").strip()
+    platform = (payload.platform or "").strip().lower() or "unknown"
+    label = (payload.label or "").strip() or None
+
+    if not device_id:
+        raise HTTPException(status_code=400, detail="device_id is required.")
+    
+    raw_token = create_faceid_token()
+    token_hash = hash_faceid_token(raw_token)
+
+    result = await session.execute(
+        select(FaceIdLoginToken).where(
+            FaceIdLoginToken.user_id == user.id,
+            FaceIdLoginToken.device_id == device_id,
+        )
+    )
+    existing = result.scalars().first()
+
+    expires_at = datetime.now() + timedelta(days=180)
+    
+    if existing:
+        existing.token_hash = token_hash
+        existing.platform = platform
+        existing.label = label
+        existing.is_active = True
+        existing.expires_at = expires_at
+        existing.last_used_at = None
+        session.add(existing)
+    else:
+        rec = FaceIdLoginToken(
+            user_id=user.id,
+            device_id=device_id,
+            token_hash=token_hash,
+            platform=platform,
+            label=label,
+            is_active=True,
+            expires_at=expires_at,
+        )
+        session.add(rec)
+        
+    s = await get_or_create_user_settings(session, user)
+    s.face_id = True
+    session.add(s)
+    
+    await session.commit()
+    return FaceIdRegisterRes(ok=True, face_id_token=raw_token)
+
+@app.post("/auth/faceid/login", tags=["auth"])
+async def face_id_login(
+    payload: FaceIdLoginReq,
+    session: AsyncSession = Depends(get_async_session)
+):
+    device_id = (payload.device_id or "").strip()
+    raw_token = (payload.face_id_token or "").strip()
+
+    if not device_id or not raw_token:
+        raise HTTPException(status_code=400, detail="device_id and face_id_token are required.")
+
+    token_hash = hash_faceid_token(raw_token)
+
+    result = await session.execute(
+        select(FaceIdLoginToken).where(
+            FaceIdLoginToken.device_id == device_id,
+            FaceIdLoginToken.token_hash == token_hash,
+            FaceIdLoginToken.is_active == True,
+        )
+    )
+    record = result.scalars().first()
+    
+    if not record:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Face ID login.")
+
+    if record.expires_at and record.expires_at < datetime.now():
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Face ID login token is expired.")
+
+    user_result = await session.execute(
+        select(User).where(User.id == record.user_id)
+    )
+    user = user_result.scalars().first()
+
+    if not user or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User is inactive.")
+
+    record.last_used_at = datetime.now()
+    session.add(record)
+    await session.commit()
+
+    strategy = get_jwt_strategy()
+    access_token = await strategy.write_token(user)
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user_id": str(user.id),
+        "email": user.email
+    }
+    
+@app.delete("/users/me/faceid", tags=["users"])
+async def disable_face_id_login(
+    payload: FaceIdDisableReq,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    device_id = (payload.device_id or "").strip()
+    if not device_id:
+        raise HTTPException(status_code=400, detail="device_id is required.")
+
+    result = await session.execute(
+        select(FaceIdLoginToken).where(
+            FaceIdLoginToken.user_id == user.id,
+            FaceIdLoginToken.device_id == device_id,
+        )
+    )
+    rec = result.scalars().first()
+
+    if rec:
+        await session.delete(rec)
+
+    s = await get_or_create_user_settings(session, user)
+    s.face_id = False
+    session.add(s)
+
+    await session.commit()
+    return {"ok": True}
 
 ### Settings ###
 async def get_or_create_user_settings(

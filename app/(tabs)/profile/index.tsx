@@ -5,12 +5,12 @@ import { profileStyles } from "@/constants/styles";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Linking from 'expo-linking';
 import { useRouter } from "expo-router";
+import * as WebBrowser from 'expo-web-browser';
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Image, Modal, Pressable, ScrollView, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
@@ -689,7 +689,7 @@ type GeminiResponse = {
           </View>
 
           <View style={[profileStyles.card, { backgroundColor: C.card }]}>
-            <Row label="Calibrate Simplification" onPress={onCalibrate} />
+            <Row label="Tune Responses" onPress={onCalibrate} />
           </View>
         </View>
 
@@ -903,7 +903,7 @@ type GeminiResponse = {
               <ScrollView style={{ flex: 1 }} contentContainerStyle={profileStyles.calibBodyContent}
                 showsVerticalScrollIndicator keyboardShouldPersistTaps="handled"
               >
-                <AppText style={profileStyles.calibTitle}>Calibrate Simplification</AppText>
+                <AppText style={profileStyles.calibTitle}>Tune Responses</AppText>
 
                 {calibLoad ? (
                   <View style={profileStyles.calibLoadRow}>

@@ -243,6 +243,32 @@ export default function ReaderScreen() {
   const [langPickerVisible, setLangPickerVisible] = useState(false);
   const [langSearch, setLangSearch] = useState("");
 
+  //highlight difficult words toggle actionizer
+  const [highlightEnabled, setHighlightEnabled] = useState<boolean>(true);
+
+  const loadHighlightSetting = useCallback(async () => {
+    try {
+      const token = await storage.getItem("access_token");
+      const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+      if (!api_url || !token) return;
+
+      const res = await fetch(`${api_url}/users/me/settings`, {
+        headers: { Authorization: `${tokenType} ${token}` },
+      });
+      if (!res.ok) return;
+
+      const json = await res.json();
+
+      if (typeof json.highlight_difficult_words === "boolean") {
+        setHighlightEnabled(json.highlight_difficult_words);
+      } else {
+        setHighlightEnabled(true);
+      }
+    } catch {
+      setHighlightEnabled(true);
+    }
+  }, []);
+
   // gemini request states
   const [geminiLoading, setGeminiLoading] = useState(false);
   const [geminiError, setGeminiError] = useState<string | null>(null);
@@ -313,6 +339,13 @@ export default function ReaderScreen() {
     useCallback(() => {
       loadTtsSettings();
     }, [loadTtsSettings])
+  );
+
+  //fetch highlight word setting
+  useFocusEffect(
+    useCallback(() => {
+      loadHighlightSetting();
+    }, [loadHighlightSetting])
   );
 
   //clean sound
@@ -1534,13 +1567,27 @@ export default function ReaderScreen() {
                 onScrollBeginDrag={closeDefinitionModal}
               >
                   {tab === "Overview" && showOriginal ? (
-                    <AppText style={{flexDirection: "row", flexWrap: "wrap"}}>
-                      {highlightedOriginal}
-                    </AppText>
+                    highlightEnabled ? (
+                      <AppText style={{flexDirection: "row", flexWrap: "wrap"}}>
+                        {highlightedOriginal}
+                      </AppText>
+                    ) : (
+                      <AppText style={[readerStyles.bodyText, { color: P.bodyText }]}>
+                        {(ocrText ?? "").trim()}
+                      </AppText>
+                    )
                   ) : tab === "Easy Read" ? (
-                    <AppText style={{ flexDirection: "row", flexWrap: "wrap" }}>
-                      {highlightedSimplified}                    
-                    </AppText>
+                    highlightEnabled ? (
+                      <AppText style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                        {highlightedSimplified}                    
+                      </AppText>
+                    ) : (
+                      <AppText style={[readerStyles.bodyText, { color: P.bodyText }]}>
+                        {(
+                          (simplifyMoreText === null ? (geminiData?.simplification ?? "") : (simplifyMoreText ?? ""))
+                        ).trim()}
+                      </AppText>
+                    )
                   ) : (
                     <AppText style={[readerStyles.bodyText, { color: P.bodyText }]}>{content}</AppText>
                   )}
@@ -1872,7 +1919,7 @@ export default function ReaderScreen() {
               <ScrollView style={{ flex: 1 }} contentContainerStyle={readerStyles.calibBodyContent}
                 showsVerticalScrollIndicator keyboardShouldPersistTaps="handled" indicatorStyle={P.scrollIndicator as any}
               >
-                <AppText style={[readerStyles.calibTitle, darkMode && { color: P.bodyText }]}>Calibrate Simplification</AppText>
+                <AppText style={[readerStyles.calibTitle, darkMode && { color: P.bodyText }]}>Tune Responses</AppText>
 
                 {calibLoad ? (
                   <View style={readerStyles.calibLoadRow}>

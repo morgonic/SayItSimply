@@ -3,10 +3,11 @@ import uuid
 from datetime import datetime
 from fastapi import Depends
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase, SQLAlchemyBaseOAuthAccountTableUUID
-from sqlalchemy import Column, DateTime, JSON, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, JSON, ForeignKey, String, UniqueConstraint
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.orm import DeclarativeBase, Mapped, relationship, mapped_column
+from sqlalchemy.sql import func
 
 # SQLite database URL
 DATABASE_URL = "sqlite+aiosqlite:///./sayitsimply.db"
@@ -18,6 +19,32 @@ class Base(DeclarativeBase):
 # Define the OAuthAccount model
 class OAuthAccount(SQLAlchemyBaseOAuthAccountTableUUID, Base):
     pass
+
+# Define FaceID login token table
+class FaceIdLoginToken(Base):
+    __tablename__ = "faceid_login_tokens"
+    
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("user.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False
+    )
+    
+    device_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(128), nullable=False, unique=True, index=True)
+    platform: Mapped[str] = mapped_column(String(20), nullable=False, default="unknown")
+    label: Mapped[str | None] = mapped_column(String(100), nullable=True, default=None)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+    user: Mapped["User"] = relationship("User", back_populates="faceid_tokens")
+    
+    __table_args__ = (
+        UniqueConstraint("user_id", "device_id", name="uq_faceid_user_device"),
+    )
 
 # Define and map user settings. pkey = user_id (1:1 relationship)
 class UserSettings(Base):
@@ -89,13 +116,17 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
         "Document",
         back_populates="user",
         cascade="all, delete-orphan"
-    )
-    
+    )    
     to_do: Mapped[list[dict[str, any]]] = mapped_column(
         MutableList.as_mutable(JSON),
         default=list,
         server_default="[]"
     )
+    faceid_tokens: Mapped[list["FaceIdLoginToken"]] = relationship(
+    "FaceIdLoginToken",
+    back_populates="user",
+    cascade="all, delete-orphan"
+)
 
 # Create async engine and session maker
 engine = create_async_engine(DATABASE_URL)

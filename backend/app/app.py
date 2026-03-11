@@ -8,7 +8,8 @@ from contextlib import asynccontextmanager
 
 from datetime import datetime, timedelta
 
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi_users import exceptions as fu_exc
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -490,6 +491,42 @@ async def change_password(
     await session.commit()
 
     return {"ok": True}
+
+### Email Change Logic ###
+
+@app.patch("/users/me/email", tags=["users"])
+async def change_email(
+    payload: UserUpdate,
+    request: Request,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+    user_manager=Depends(get_user_manager)
+):
+    # check if user is oauth
+    result = await session.execute(
+        select(OAuthAccount).where(OAuthAccount.user_id == user.id)
+    )
+    # if user is oauth, they cannot change their email
+    oauth = result.scalars().first()
+    if oauth is not None:
+        raise HTTPException(status_code=400, detail="OAuth users cannot change email.")
+    # normalize email
+    new_email = (payload.email or "").strip().lower()
+    # error if email empty
+    if not new_email:
+        raise HTTPException(status_code=400, detail="Email cannot be empty.")
+    # update user email using fastapi users user_manager
+    try:
+        updated = await user_manager.update(
+            user_update=UserUpdate(email=new_email),
+            user=user,
+            safe=True,
+            request=request
+        )
+        return {"updated_email": updated.email}
+    # if user already exists, error
+    except fu_exc.UserAlreadyExists:
+        raise HTTPException(status_code=400, detail="Email is already in use")
 
 ### Gemini ###
 

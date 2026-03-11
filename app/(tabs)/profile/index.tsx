@@ -134,6 +134,8 @@ type GeminiResponse = {
   const [accountEmail, setAccountEmail] = useState<string>("");
   const [accountReadingLevel, setAccountReadingLevel] = useState<number | null>(null);
 
+  const [emailModalVisible, setEmailModalVisible] = useState(false);
+
   const [calibVis, setCalibVis] = useState(false);
   const [calibLoad, setCalibLoad] = useState(false);
   const [calibErr, setCalibErr] = useState<string | null>(null);
@@ -370,24 +372,21 @@ type GeminiResponse = {
 
       // no token, oauth failed
       if (!access_token) {
-        Alert.alert("Google sync failed.", "No token was returned.");
+        Alert.alert("Google link failed.", "No token was returned.");
         return;
       }
 
-      // save new jwt from oauth
-      await storage.setItem('access_token', access_token);
-      await storage.setItem('token_type', token_type);
+      // make temp header to use before saving new token
+      const temporaryAuthHeader = {Authorization: `${token_type} ${access_token}`};
 
       // verify jwt, get user email
       const userResponse = await fetch(`${api_url}/users/me`, {
-        headers: {
-          Authorization: `${token_type} ${access_token}`
-        }
+        headers: temporaryAuthHeader
       });
 
       // invalid/fail, error
       if (!userResponse.ok) {
-        throw new Error("Failed to sync Google account.");
+        throw new Error("Failed to link Google account.");
       }
       
       const user = await userResponse.json();
@@ -395,24 +394,31 @@ type GeminiResponse = {
 
       // if google email and existing email don't match, revert auth and inform user
       if (oldEmail && newEmail && newEmail !== oldEmail) {
-        if (oldToken) {
-          await storage.setItem('access_token', oldToken);
+        try {
+          await fetch(`${api_url}/users/me`, {
+            method: 'DELETE',
+            headers: temporaryAuthHeader
+          });
+        } 
+        catch (e) {
+          console.error("Failed to delete user:", e);
         }
 
-        await storage.setItem('token_type', oldTokenType);
-
         Alert.alert(
-          "Wrong Google account",
+          "Wrong Google account", 
           "The Google email MUST match your SayItSimply account email."
         );
+
         return;
       }
 
+      // save new jwt from oauth
+      await storage.setItem('access_token', access_token);
+      await storage.setItem('token_type', token_type);
+
       // refresh oauth so ui disabled link button
       const responseAuth = await fetch(`${api_url}/users/me/auth-method`, {
-        headers: {
-          Authorization: `${token_type} ${access_token}`
-        }
+        headers: temporaryAuthHeader
       });
 
       const data = await responseAuth.json();
@@ -420,11 +426,11 @@ type GeminiResponse = {
       setIsOAuthUser(!!data.is_oauth);
       
       // success message
-      Alert.alert("Success!", "Your account has been synced with Google.");
+      Alert.alert("Success!", "Your account has been linked with Google.");
     }
     catch (e: any) {
       // fail message
-      Alert.alert("Google sync failed.", e?.message ?? "Please try again.");
+      Alert.alert("Google link failed.", e?.message.detail ?? "Please try again.");
     }
     finally {
       // unlock ui
@@ -521,6 +527,7 @@ type GeminiResponse = {
                 Authorization: `Bearer ${token}`,
               },
             });
+            console.log("Delete response:", res);
             await storage.deleteItem("access_token");
             await storage.deleteItem("profile_photo");
             router.replace("/log-in");
@@ -644,6 +651,36 @@ type GeminiResponse = {
     closeCalibModal();
   }
 
+  // function for changing user email calling PATCH /users/me/email
+  async function onChangeEmail(newEmail: string) {
+    try {
+      const token = await storage.getItem("access_token");
+      const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+
+      const response = await fetch(`${api_url}/users/me/email`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `${tokenType} ${token}`
+        },
+        body: JSON.stringify({email: newEmail})
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        Alert.alert("Failed to update email", text || "Please try again.");
+        return;
+      };
+    }
+    catch (e: any) {
+      Alert.alert("Failed to update email", e?.message ?? "Please try again.");
+      return;
+    }
+    finally {
+      return;
+    }
+  }
+
   return (
     <SafeAreaView style={[profileStyles.safe, { backgroundColor: C.bg }]}>
       <ScrollView contentContainerStyle={profileStyles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -699,6 +736,22 @@ type GeminiResponse = {
           <View style={[profileStyles.card, { backgroundColor: C.card }]}>
             <Row label="Account Details" onPress={onAccountDetails} />
           </View>
+          
+          {/*change email*/}
+          <View style={profileStyles.card}>
+            <Row
+              label={"Change Email"}
+              onPress={() => setEmailModalVisible(true)}
+              rightIcon='mail-outline'
+              disabled={isOAuthUser}
+            />
+          </View>
+
+          {isOAuthUser ? (
+            <AppText style={[profileStyles.oauthHint, { color: C.text }]}>
+              Email changes are disabled for Google accounts.
+            </AppText>
+          ) : null}
 
           <View style={profileStyles.card}>
             <Row
@@ -801,6 +854,49 @@ type GeminiResponse = {
             >
               <AppText style={profileStyles.detailCloseButtonText}>Close</AppText>
             </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal to change email */}
+      <Modal visible={emailModalVisible} transparent animationType="fade" onRequestClose={() => setEmailModalVisible(false)}>
+        <View style={profileStyles.modalBackdrop}>
+          <View style={profileStyles.accountModalCard}>
+            <AppText style={profileStyles.accountModalTitle}>Change Email</AppText>
+            <TextInput
+              value={accountEmail}
+              onChangeText={setAccountEmail}
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="Enter new email"
+              keyboardType="email-address"
+              style={profileStyles.modalInput}
+            />
+            <View style={profileStyles.modalButtons}>
+              <Pressable
+                onPress={() => setEmailModalVisible(false)}
+                style={({ pressed }) => [
+                  profileStyles.modalButton,
+                  profileStyles.modalCancelButton,
+                  pressed && profileStyles.modalButtonPressed,
+                ]}
+              >
+                <AppText style={profileStyles.modalCancelButtonText}>Cancel</AppText>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  onChangeEmail(accountEmail);
+                  setEmailModalVisible(false);
+                }}
+                style={({ pressed }) => [
+                  profileStyles.modalButton,
+                  profileStyles.modalButtonPrimary,
+                  pressed && profileStyles.modalButtonPressed,
+                ]}
+              >
+                <AppText style={profileStyles.modalButtonPrimaryText}>Submit</AppText>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>

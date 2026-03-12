@@ -268,6 +268,21 @@ export default function LogInScreen() {
         }}
       />
 
+      <TextInput
+        placeholder="Password"
+        placeholderTextColor='#7F7F7F'
+        secureTextEntry
+        value={password}
+        onChangeText={setPassword}
+        style={{
+          borderWidth: 1,
+          borderRadius: 8,
+          padding: 12,
+          marginBottom: 16,
+          backgroundColor: '#F8F4F9'
+        }}
+      />
+
       {!checkingFaceId && faceIdReady ? (
         <Pressable
           onPress={handleFaceIdLogin}

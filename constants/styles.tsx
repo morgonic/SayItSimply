@@ -600,6 +600,20 @@ export const readerStyles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: CTA
   },
+  shareBtnRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8
+  },
+  shareBtn: {
+    height: 46,
+    width: 46,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: CTA
+  },
+  shareBtnDisabled: { opacity: 0.35 },
 
   ttsStopBtn: { backgroundColor: CTA },
 
@@ -996,6 +1010,11 @@ export const readerDarkStyles = StyleSheet.create({
   ttsStopBtn: { backgroundColor: "#6B8FD6" },
 
   ttsBtnDisabled: { opacity: 0.35 },
+
+  shareBtn: { backgroundColor: "#6B8FD6"  },
+
+  shareBtnDisabled: { opacity: 0.35 },
+
 
   levelTabActive: {
     backgroundColor: "rgba(107,143,214,0.35)",

@@ -50,10 +50,10 @@ async function fetchSaveSettings(): Promise<SaveSettings> {
 }
 
 async function checkDevMediaPerms(): Promise<boolean> {
-  const cur = await MediaLibrary.getPermissionsAsync();
+  const cur = await MediaLibrary.getPermissionsAsync(false, ["photo"]);
   if (cur.granted) return true;
 
-  const req = await MediaLibrary.requestPermissionsAsync();
+  const req = await MediaLibrary.requestPermissionsAsync(false, ["photo"]);
   return req.granted;
 }
 

@@ -20,16 +20,11 @@ import {
   Modal,
   Pressable,
   ScrollView,
+  Share,
   TextInput,
   View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-function getCacheDir(): string {
-  const anyFS = FileSystem as any;
-  const cacheDir: string | null | undefined = anyFS.cacheDirectory ?? FileSystem.documentDirectory;
-  return (cacheDir ?? "");
-}
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -375,6 +370,43 @@ export default function ReaderScreen() {
       return `No translation available. Your language and the text are both set to ${langCodeToName(userLanguage)}.`;
     }
     return "";
+  }
+
+  function getShareText(): string {
+    if (ocrLoading || geminiLoading) return "";
+
+    if (tab === "Overview") {
+      if (showOriginal) return "";
+      return (geminiData?.summary ?? "").trim();
+    }
+
+    if (tab === "Easy Read") {
+      return (simplifyMoreText === null
+        ? (geminiData?.simplification ?? "")
+        : (simplifyMoreText ?? "")
+      ).trim();
+    }
+
+    return "";
+  }
+
+  async function shareSummary() {
+    const textToShare = getShareText();
+
+    if (!textToShare) {
+      Alert.alert("Nothing to share", "There is no simplified text available to share yet.");
+      return;
+    }
+
+    try {
+      await Share.share({
+        message: textToShare,
+        title: "SayItSimply Document Summary",
+      });
+    } catch (e: any) {
+      console.warn("Share failed:", e?.message ?? e);
+      Alert.alert("Share Error", e?.message ?? "Failed to share the document summary.");
+    }
   }
 
   async function speechCurrentTab() {
@@ -1441,6 +1473,8 @@ export default function ReaderScreen() {
     await rerunGeminiWithNewLang(newCode2);
   }
 
+  const shareDisabled = isLoading ||  !getShareText();
+
   return (
     <SafeAreaView style={[readerStyles.safe, darkMode && readerDarkStyles.safe]}>
       <View style={[readerStyles.container, darkMode && readerDarkStyles.container]}>
@@ -1734,6 +1768,34 @@ export default function ReaderScreen() {
             </View>
           </View>
         </ScrollView>
+
+        {tab === "Overview" && (
+          <View style={readerStyles.translateControlsWrap}>
+            <Pressable
+              style={[
+                readerStyles.langPickerBtn,
+                shareDisabled && readerStyles.ttsBtnDisabled,
+                darkMode && readerDarkStyles.langPickerBtn,
+                shareDisabled && darkMode && readerDarkStyles.ttsBtnDisabled,
+              ]}
+              onPress={() => {
+                closeDefinitionModal();
+                shareSummary();
+              }}
+              disabled={shareDisabled}
+              hitSlop={10}
+            >
+              <Ionicons
+                name="share-social-outline"
+                size={22}
+                color={shareDisabled ? P.iconDisabled : P.icon}
+              />
+              <AppText style={[readerStyles.langPickerBtnText, darkMode && readerDarkStyles.langPickerBtnText]}>
+                Share Summary
+              </AppText>
+            </Pressable>
+          </View>
+        )}
 
         {tab === "Easy Read" && (
           <View style={readerStyles.levelControlsWrap}>

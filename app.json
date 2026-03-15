@@ -40,6 +40,14 @@
         }
       ],
       [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow SayItSimply to access your photos",
+          "savePhotosPermission": "Allow SayItSimply to save photos to your gallery",
+          "granularPermissions": ["photo"]
+        }
+      ],
+      [
         "expo-local-authentication",
         {
           "faceIdPermission": "Allow SayItSimply to use Face ID to log in"

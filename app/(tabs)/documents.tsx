@@ -16,6 +16,7 @@ type DocItem = {
   thumb_uri: string;
   thumb_b64?: string | null;
   thumb_mime?: string | null;
+  page_count?: number;
 };
 
 function formatDate(iso: string) {
@@ -202,7 +203,9 @@ export default function DocumentsScreen() {
           {/* text */}
           <View style={localStyles.textCol}>
             <AppText style={localStyles.title}>{item.mode}</AppText>
-            <AppText style={localStyles.subtitle}>{formatDate(item.timestamp)}</AppText>
+            <AppText style={localStyles.subtitle}>{formatDate(item.timestamp)}
+              {item.page_count && item.page_count > 1 ? `- ${item.page_count} pages`: ""}
+            </AppText>
           </View>
         </Pressable>
 

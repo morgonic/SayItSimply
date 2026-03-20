@@ -133,6 +133,11 @@ class SettingsUpdate(BaseModel):
     tts_rate: Optional[float] = None
     tts_pitch: Optional[float] = None
     
+class DocumentPage(BaseModel):
+    page_num: int
+    ocr_text: Optional[str] = None
+    language: Optional[str] = None
+    
 class DocumentListItem(BaseModel):
     id: uuid.UUID
     mode: str
@@ -141,6 +146,7 @@ class DocumentListItem(BaseModel):
     thumb_b64: Optional[str] = None
     thumb_mime: Optional[str] = None
     preview_text: Optional[str] = None
+    page_count: int = 1
     
 class DocumentDetail(BaseModel):
     id: uuid.UUID
@@ -151,6 +157,9 @@ class DocumentDetail(BaseModel):
     thumb_b64: Optional[str] = None
     thumb_mime: Optional[str] = None
     preview_text: Optional[str] = None
+    page_count: int = 1
+    combined_ocr_text: Optional[str] = None
+    pages: List[DocumentPage] = Field(default_factory=list)
     
 class DocumentUpdate(BaseModel):
     mode: str = Field(description="A label for the source of the text")

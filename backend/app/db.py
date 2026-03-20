@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from fastapi import Depends
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase, SQLAlchemyBaseOAuthAccountTableUUID
-from sqlalchemy import Boolean, Column, DateTime, JSON, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Integer, JSON, ForeignKey, String, UniqueConstraint
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.orm import DeclarativeBase, Mapped, relationship, mapped_column
@@ -92,6 +92,9 @@ class Document(Base):
     thumb_uri: Mapped[str] = mapped_column(String, nullable=False)
     mime_type: Mapped[str] = mapped_column(String(50), default="image/jpeg")
     preview_text: Mapped[str | None] = mapped_column(String(250), nullable=True, default=None)
+    page_count: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    combined_ocr_text: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
+    pages: Mapped[list[dict]] = mapped_column(MutableList.as_mutable(JSON), default=list, server_default="[]")
     user: Mapped["User"] = relationship("User", back_populates="documents")
 
 # Define the User model

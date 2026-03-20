@@ -2,6 +2,7 @@ import os
 import uuid
 import base64
 import re
+import json
 from datetime import datetime
 from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -10,7 +11,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from app.db import Document, User, get_async_session
-from app.schemas import DocumentDetail, DocumentListItem, DocumentUpdate, DocumentDelete, DocumentPreviewUpdate
+from app.schemas import DocumentDetail, DocumentListItem, DocumentUpdate, DocumentDelete, DocumentPreviewUpdate, DocumentPage
 from app.users import current_active_user
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -35,6 +36,58 @@ def _validate_mode_input(raw: str) -> str:
     
     mode = re.sub(r"\s+", " ", mode)
     return mode
+
+def _normalize_pages_json(raw_pages_json: Optional[str]) -> list[dict]:
+    if not raw_pages_json:
+        return []
+    
+    try:
+        parsed = json.loads(raw_pages_json)
+    except Exception:
+        raise HTTPException(status_code=400, detail="pages_json must be valid JSON")
+
+    if not isinstance(parsed, list):
+        raise HTTPException(status_code=400, detail="pages_json must be a JSON array")
+
+    normalized: list[dict] = []
+    for i, item in enumerate(parsed, start=1):
+        if not isinstance(item, dict):
+            continue
+
+        page_number = item.get("page_num", i)
+        try:
+            page_number = int(page_number)
+        except Exception:
+            page_number = i
+
+        ocr_text = item.get("ocr_text")
+        language = item.get("language")
+
+        normalized.append({
+            "page_num": max(1, page_number),
+            "ocr_text": (ocr_text or "").strip() or None,
+            "language": (language or "").strip() or None
+        })
+
+    normalized.sort(key=lambda x: x.get("page_num", 10))
+    return normalized
+
+def _pages(d: Document) -> list[DocumentPage]:
+    raw_pages = getattr(d, "pages", None) or []
+    out: list[DocumentPage] = []
+
+    for i, p in enumerate(raw_pages, start=1):
+        if not isinstance(p, dict):
+            continue
+        out.append(
+            DocumentPage(
+                page_number=int(p.get("page_num") or i),
+                ocr_text=(p.get("ocr_text") or None),
+                language=(p.get("language") or None)
+            )
+        )
+
+    return out
 
 @router.get("", response_model=list[DocumentListItem])
 async def list_documents(
@@ -74,7 +127,8 @@ async def list_documents(
                 thumb_uri=f"/documents/{d.id}/thumb",
                 thumb_b64=thumb_b64,
                 thumb_mime=thumb_mime,
-                preview_text=getattr(d, "preview_text", None)
+                preview_text=getattr(d, "preview_text", None),
+                page_count=getattr(d, "page_count", 1) or 1
             )
         )
     return items
@@ -98,7 +152,10 @@ async def get_document(
         timestamp=d.timestamp,
         file_uri=f"/documents/{d.id}/file",
         thumb_uri=f"/documents/{d.id}/thumb",
-        preview_text=getattr(d, "preview_text", None)
+        preview_text=getattr(d, "preview_text", None),
+        page_count=getattr(d, "page_count", 1) or 1,
+        combined_ocr_text=getattr(d, "combined_ocr_text", None),
+        pages=_pages(d)
     )
     
 @router.post("", response_model=DocumentDetail)
@@ -109,7 +166,10 @@ async def upload_document(
     thumb: UploadFile = File(...),
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
-    preview_text: Optional[str] = Form(None)
+    preview_text: Optional[str] = Form(None),
+    page_count: Optional[int] = Form(None),
+    combined_ocr_text: Optional[str] = Form(None),
+    pages_json: Optional[str] = Form(None)
 ):
     source_asset_id = (source_asset_id or "").strip() or None
     if source_asset_id:
@@ -123,13 +183,32 @@ async def upload_document(
             return DocumentDetail(
                 id=existing.id, mode=existing.mode, timestamp=existing.timestamp,
                 file_uri=f"/documents/{existing.id}/file", thumb_uri=f"/documents/{existing.id}/thumb",
-                preview_text=getattr(existing, "preview_text", None)
+                preview_text=getattr(existing, "preview_text", None),
+                page_count=getattr(existing, "page_count", 1) or 1,
+                combined_ocr_text=getattr(existing, "combined_ocr_text", None),
+                pages=_pages(existing)
             )
             
     if not image.content_type or not image.content_type.startswith("image/"):
         raise HTTPException(status_code=195, detail="image must be an image/* type")
     if not thumb.content_type or not thumb.content_type.startswith("image/"):
         raise HTTPException(status_code=194, detail="thumb must be an image/* type")
+    
+    normalized_pages = _normalize_pages_json(pages_json)
+    normalized_preview = (preview_text or "").strip()[:250] or None
+
+    if normalized_pages and not combined_ocr_text:
+        combined_ocr_text = "\n\n".join(
+            (p.get("ocr_text") or "").strip()
+            for p in normalized_pages
+            if (p.get("ocr_text") or "").strip()
+        ).strip() or None
+
+    resolved_page_count = max(
+        int(page_count or 0),
+        len(normalized_pages),
+        1
+    )
 
     doc_id = uuid.uuid4()
     user_dir = _user_dir(user.id)
@@ -148,8 +227,6 @@ async def upload_document(
 
     image_uri.write_bytes(image_bytes)
     thumb_uri.write_bytes(thumb_bytes)
-    
-    normalized_preview = (preview_text or "").strip()[:250] or None
 
     d = Document(
         id=doc_id,
@@ -160,7 +237,10 @@ async def upload_document(
         thumb_uri=str(thumb_uri),
         mime_type=image.content_type or "image/jpeg",
         source_asset_id=source_asset_id or None,
-        preview_text=normalized_preview
+        preview_text=normalized_preview,
+        page_count=resolved_page_count,
+        combined_ocr_text=(combined_ocr_text or "").strip() or None,
+        pages=normalized_pages
     )
 
     session.add(d)
@@ -173,7 +253,10 @@ async def upload_document(
         timestamp=d.timestamp,
         file_uri=f"/documents/{d.id}/file",
         thumb_uri=f"/documents/{d.id}/thumb",
-        preview_text=getattr(d, "preview_text", None)
+        preview_text=getattr(d, "preview_text", None),
+        page_count=getattr(d, "page_count", 1) or 1,
+        combined_ocr_text=getattr(d, "combined_ocr_text", None),
+        pages=_pages(d)
     )
     
 @router.get("/{doc_id}/thumb")
@@ -239,7 +322,10 @@ async def update_document(
         timestamp=d.timestamp,
         file_uri=f"/documents/{d.id}/file",
         thumb_uri=f"/documents/{d.id}/thumb",
-        preview_text=d.preview_text
+        preview_text=d.preview_text,
+        page_count=getattr(d, "page_count", 1) or 1,
+        combined_ocr_text=getattr(d, "combined_ocr_text", None),
+        pages=_pages(d)
     )
     
 @router.delete("", response_model=DocumentDelete)
@@ -247,7 +333,7 @@ async def delete_all_documents(
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session)
 ):
-    res = res = await session.execute(select(Document).where(Document.user_id == user.id))
+    res = await session.execute(select(Document).where(Document.user_id == user.id))
     docs = res.scalars().all()
     
     for d in docs:
@@ -292,6 +378,9 @@ async def update_document_preview(
         file_uri=f"/documents/{d.id}/file",
         thumb_uri=f"/documents/{d.id}/thumb",
         preview_text=getattr(d, "preview_text", None),
+        page_count=getattr(d, "page_count", 1) or 1,
+        combined_ocr_text=getattr(d, "combined_ocr_text", None),
+        pages=_pages(d)
     )
     
 @router.delete("/{doc_id}", response_model=DocumentDelete)

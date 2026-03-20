@@ -87,6 +87,24 @@ type LanguageRow = {
   name: string;
 }
 
+type DocPage = {
+  page_num: number;
+  ocr_text?: string | null;
+  language?: string | null;
+};
+
+type DocDetail = {
+  id: string;
+  mode: string;
+  timestamp: string;
+  file_uri: string;
+  thumb_uri: string;
+  preview_text?: string | null;
+  page_count?: number;
+  combined_ocr_text?: string | null;
+  pages?: DocPage[];
+}
+
 const calibScanCountKey = "calib_scan_count";
 const calibFreqKey = "calib_freq";
 const calibReadingLevelKey = "user_reading_level";
@@ -227,6 +245,14 @@ export default function ReaderScreen() {
   const mode = Array.isArray(params.mode) ? params.mode[0] : params.mode;
   const docId = Array.isArray(params.docId) ? params.docId[0] : params.docId;
 
+  const [savedDocLoading, setSavedDocLoading] = useState(false);
+  const [savedDocPages, setSavedDocPages] = useState<DocPage[]>([]);
+  const [savedDocPageCount, setSavedDocPageCount] = useState<number>(1);
+  const [savedDocCombinedText, setSavedDocCombinedText] = useState<string>("");
+  const [savedDocMode, setSavedDocMode] = useState<string | null>(null);
+
+  const hasStoredPages = savedDocPages.length > 0;
+
   // ocr request states
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
@@ -237,6 +263,10 @@ export default function ReaderScreen() {
 
   const [langPickerVisible, setLangPickerVisible] = useState(false);
   const [langSearch, setLangSearch] = useState("");
+
+  const effectiveOcrText = useMemo(() => {
+    return (savedDocCombinedText || ocrText || "").trim();
+  }, [savedDocCombinedText, ocrText]);
 
   //highlight difficult words toggle actionizer
   const [highlightEnabled, setHighlightEnabled] = useState<boolean>(true);
@@ -268,6 +298,10 @@ export default function ReaderScreen() {
   const [geminiLoading, setGeminiLoading] = useState(false);
   const [geminiError, setGeminiError] = useState<string | null>(null);
   const [geminiData, setGeminiData] = useState<GeminiResponse | null>(null);
+
+  const effectiveMode = useMemo(() => {
+    return savedDocMode || mode || geminiData?.mode || "Document";
+  }, [savedDocMode, mode, geminiData?.mode]);
 
   //gemini TTS
   const [ttsLoading, setTtsLoading] = useState(false);
@@ -354,11 +388,11 @@ export default function ReaderScreen() {
     if (ocrLoading || geminiLoading) return "";
 
     if (tab === "Overview") {
-      if (showOriginal) return (ocrText ?? "").trim();
+      if (showOriginal) return effectiveOcrText;
       return (geminiData?.summary ?? "").trim();
     }
     if (tab === "Easy Read") {
-      const txt = (simplifyMoreText === null ? (geminiData?.simplification ?? "") : simplifyMoreText ?? "").trim();
+      const txt = (simplifyMoreText === null ? (geminiData?.simplification ?? "") : (simplifyMoreText ?? "")).trim();
       return txt;
     }
     if (tab === "Translate") {
@@ -366,7 +400,6 @@ export default function ReaderScreen() {
       if (translated) return translated;
 
       const userLanguage = (userLang ?? "not set").toUpperCase();
-      const ocrLang = (ocrLanguage ?? "unknown").toUpperCase();
       return `No translation available. Your language and the text are both set to ${langCodeToName(userLanguage)}.`;
     }
     return "";
@@ -406,6 +439,26 @@ export default function ReaderScreen() {
     } catch (e: any) {
       console.warn("Share failed:", e?.message ?? e);
       Alert.alert("Share Error", e?.message ?? "Failed to share the document summary.");
+    }
+  }
+
+  async function fetchSavedDocDetail(docId: string): Promise<DocDetail | null> {
+    try {
+      const token = await storage.getItem("access_token");
+      const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+      if (!token || !api_url) return null;
+
+      const res = await fetch(`${api_url}/documents/${docId}`, {
+        headers: {
+          Authorization: `${tokenType} ${token}`,
+        },
+      });
+
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (e) {
+      console.warn("Unable to pull saved document details:", e);
+      return null;
     }
   }
 
@@ -546,7 +599,7 @@ export default function ReaderScreen() {
   }, [tab, userLang, ocrLanguage]);
 
   // only show language label under these conditions
-  const showLangLabel = !isLoading && !ocrError && !!ocrText && badgeLang !== "N/A";
+  const showLangLabel = !isLoading && !ocrError && !!effectiveOcrText && badgeLang !== "N/A";
   // formatted language label (capitalized or N/A)
   const langLabel = badgeLang;
 
@@ -697,10 +750,12 @@ export default function ReaderScreen() {
     });
   }
 
+
+
   // build version of ocr text with complex words highlighted
   const highlightedOriginal = useMemo(() => {
     // ocr text is always string
-    const text = ocrText ?? "";
+    const text = effectiveOcrText ?? "";
     // normalize complex words to lowercase for case insensitive checking
     const words = (geminiData?.complex_words ?? []).map(w => w.toLowerCase());
 
@@ -730,7 +785,7 @@ export default function ReaderScreen() {
         </AppText>
       );
     });
-  }, [ocrText, geminiData?.complex_words, darkMode]) // update when ocr text or complex_words list change
+  }, [effectiveOcrText, geminiData?.complex_words, darkMode]) // update when ocr text or complex_words list change
 
   // build version of simplification text with complex words highlighted
   const highlightedSimplified = useMemo(() => {
@@ -785,6 +840,12 @@ export default function ReaderScreen() {
     setSessionReadingLevel(null);
     setOcrLanguage("unknown");
 
+    setSavedDocLoading(false);
+    setSavedDocPages([]);
+    setSavedDocPageCount(1);
+    setSavedDocCombinedText("");
+    setSavedDocMode(null);
+
     // reset calibration states as well
     setCalibVis(false);
     setCalibLoad(false);
@@ -793,7 +854,7 @@ export default function ReaderScreen() {
     setCalibHigher(null);
     setCalibLowerTxt("");
     setCalibHigherTxt("");
-  }, [imageUri]); // new image uri triggers
+  }, [imageUri, docId]); // new image uri triggers
 
   // close modal when tab changes
   useEffect(() => {
@@ -837,7 +898,7 @@ export default function ReaderScreen() {
   //re-process gemini flow to refresh translation -- no OCR re-process
   async function rerunGeminiWithNewLang(targetLang2: string) {
     if (ocrLoading || geminiLoading) return;
-    if (!ocrText) return;
+    if (!effectiveOcrText) return;
 
     const code2 = (targetLang2 ?? "").trim().toUpperCase();
     if (!/^[A-Z]{2}$/.test(code2)) return;
@@ -849,20 +910,17 @@ export default function ReaderScreen() {
       const token = await storage.getItem("access_token");
       const tokenType = (await storage.getItem("token_type")) ?? "bearer";
 
-      const normalizeMode =
-        typeof mode === "string" ? mode : Array.isArray(mode) ? mode[0] : geminiData?.mode ?? "Auto-detect";
-
       const response = await fetch(`${api_url}/gemini`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `${tokenType} ${token}` } : {}),
+          ...(token ? { Authorization: `${tokenType} ${token}` } : {})
         },
         body: JSON.stringify({
-          text: ocrText,
-          mode: normalizeMode ?? "Document",
+          text: effectiveOcrText,
+          mode: effectiveMode ?? "Document",
           target_language: code2,
-          ...(sessionReadingLevel !== null ? { reading_level: sessionReadingLevel } : {}),
+          ...(sessionReadingLevel !== null ? { reading_level: sessionReadingLevel } : {})
         })
       });
 
@@ -877,7 +935,7 @@ export default function ReaderScreen() {
         return {
           ...prev,
           ...json,
-          translation: (json.translation ?? prev.translation) ?? null,
+          translation: (json.translation ?? prev.translation) ?? null
         };
       });
     } catch (e: any) {
@@ -889,12 +947,12 @@ export default function ReaderScreen() {
 
   useEffect(() => {
     if (tab !== "Translate") return;
-    if (!ocrText) return;
+    if (!effectiveOcrText) return;
     if (!userLang) return;
     if (!geminiData?.translation) {
       rerunGeminiWithNewLang(userLang);
     }
-  }, [tab, userLang, ocrText]);
+  }, [tab, userLang, effectiveOcrText, geminiData?.translation]);
 
   // get calibration state from db
   async function dbGetCalibState(): Promise<{
@@ -1009,12 +1067,12 @@ export default function ReaderScreen() {
   }
 
   async function fetchSimplifiedTxt(level: number): Promise<string> {
-    const normalizeMode = typeof mode === "string" ? mode : Array.isArray(mode) ? mode[0] : geminiData?.mode ?? "Auto-detect";
     const tokenHeaders = await getAuthToken();
+
     const res = await fetch(`${api_url}/gemini`, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...tokenHeaders },
-      body: JSON.stringify({ text: ocrText, mode: normalizeMode, reading_level: level }),
+      body: JSON.stringify({ text: effectiveOcrText, mode: effectiveMode ?? "Document", reading_level: level })
     });
 
     if (!res.ok) {
@@ -1105,7 +1163,7 @@ export default function ReaderScreen() {
   }
 
   async function checkIncrAndCalib() {
-    if (!imageUri) return;
+    if (!imageUri && !docId) return;
 
     if (imageUriRef.current === imageUri) return;
 
@@ -1119,12 +1177,12 @@ export default function ReaderScreen() {
 
   useEffect(() => {
     checkIncrAndCalib();
-  }, [imageUri]);
+  }, [imageUri, docId]);
 
   useEffect(() => {
     async function checkPrompt() {
-      if (!imageUri) return;
-      if (!ocrText) return;
+      if (!imageUri && !docId) return;
+      if (!effectiveOcrText) return;
       if (calibVis) return;
 
       const dbState = await dbGetCalibState();
@@ -1149,7 +1207,7 @@ export default function ReaderScreen() {
     }
 
     checkPrompt();
-  }, [ocrText]);
+  }, [effectiveOcrText, calibVis, docId, imageUri, geminiData?.reading_level, sessionReadingLevel]);
 
   useEffect(() => {
     // prevent mounting issues
@@ -1158,7 +1216,7 @@ export default function ReaderScreen() {
     // call backend ocr endpoint using captured image
     async function runOcrGeminiPipeline() {
       // no image uri, do nothing
-      if (!imageUri) {
+      if (!imageUri && !docId) {
         return;
       }
       if (!api_url) {
@@ -1179,41 +1237,82 @@ export default function ReaderScreen() {
         setGeminiError(null);
         setGeminiData(null);
 
-        // OCR
+        let sourceText = "";
+        let sourceLang = "unknown";
+        let resolvedMode = typeof mode === "string" ? mode: "Document";
 
-        // convert image file to base64 string payload
-        const base64 = await uriToBase64(imageUri);
-        // call backend ocr endpoint
-        const response = await fetch(`${api_url}/ocr`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          // send base64 image data + selected mode
-          body: JSON.stringify({
-            image_base64: base64,
-            mode: mode ?? "Document" // default document if none provided
-          })
-        });
+        if (docId) {
+          setSavedDocLoading(true);
+          const saved = await fetchSavedDocDetail(docId);
 
-        // bad response, throw readable error
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(text || `OCR failed (HTTP ${response.status})`);
+          if (saved) {
+            const savedPages = Array.isArray(saved.pages) ? saved.pages : [];
+            const joinedPages = savedPages
+              .map((p) => (p.ocr_text ?? "").trim())
+              .filter(Boolean)
+              .join("\n\n");
+
+            sourceText = (saved.combined_ocr_text ?? "").trim() || joinedPages;
+            sourceLang =
+              (savedPages.find((p) => (p.language ?? "").trim())?.language ?? "unknown");
+            resolvedMode = saved.mode || resolvedMode;
+
+            if (!cancelled) {
+              setSavedDocPages(savedPages);
+              setSavedDocPageCount(Math.max(saved.page_count ?? savedPages.length ?? 1, 1));
+              setSavedDocCombinedText(sourceText);
+              setSavedDocMode(saved.mode ?? null);
+              setOcrText(sourceText);
+              setOcrLanguage(sourceLang || "unknown");
+            }
+          }
+          setSavedDocLoading(false);
         }
 
-        // parse json response
-        const data = await response.json();
+        // OCR
+        if (!sourceText) {
+          if (!imageUri) {
+            throw new Error("No image for OCR is available");
+          }
+          // convert image file to base64 string payload
+          const base64 = await uriToBase64(imageUri);
+          // call backend ocr endpoint
+          const response = await fetch(`${api_url}/ocr`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            // send base64 image data + selected mode
+            body: JSON.stringify({
+              image_base64: base64,
+              mode: mode ?? "Document" // default document if none provided
+            })
+          });
 
-        // store ocr text if still mounted
-        if (!cancelled) {
-          setOcrText(data.text ?? "");
-          setOcrLanguage(data.language ?? "unknown");
-          setOcrLoading(false);
+          // bad response, throw readable error
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || `OCR failed (HTTP ${response.status})`);
+          }
+
+          // parse json response
+          const data = await response.json();
+          sourceText = (data.text ?? "").trim();
+          sourceLang = data.language ?? "unknown";
+
+          // store ocr text if still mounted
+          if (!cancelled) {
+            setOcrText(sourceText);
+            setOcrLanguage(sourceLang);
+          }
+
           if (docId) {
-          const text_preview = clampToTwoSentences(data.text ?? "");
-          if (text_preview) {
-            await updatePreview(docId, text_preview);
+            const text_preview = clampToTwoSentences(sourceText);
+            if (text_preview) {
+              await updatePreview(docId, text_preview);
+            }
           }
         }
+        if (!cancelled) {
+          setOcrLoading(false);
         }
 
         const token = await storage.getItem("access_token");
@@ -1229,7 +1328,7 @@ export default function ReaderScreen() {
             "Content-Type": "application/json",
             ...(token ? { Authorization: `${tokenType} ${token}` } : {})
           },
-          body: JSON.stringify({ text: data.text ?? "", mode: mode ?? "Document" })
+          body: JSON.stringify({ text: sourceText ?? "", mode: resolvedMode ?? "Document" })
         });
         // check response, handle error
         if (!geminiResponse.ok) {
@@ -1258,7 +1357,7 @@ export default function ReaderScreen() {
 
 
         // only set sessionreadinglevel if not null
-        setSessionReadingLevel((prev) => (prev === null ? (geminiJson.reading_level ?? null) : prev));
+        setSessionReadingLevel((prev) => prev === null ? (geminiJson.reading_level ?? null) : prev);
 
         try {
           const exists = await getReadingLvl();
@@ -1288,6 +1387,7 @@ export default function ReaderScreen() {
       finally {
         // stop showing loading state if still mounted
         if (!cancelled) {
+          setSavedDocLoading(false);
           setOcrLoading(false);
           setGeminiLoading(false);
         }
@@ -1300,8 +1400,7 @@ export default function ReaderScreen() {
     return () => {
       cancelled = true;
     };
-
-  }, [imageUri, mode]);
+  }, [imageUri, mode, docId]);
 
   // update bookmark/badge doc mode label
   const badgeMode = useMemo(() => {
@@ -1314,8 +1413,8 @@ export default function ReaderScreen() {
       return "";
     }
     // return the mode or auto-detect
-    return geminiData?.mode ?? "Auto-detect";
-  }, [mode, ocrLoading, geminiLoading, geminiData]); // when mode, loading states, or data changes
+    return effectiveMode ?? "Auto-detect";
+  }, [mode, effectiveMode, ocrLoading, geminiLoading]); // when mode, loading states, or data changes
 
   // compute text to show inside reader card
   const content = useMemo(() => {
@@ -1329,11 +1428,11 @@ export default function ReaderScreen() {
 
     // if user wants original text, show ocr text
     if (tab === "Overview" && showOriginal) {
-      return ocrText || "No text available. Please scan or upload a document to see the extracted text here.";
+      return effectiveOcrText || "No text available. Please scan or upload a document to see the extracted text here.";
     }
 
     if (!geminiData) {
-      return ocrText ? ocrText : "No text available. Please scan or upload a document to see the simplified text here.";
+      return effectiveOcrText ? effectiveOcrText : "No text available. Please scan or upload a document to see the simplified text here.";
     }
 
     // grab returned action items if action items is an array, otherwise default to empty array
@@ -1355,7 +1454,8 @@ export default function ReaderScreen() {
       default:
         return "";
     }
-  }, [tab, ocrLoading, ocrError, ocrText, geminiLoading, geminiError, geminiData, showOriginal, simplifyMoreText]);
+  }, [tab, ocrLoading, ocrError, effectiveOcrText, highlightedSimplified, userLang, ocrLanguage,
+    geminiLoading, geminiError, geminiData, showOriginal, simplifyMoreText]);
 
   // function for updating user's reading level on backend
   async function patchReadingLevel(newReadingLevel: number) {
@@ -1392,7 +1492,7 @@ export default function ReaderScreen() {
   async function rerunGeminiWithLevel(level: number) {
     if (!api_url) return;
     if (ocrLoading || geminiLoading) return;
-    if (!ocrText) return;
+    if (!effectiveOcrText) return;
 
     setGeminiLoading(true);
     setGeminiError(null);
@@ -1412,13 +1512,13 @@ export default function ReaderScreen() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `${tokenType} ${token}` } : {}),
+          ...(token ? { Authorization: `${tokenType} ${token}` } : {})
         },
         body: JSON.stringify({
-          text: ocrText,
-          mode: mode ?? "Document",
-          reading_level: level,
-        }),
+          text: effectiveOcrText,
+          mode: effectiveMode ?? "Document",
+          reading_level: level
+        })
       });
 
       if (!response.ok) {
@@ -1433,13 +1533,14 @@ export default function ReaderScreen() {
         action_items: normalizeActionItems(raw.action_items)
       }
       const newLevel = (typeof json.reading_level === "number" ? json.reading_level : level);
+
       setSessionReadingLevel(newLevel);
       setSimplifyMoreCount(0);
-
       setGeminiData(json);
       setSimplifyMoreText(json.simplification ?? null);
       setSimplifiedReadingLevel(newLevel);
       setSimplifiedMost(newLevel === 1);
+
       try {
         await patchReadingLevel(newLevel);
       } catch (e: any) {
@@ -1591,6 +1692,12 @@ export default function ReaderScreen() {
                 </View>
               )}
 
+              {savedDocPageCount > 1 && !isLoading && (
+                <AppText style={[readerStyles.pageMeta, { color: P.mutedText }]}>
+                  {savedDocPageCount} pages
+                </AppText>
+              )}
+
               {/* Body text */}
               <ScrollView
                 style={readerStyles.bodyScroll}
@@ -1601,13 +1708,66 @@ export default function ReaderScreen() {
                 onScrollBeginDrag={closeDefinitionModal}
               >
                   {tab === "Overview" && showOriginal ? (
-                    highlightEnabled ? (
-                      <AppText style={{flexDirection: "row", flexWrap: "wrap"}}>
+                    hasStoredPages ? (
+                      <View>
+                        {savedDocPages.map((page) => {
+                          const pageText = (page.ocr_text ?? "").trim();
+                          const words = (geminiData?.complex_words ?? []).map(w => w.toLowerCase());
+
+                          const highlightedPage = pageText.split(/(\s+)/).map((part, i) => {
+                            if (!part.trim()) {
+                              return part;
+                            }
+
+                            const cleanWord = part.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+                            const match = words.includes(cleanWord);
+
+                            return (
+                              <AppText
+                                key={`${page.page_num}-${i}`}
+                                style={[
+                                  match ? readerStyles.complexWord : readerStyles.bodyText,
+                                  { color: match ? P.complexWord : P.bodyText }
+                                ]}
+                                onPress={() => {
+                                  if (match) {
+                                    openDefinitionModal(cleanWord);
+                                  }
+                                }}
+                              >
+                                {part}
+                              </AppText>
+                            );
+                          });
+
+                          return (
+                            <View key={`page-${page.page_num}`} style={readerStyles.pageBlock}>
+                              {savedDocPageCount > 1 && (
+                                <AppText style={[readerStyles.pageTitle, { color: P.bodyText }]}>
+                                  PAGE {page.page_num}
+                                </AppText>
+                              )}
+
+                              {highlightEnabled ? (
+                                <AppText style={{ flexDirection: "row", flexWrap: "wrap" }}>
+                                  {highlightedPage}
+                                </AppText>
+                              ) : (
+                                <AppText style={[readerStyles.bodyText, { color: P.bodyText }]}>
+                                  {pageText}
+                                </AppText>
+                              )}
+                            </View>
+                          );
+                        })}
+                      </View>
+                    ) : highlightEnabled ? (
+                      <AppText style={{ flexDirection: "row", flexWrap: "wrap" }}>
                         {highlightedOriginal}
                       </AppText>
                     ) : (
                       <AppText style={[readerStyles.bodyText, { color: P.bodyText }]}>
-                        {(ocrText ?? "").trim()}
+                        {effectiveOcrText}
                       </AppText>
                     )
                   ) : tab === "Easy Read" ? (
@@ -1639,13 +1799,15 @@ export default function ReaderScreen() {
                     ]}
                     onPress={async () => {
                       if (tab === "Overview") {
-                        setShowOriginal(!showOriginal)
+                        setShowOriginal(!showOriginal);
+                        return;
                       }
-                      else if (tab === "Easy Read") {
+                      
+                      if (tab === "Easy Read") {
                         if (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1) {
                           return;
                         }
-                        if (ocrLoading || geminiLoading || !ocrText) {
+                        if (ocrLoading || geminiLoading || !effectiveOcrText) {
                           return;
                         }
                         if (!api_url) {
@@ -1672,10 +1834,10 @@ export default function ReaderScreen() {
                               ...(token ? { Authorization: `${tokenType} ${token}` } : {})
                             },
                             body: JSON.stringify({
-                              text: ocrText,
-                              mode: mode ?? "Document",
+                              text: effectiveOcrText,
+                              mode: effectiveMode ?? "Document",
                               simplify_more_by: simplifyMoreBy,
-                              ...(sessionReadingLevel !== null ? { reading_level: sessionReadingLevel } : {}),
+                              ...(sessionReadingLevel !== null ? { reading_level: sessionReadingLevel } : {})
                             })
                           });
 
@@ -1708,8 +1870,9 @@ export default function ReaderScreen() {
                         }
                       }
                     }}
-                    disabled={ocrLoading || geminiLoading || !ocrText
-                      || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1))}>
+                    disabled={ocrLoading || geminiLoading || !effectiveOcrText
+                      || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1))
+                    }>
                     <AppText style={[readerStyles.ctaText, darkMode && readerDarkStyles.ctaText]}>
                       {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
                         : (tab === "Overview" && !showOriginal) ? "See Original Text"

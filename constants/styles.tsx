@@ -567,6 +567,23 @@ export const readerStyles = StyleSheet.create({
     flexWrap: 'wrap'
   },
 
+  pageMeta: {
+    marginTop: 8,
+    marginBottom: 2,
+    fontSize: 12,
+    fontWeight: "800",
+    textAlign: "center"
+  },
+  pageBlock: {
+    marginBottom: 22
+  },
+  pageTitle: {
+    fontSize: 13,
+    fontWeight: "900",
+    marginBottom: 8,
+    letterSpacing: 0.8
+  },
+
   ctaBtn: {
     flex: 1,
     height: 46,

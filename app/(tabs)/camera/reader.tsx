@@ -251,8 +251,6 @@ export default function ReaderScreen() {
   const [savedDocCombinedText, setSavedDocCombinedText] = useState<string>("");
   const [savedDocMode, setSavedDocMode] = useState<string | null>(null);
 
-  const hasStoredPages = savedDocPages.length > 0;
-
   // ocr request states
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
@@ -267,6 +265,32 @@ export default function ReaderScreen() {
   const effectiveOcrText = useMemo(() => {
     return (savedDocCombinedText || ocrText || "").trim();
   }, [savedDocCombinedText, ocrText]);
+
+  //multi-page docs
+  const displayPages = useMemo(() => {
+    if (savedDocPages.length > 0) {
+      return savedDocPages;
+    }
+
+    if (savedDocPageCount > 1 && effectiveOcrText) {
+      const parts = effectiveOcrText
+        .split(/\n\s*\n/)
+        .map((x) => x.trim())
+        .filter(Boolean);
+
+      if (parts.length > 1) {
+        return parts.map((text, index) => ({
+          page_num: index + 1,
+          ocr_text: text,
+          language: null,
+        }));
+      }
+    }
+
+    return [];
+  }, [savedDocPages, savedDocPageCount, effectiveOcrText]);
+
+  const hasDisplayPages = displayPages.length > 0;
 
   //highlight difficult words toggle actionizer
   const [highlightEnabled, setHighlightEnabled] = useState<boolean>(true);
@@ -1794,9 +1818,9 @@ export default function ReaderScreen() {
                 onScrollBeginDrag={closeDefinitionModal}
               >
                   {tab === "Overview" && showOriginal ? (
-                    hasStoredPages ? (
+                    hasDisplayPages ? (
                       <View>
-                        {savedDocPages.map((page) => {
+                        {displayPages.map((page) => {
                           const pageText = (page.ocr_text ?? "").trim();
                           const words = (geminiData?.complex_words ?? []).map(w => w.toLowerCase());
 
@@ -1829,7 +1853,7 @@ export default function ReaderScreen() {
                           return (
                             <View key={`page-${page.page_num}`} style={readerStyles.pageBlock}>
                               {savedDocPageCount > 1 && (
-                                <AppText style={[readerStyles.pageTitle, { color: P.bodyText }]}>
+                                <AppText style={[readerStyles.pageTitle, { color: "#8C311C" }]}>
                                   PAGE {page.page_num}
                                 </AppText>
                               )}

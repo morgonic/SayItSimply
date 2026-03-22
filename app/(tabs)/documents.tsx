@@ -86,11 +86,9 @@ export default function DocumentsScreen() {
   );
 
   const openDoc = (item: DocItem) => {
-    const fileUri = `${baseUrl}/documents/${item.id}/file`;
-
     router.push({
-      pathname: "/camera/reader",
-      params: { imageUri: fileUri, mode: item.mode },
+      pathname: "/(tabs)/camera/reader",
+      params: { docId: item.id, mode: item.mode },
     });
   };
 

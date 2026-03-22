@@ -8,7 +8,7 @@ import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Pressable, TextInput, View } from "react-native";
+import { Alert, Image, Modal, Pressable, TextInput, View } from "react-native";
 
 WebBrowser.maybeCompleteAuthSession()
 
@@ -56,6 +56,9 @@ export default function LogInScreen() {
   const faceIdReady = useMemo(() => {
     return !!savedFaceId.faceIdToken && !!savedFaceId.deviceId;
   }, [savedFaceId]);
+
+  const [forgotPasswordVisible, setForgotPasswordVisible] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -343,7 +346,7 @@ export default function LogInScreen() {
       </Pressable>
 
       <Pressable
-        onPress={() => Alert.alert("Password reset functionality is not yet implemented.")}
+        onPress={() => setForgotPasswordVisible(true)}
         style={{
           marginTop: 12
         }}
@@ -427,6 +430,79 @@ export default function LogInScreen() {
       >
         By logging in, you agree to our <AppText style={{color: '#7F7F7F'}}>Terms of Service</AppText> and <AppText style={{color: '#7F7F7F'}}>Privacy Policy</AppText>
       </AppText>
+
+      {forgotPasswordVisible ? (
+        <Modal
+          visible={forgotPasswordVisible}
+          transparent
+          animationType='fade'
+          onRequestClose={() => setForgotPasswordVisible(false)}
+        >
+          <Pressable
+            onPress={() => setForgotPasswordVisible(false)}
+            style={{
+              flex: 1,
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: 24
+            }}
+          >
+            <Pressable
+              onPress={(event) => event.stopPropagation()}
+              style={{
+                width: '100%',
+                maxWidth: 420,
+                backgroundColor: 'white',
+                borderRadius: 12,
+                padding: 24
+              }}
+            >
+              <AppText style={{fontSize: 18, fontWeight: '700', marginBottom: 12}}>
+                Forgot Password
+              </AppText>
+
+              <TextInput
+                placeholder="Enter your email address"
+                placeholderTextColor='#7F7F7F'
+                autoCapitalize="none"
+                keyboardType="email-address"
+                value={forgotPasswordEmail}
+                onChangeText={setForgotPasswordEmail}
+                style={{
+                  borderWidth: 1,
+                  borderRadius: 8,
+                  padding: 12,
+                  marginBottom: 16,
+                  backgroundColor: '#F8F4F9'
+                }}
+              />
+
+              <Pressable
+                onPress={() => {
+                  Alert.alert("Password Reset", "If an account with that email exists, a password reset link has been sent.");
+                }}
+                style={{
+                  backgroundColor: "#809BCE",
+                  padding: 12,
+                  borderRadius: 8
+                }}
+              >
+                <AppText
+                  style={{
+                    color: "white",
+                    fontWeight: "700",
+                    textAlign: "center",
+                    fontSize: 14
+                  }}
+                >
+                  Send Reset Link
+                </AppText>
+              </Pressable>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      ) : null}
     </View>
   );
 }

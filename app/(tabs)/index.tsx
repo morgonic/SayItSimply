@@ -3,11 +3,12 @@ import storage from '@/app/storage';
 import AppText from "@/components/TextSize";
 import { styles } from "@/constants/styles";
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
@@ -44,6 +45,13 @@ async function fetchSaveSetting(): Promise<SaveSetting> {
     scan_doc_save: typeof json.scan_doc_save === "boolean" ? json.scan_doc_save : true
   };
 }
+
+type UploadPage = {
+  uri: string;
+  page_num: number;
+  ocr_text?: string | null;
+  language?: string | null;
+};
 
 type DocumentListItem = {
   id: string;
@@ -109,7 +117,8 @@ function clampToTwoSentences(text: string): string {
 async function uploadDocument(params: {
   imageUri: string;
   mode: string;
-  sourceAssetId?: string | null
+  sourceAssetId?: string | null;
+  pages?: UploadPage[];
 }): Promise<string> {
   const baseUrl = normalizeBaseUrl(api_url);
   const token = await getAccessToken();
@@ -135,6 +144,32 @@ async function uploadDocument(params: {
   } as any);
 
   form.append("source_asset_id", params.sourceAssetId ?? "");
+
+  const pages = Array.isArray(params.pages) && params.pages.length
+    ? params.pages
+    : [{
+        uri: params.imageUri,
+        page_num: 1,
+        ocr_text: null,
+        language: "unknown",
+      }];
+
+  const normalizedPages = pages.map((p, index) => ({
+    page_num: p.page_num ?? index + 1,
+    ocr_text: (p.ocr_text ?? "").trim() || null,
+    language: (p.language ?? "").trim() || null,
+  }));
+
+  const combinedOcrText = normalizedPages
+    .map((p) => (p.ocr_text ?? "").trim())
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+
+  form.append("page_count", String(Math.max(normalizedPages.length, 1)));
+  form.append("combined_ocr_text", combinedOcrText);
+  form.append("pages_json", JSON.stringify(normalizedPages));
+  form.append("preview_text", clampToTwoSentences(combinedOcrText));
 
   const res = await fetch(`${baseUrl}/documents`, {
     method: "POST",
@@ -222,7 +257,89 @@ function docLabel(doc: DocumentListItem | null): string {
   return when ? `${mode} (${when})` : mode;
 }
 
+async function ocrImageUri(params: {
+  imageUri: string;
+  mode: string;
+}): Promise<{ text: string; language: string }> {
+  if (!api_url) throw new Error("EXPO_PUBLIC_API_URL is not set.");
 
+  const response = await fetch(params.imageUri);
+  if (!response.ok) throw new Error("Failed to read image for OCR.");
+
+  const blob = await response.blob();
+
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      const encoded = result.split(",")[1] ?? "";
+      if (!encoded) reject(new Error("Failed to convert image to base64."));
+      else resolve(encoded);
+    };
+    reader.readAsDataURL(blob);
+  });
+
+  const res = await fetch(`${api_url}/ocr`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      image_base64: base64,
+      mode: params.mode,
+    }),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(txt || `OCR failed (${res.status})`);
+  }
+
+  const json = await res.json();
+  return {
+    text: (json.text ?? "").trim(),
+    language: (json.language ?? "unknown").trim() || "unknown",
+  };
+}
+
+async function uploadPdfDocument(params: {
+  pdfUri: string;
+  pdfName?: string | null;
+  mode: string;
+}): Promise<string> {
+  const baseUrl = normalizeBaseUrl(api_url);
+  const token = await getAccessToken();
+
+  const form = new FormData();
+  form.append("mode", params.mode);
+
+  form.append("file", {
+    uri: params.pdfUri,
+    name: params.pdfName || "document.pdf",
+    type: "application/pdf",
+  } as any);
+
+  const res = await fetch(`${baseUrl}/documents/pdf`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+    body: form,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`PDF file upload failed (${res.status}). ${text}`.trim());
+  }
+
+  const data = (await res.json().catch(() => null)) as any;
+  const docId = data?.id ? String(data.id) : null;
+
+  if (!docId) {
+    throw new Error("PDF upload successfully, but docId was not returned");
+  }
+
+  return docId;
+}
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -271,12 +388,17 @@ export default function DashboardScreen() {
     };
   }, [darkMode]);
 
-  const [isUploading, setIsUploading] = useState(false);
+  const [uploadChoiceVisible, setUploadChoiceVisible] = useState(false);
+  const [isUploadingPdf, setIsUploadingPdf] = useState(false);
+
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   const [loadingDash, setLoadingDash] = useState(true);
   const [recentDocs, setRecentDocs] = useState<DocumentListItem[]>([]);
   const [tasks, setTasks] = useState<TodoItem[]>([]);
   const [lastScanSummary, setLastScanSummary] = useState<string>("");
+
+  const [pendingUploadType, setPendingUploadType] = useState<"images" | "pdf" | null>(null);
 
   const continueReadingDoc = useMemo(() => recentDocs?.[0] ?? null, [recentDocs]);
 
@@ -327,10 +449,16 @@ export default function DashboardScreen() {
 
   }
 
-  const handleUploadPress = async () => {
+  const handleUploadPress = () => {
+    if (isUploadingImage || isUploadingPdf) return;
+    setUploadChoiceVisible(true);
+  };
+
+  const handlePickImages = async () => {
     try {
-      if (isUploading) return;
-      setIsUploading(true);
+      if (isUploadingImage) return;
+
+      setIsUploadingImage(true);
 
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
@@ -349,39 +477,127 @@ export default function DashboardScreen() {
       const saveSetting = await fetchSaveSetting();
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         allowsEditing: false,
+        allowsMultipleSelection: true,
         quality: 1,
-        selectionLimit: 1,
+        selectionLimit: 0,
+        orderedSelection: true
       });
+
       if (result.canceled) return;
 
-      const asset = result.assets?.[0];
-      const uri = asset?.uri;
-      if (!uri) throw new Error("No image selected");
-      const sourceAssetId: string | null = (asset as any)?.assetId ?? null;
+      const assets = result.assets ?? [];
+      if (!assets.length) throw new Error("No image(s) selected");
 
       const mode = "Auto-detect";
 
+      const pagesWithOcr: UploadPage[] = [];
+      for (let i = 0; i < assets.length; i++) {
+        const asset = assets[i];
+        const uri = asset?.uri;
+        if (!uri) continue;
+
+        const ocr = await ocrImageUri({
+          imageUri: uri,
+          mode
+        });
+
+        pagesWithOcr.push({
+          uri,
+          page_num: i + 1,
+          ocr_text: ocr.text,
+          language: ocr.language,
+        });
+      }
+
+      if (!pagesWithOcr.length) {
+      throw new Error("No valid images were selected");
+    }
+
       let docId: string | undefined = undefined;
       if (saveSetting.scan_doc_save) {
-        docId = await uploadDocument({ imageUri: uri, mode, sourceAssetId });
+        docId = await uploadDocument({ imageUri: pagesWithOcr[0].uri, mode, sourceAssetId: null, pages: pagesWithOcr });
       }
 
       router.push({
         pathname: "/camera/reader",
-        params: {
-          imageUri: uri, mode: mode, 
-          ...(docId ? { docId } : {})
-        }
+        params: docId ? { docId, mode } : { imageUri: pagesWithOcr[0].uri, mode }
       });
     } catch (e: any) {
       console.error(e);
-      Alert.alert("Upload failed", e?.message ?? "Could not upload image");
+      Alert.alert("Upload failed", e?.message ?? "Could not upload image(s)");
     } finally {
-      setIsUploading(false);
+      setIsUploadingImage(false);
     }
   };
+
+  const handlePickPdf = async () => {
+    try {
+      if (isUploadingPdf) return;
+
+      setIsUploadingPdf(true);
+
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "application/pdf",
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      setUploadChoiceVisible(false);
+      console.log("PDF picker result:", result);
+
+      if (result.canceled) return;
+
+      const file = result.assets?.[0];
+      if (!file?.uri) {
+        throw new Error("No PDF selected");
+      }
+
+      const mode = "Document";
+      const saveSetting = await fetchSaveSetting();
+
+      let docId: string | undefined = undefined;
+      if (saveSetting.scan_doc_save) {
+        docId = await uploadPdfDocument({
+          pdfUri: file.uri,
+          pdfName: file.name ?? "document.pdf",
+          mode
+        });
+      }
+
+      router.push({
+        pathname: "/camera/reader",
+        params: docId ? { docId, mode } : {}
+      });
+    } catch (e: any) {
+      console.error(e);
+      Alert.alert("PDF upload failed", e?.message ?? "Unable to upload the PDF.");
+    } finally {
+      setIsUploadingPdf(false);
+    }
+  };
+
+  useEffect(() => {
+    if (uploadChoiceVisible) return;
+    if (!pendingUploadType) return;
+
+    const run = async () => {
+      const selectedType = pendingUploadType;
+      setPendingUploadType(null);
+
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      if (selectedType === "images") {
+        await handlePickImages();
+      } else if (selectedType === "pdf") {
+        await handlePickPdf();
+      }
+    };
+
+    run();
+  }, [uploadChoiceVisible, pendingUploadType]);
 
   const continueReadingLabel = useMemo(() => {
     if (!continueReadingDoc) return "No documents yet";
@@ -420,8 +636,8 @@ export default function DashboardScreen() {
                 <FontAwesome name="camera" size={24} color={C.scanIcon} />
               </Pressable>
 
-              <Pressable style={[styles.dashScanBtn, { backgroundColor: C.scanBtnBg }, isUploading && { opacity: 0.6 }]} 
-                onPress={handleUploadPress} disabled={isUploading}
+              <Pressable style={[styles.dashScanBtn, { backgroundColor: C.scanBtnBg }, isUploadingImage && { opacity: 0.6 }]} 
+                onPress={handleUploadPress} disabled={isUploadingImage || isUploadingPdf}
               >
                 <FontAwesome name="upload" size={24} color={C.scanIcon}/>
               </Pressable>
@@ -447,7 +663,13 @@ export default function DashboardScreen() {
                   </AppText>
                 )}
                 <Pressable style={[styles.dashContinueBtn, { backgroundColor: C.btnBg }]}
-                  onPress={() => router.replace("/(tabs)/camera/reader")}
+                  onPress={() => {
+                    if (!continueReadingDoc?.id) return;
+                    router.replace({
+                      pathname: "/(tabs)/camera/reader",
+                      params: { docId: continueReadingDoc.id, mode: continueReadingDoc.mode ?? "Document"}
+                    });
+                  }}
                 >
                   <AppText style={[styles.dashContinueBtnText, { color: C.btnText }]}>Continue Reading</AppText>
                   <AppText style={[styles.dashContinueBtnArrow, { color: C.btnText }]}>›</AppText>
@@ -561,6 +783,93 @@ export default function DashboardScreen() {
           </View>
         </ScrollView>
       </View>
+      <Modal transparent visible={uploadChoiceVisible} animationType="fade" onRequestClose={() => 
+        setUploadChoiceVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: 24 }}>
+          <View
+            style={{
+              width: "100%",
+              maxWidth: 360,
+              borderRadius: 18,
+              padding: 20,
+              backgroundColor: C.isDark ? "#2B2B2B" : "#FFFFFF",
+            }}
+          >
+            <AppText
+              style={{
+                fontSize: 22,
+                fontWeight: "800",
+                marginBottom: 10,
+                color: C.text,
+                textAlign: "center",
+              }}
+            >
+              Choose Upload Type
+            </AppText>
+
+            <AppText
+              style={{
+                fontSize: 15,
+                marginBottom: 18,
+                color: C.text,
+                textAlign: "center",
+              }}
+            >
+              Upload photo gallery images or a PDF from device storage.
+            </AppText>
+
+            <Pressable
+              style={{
+                backgroundColor: C.scanBtnBg,
+                borderRadius: 14,
+                paddingVertical: 14,
+                alignItems: "center",
+                marginBottom: 12,
+                opacity: isUploadingImage ? 0.6 : 1,
+              }}
+              onPress={() => {
+                setPendingUploadType("images");
+                setUploadChoiceVisible(false);
+              }}
+            >
+              <AppText style={{ color: C.scanIcon, fontWeight: "800", fontSize: 16 }}>
+                Upload Image(s)
+              </AppText>
+            </Pressable>
+
+            <Pressable
+              style={{
+                backgroundColor: C.scanBtnBg,
+                borderRadius: 14,
+                paddingVertical: 14,
+                alignItems: "center",
+                marginBottom: 12,
+                opacity: isUploadingPdf ? 0.6 : 1,
+              }}
+              onPress={handlePickPdf}
+            >
+              <AppText style={{ color: C.scanIcon, fontWeight: "800", fontSize: 16 }}>
+                Upload PDF
+              </AppText>
+            </Pressable>
+
+            <Pressable
+              style={{
+                backgroundColor: C.isDark ? "#111111" : "#E5E7EB",
+                borderRadius: 14,
+                paddingVertical: 14,
+                alignItems: "center",
+              }}
+              onPress={() => setUploadChoiceVisible(false)}
+            >
+              <AppText style={{ color: C.text, fontWeight: "800", fontSize: 16 }}>
+                Cancel
+              </AppText>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

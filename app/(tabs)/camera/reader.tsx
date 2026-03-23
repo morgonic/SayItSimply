@@ -1033,15 +1033,6 @@ export default function ReaderScreen() {
     }
   }
 
-  useEffect(() => {
-    if (tab !== "Translate") return;
-    if (!effectiveOcrText) return;
-    if (!userLang) return;
-    if (!geminiData?.translation) {
-      rerunGeminiWithNewLang(userLang);
-    }
-  }, [tab, userLang, effectiveOcrText, geminiData?.translation]);
-
   // get calibration state from db
   async function dbGetCalibState(): Promise<{
     scan_count: number;

@@ -327,12 +327,16 @@ export default function ReaderScreen() {
     return savedDocMode || mode || geminiData?.mode || "Document";
   }, [savedDocMode, mode, geminiData?.mode]);
 
-  //gemini TTS
-  const [ttsLoading, setTtsLoading] = useState(false);
+  //gemini TTS states
+  type TtsStatus = 'idle' | 'generating' | 'playing' | 'stopping';
+  const [ttsStatus, setTtsStatus] = useState<TtsStatus>('idle');
   const [ttsRateSlider, setTtsRateSlider] = useState<number>(0.0);
   const [ttsRate, setTtsRate] = useState<number>(1.0);
   const [ttsPitch, setTtsPitch] = useState<number>(0.0);
-  const [ttsIsPlaying, setTtsIsPlaying] = useState(false);
+  const ttsIsGenerating = ttsStatus === 'generating';
+  const ttsIsPlaying = ttsStatus === 'playing';
+  const ttsIsStopping = ttsStatus === 'stopping';
+  const ttsBusy = ttsIsGenerating || ttsIsPlaying || ttsIsStopping;
 
   const loadTtsSettings = useCallback(async () => {
     try {
@@ -360,6 +364,7 @@ export default function ReaderScreen() {
 
   const soundRef = useRef<Audio.Sound | null>(null);
   const ttsTempFileRef = useRef<string | null>(null);
+  const ttsAbortRef = useRef<AbortController | null>(null);
 
   function mapPitchToGemini(p: number): number {
     const v = Number(p);
@@ -368,7 +373,8 @@ export default function ReaderScreen() {
     return Math.max(-1, Math.min(1, out));
   }
 
-  async function stopAndCleanSound() {
+  async function cleanSound() {
+    // separating cleaning logic from stopping logic
     try {
       if (soundRef.current) {
         await soundRef.current.stopAsync().catch(() => {});
@@ -384,7 +390,24 @@ export default function ReaderScreen() {
     } finally {
       ttsTempFileRef.current = null;
     }
-    setTtsIsPlaying(false);
+  }
+
+  async function stopAndCleanSound() {
+    // set the TTS status to 'stopping'
+    setTtsStatus('stopping');
+    // abort TTS request
+    try{
+      if (ttsAbortRef.current) {
+        ttsAbortRef.current.abort();
+        ttsAbortRef.current = null;
+      }
+      // then clean up sound/temp files
+      await cleanSound();
+    }
+    finally{
+      // then set TTS status to 'idle'
+      setTtsStatus('idle');
+    }
   }
 
   // fetch TTS from backend
@@ -416,8 +439,7 @@ export default function ReaderScreen() {
       return (geminiData?.summary ?? "").trim();
     }
     if (tab === "Easy Read") {
-      const txt = (simplifyMoreText === null ? (geminiData?.simplification ?? "") : (simplifyMoreText ?? "")).trim();
-      return txt;
+      return (simplifyMoreText ?? geminiData?.simplification ?? "").trim();
     }
     if (tab === "Translate") {
       const translated = (geminiData?.translation ?? "").trim();
@@ -492,12 +514,16 @@ export default function ReaderScreen() {
       Alert.alert("Nothing to read", "There is not any text available to play yet.");
       return;
     }
-
-    if (ttsLoading) return;
-    setTtsLoading(true);
+    // return if TTS status is already generating or stopping
+    if (ttsBusy) return;
+    
+    const abortController = new AbortController();
+    ttsAbortRef.current = abortController;
 
     try {
-      await stopAndCleanSound();
+      // clean up old sound before generating new one
+      await cleanSound();
+      setTtsStatus('generating');
 
       const token = await storage.getItem("access_token");
       const tokenType = (await storage.getItem("token_type")) ?? "bearer";
@@ -517,6 +543,7 @@ export default function ReaderScreen() {
           ...(token ? { Authorization: `${tokenType} ${token}` } : {}),
         },
         body: JSON.stringify(body),
+        signal: abortController.signal
       });
 
       if (!res.ok) {
@@ -545,16 +572,34 @@ export default function ReaderScreen() {
 
       soundRef.current = sound;
 
-      await sound.setRateAsync(ttsRate, true);
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (!status.isLoaded) {
+          return;
+        }
 
+        if (status.didJustFinish) {
+          void stopAndCleanSound();
+        }
+      });
+
+      await sound.setRateAsync(ttsRate, true);
+      // start playing sound
       await sound.playAsync();
-      setTtsIsPlaying(true);
+      // set TTS status to playing
+      setTtsStatus('playing');
     } catch (e: any) {
+      // ignore abort errors bc they are expected when user stops TTS or starts new TTS
+      if (e.name === 'AbortError') {
+        return;
+      }
+      // otherwise log and show error
       console.warn("TTS play failed:", e?.message ?? e);
       Alert.alert("TTS Error", e?.message ?? "Failed to generate or play audio.");
+      // then clean up sound/temp files
       await stopAndCleanSound();
     } finally {
-      setTtsLoading(false);
+      // clear abort controller ref
+      ttsAbortRef.current = null;
     }
   }
 
@@ -614,7 +659,26 @@ export default function ReaderScreen() {
   }, [langSearch, Languages]);
 
   // overall loading state
-  const isLoading = ocrLoading || geminiLoading;
+  const isLoading = savedDocLoading || ocrLoading || geminiLoading;
+  // whether speech text exists
+  const currentSpeechText = getSpeechText().trim();
+  const hasSpeechText = currentSpeechText.length > 0;
+  // disabled TTS play button when loading, generating, stopping, or there's no text to play
+  const ttsPlayDisabled = isLoading || ttsBusy || !hasSpeechText;
+  // disable stop button when idle
+  const ttsStopDisabled = !(ttsIsGenerating || ttsIsPlaying || ttsIsStopping);
+  // state to disable tabs during loading or TTS busy
+  const tabsDisabled = isLoading || ttsBusy;
+
+  console.log("DISABLED CHECK", {
+    tab,
+    ttsStatus,
+    isLoading,
+    ttsBusy,
+    hasSpeechText,
+    ttsPlayDisabled,
+    currentSpeechTextLength: currentSpeechText.length
+  })
 
   const badgeLang = useMemo(() => {
     if (tab === "Translate") return (userLang ?? "EN").toUpperCase();
@@ -968,15 +1032,6 @@ export default function ReaderScreen() {
       setGeminiLoading(false);
     }
   }
-
-  useEffect(() => {
-    if (tab !== "Translate") return;
-    if (!effectiveOcrText) return;
-    if (!userLang) return;
-    if (!geminiData?.translation) {
-      rerunGeminiWithNewLang(userLang);
-    }
-  }, [tab, userLang, effectiveOcrText, geminiData?.translation]);
 
   // get calibration state from db
   async function dbGetCalibState(): Promise<{
@@ -1600,6 +1655,13 @@ export default function ReaderScreen() {
 
   const shareDisabled = isLoading ||  !getShareText();
 
+  console.log("TTS SPEECH CHECK", {
+    tab, speechText: getSpeechText(),
+    speechTextType: typeof getSpeechText(),
+    speechTextLength: getSpeechText()?.length,
+    hasSpeechText
+  });
+
   return (
     <SafeAreaView style={[readerStyles.safe, darkMode && readerDarkStyles.safe]}>
       <View style={[readerStyles.container, darkMode && readerDarkStyles.container]}>
@@ -1625,9 +1687,24 @@ export default function ReaderScreen() {
 
           {/* Top Tabs */}
           <View style={readerStyles.tabRow}>
-            <TopTab label="Overview" active={tab === "Overview"} onPress={() => setTab("Overview")} />
-            <TopTab label="Easy Read" active={tab === "Easy Read"} onPress={() => setTab("Easy Read")} />
-            <TopTab label="Translate" active={tab === "Translate"} onPress={() => setTab("Translate")} />
+            <TopTab 
+              label="Overview" 
+              active={tab === "Overview"} 
+              onPress={() => setTab("Overview")} 
+              disabled={tabsDisabled}
+            />
+            <TopTab 
+              label="Easy Read" 
+              active={tab === "Easy Read"} 
+              onPress={() => setTab("Easy Read")} 
+              disabled={tabsDisabled}
+            />
+            <TopTab 
+              label="Translate" 
+              active={tab === "Translate"} 
+              onPress={() => setTab("Translate")} 
+              disabled={tabsDisabled}
+            />
           </View>
 
           {/* Card Area */}
@@ -1818,7 +1895,7 @@ export default function ReaderScreen() {
                     style={[
                       readerStyles.ctaBtn,
                       darkMode && readerDarkStyles.ctaBtn,
-                      (ocrLoading || geminiLoading || !ocrText || simplifiedMost) &&
+                      (ocrLoading || geminiLoading || !effectiveOcrText || simplifiedMost) &&
                       (darkMode ? readerDarkStyles.ctaBtnDisabled : { opacity: 0.5 }), { flex: 1 }
                     ]}
                     onPress={async () => {
@@ -1894,8 +1971,15 @@ export default function ReaderScreen() {
                         }
                       }
                     }}
-                    disabled={ocrLoading || geminiLoading || !effectiveOcrText
-                      || (tab === "Easy Read" && (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1))
+                    disabled={
+                      tabsDisabled || 
+                      !effectiveOcrText || 
+                      (tab === "Easy Read" && 
+                        (simplifiedMost || 
+                          simplifiedReadingLevel === 1 || 
+                          sessionReadingLevel === 1
+                        )
+                      )
                     }>
                     <AppText style={[readerStyles.ctaText, darkMode && readerDarkStyles.ctaText]}>
                       {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
@@ -1909,21 +1993,21 @@ export default function ReaderScreen() {
                     <Pressable
                       style={[
                         readerStyles.ttsBtn,
-                        (ttsLoading || isLoading || !getSpeechText()) && readerStyles.ttsBtnDisabled,
+                        ttsPlayDisabled && readerStyles.ttsBtnDisabled,
                         darkMode && readerDarkStyles.ttsBtn,
-                        (ttsLoading || isLoading || !getSpeechText()) && darkMode && readerDarkStyles.ttsBtnDisabled,
+                        ttsPlayDisabled && darkMode && readerDarkStyles.ttsBtnDisabled,
                       ]}
                       onPress={() => {
                         closeDefinitionModal();
                         speechCurrentTab();
                       }}
-                      disabled={ttsLoading || isLoading || !getSpeechText()}
+                      disabled={ttsPlayDisabled}
                       hitSlop={10}
                     >
                       <Ionicons
-                        name={ttsLoading ? "time-outline" : (ttsIsPlaying ? "volume-high-outline" : "play-circle-outline")}
+                        name={ttsIsGenerating || ttsIsStopping ? "time-outline" : (ttsIsPlaying ? "volume-high-outline" : "play-circle-outline")}
                         size={28}
-                        color={(ttsLoading || isLoading || !getSpeechText()) ? P.iconDisabled : ctaIcon}
+                        color={ttsPlayDisabled ? P.iconDisabled : ctaIcon}
                       />
                     </Pressable>
 
@@ -1931,22 +2015,22 @@ export default function ReaderScreen() {
                       style={[
                         readerStyles.ttsBtn,
                         readerStyles.ttsStopBtn,
-                        (!ttsIsPlaying && !ttsLoading) && readerStyles.ttsBtnDisabled,
+                        ttsStopDisabled && readerStyles.ttsBtnDisabled,
                         darkMode && readerDarkStyles.ttsBtn,
                         darkMode && readerDarkStyles.ttsStopBtn,
-                        (!ttsIsPlaying && !ttsLoading) && darkMode && readerDarkStyles.ttsBtnDisabled,
+                        ttsStopDisabled && darkMode && readerDarkStyles.ttsBtnDisabled,
                       ]}
                       onPress={() => {
                         closeDefinitionModal();
                         stopAndCleanSound();
                       }}
-                      disabled={!ttsIsPlaying && !ttsLoading}
+                      disabled={ttsStopDisabled}
                       hitSlop={10}
                     >
                       <Ionicons
                         name="stop-circle-outline"
                         size={28}
-                        color={(!ttsIsPlaying && !ttsLoading) ? P.iconDisabled : ctaIcon}
+                        color={ttsStopDisabled ? P.iconDisabled : ctaIcon}
                       />
                     </Pressable>
                   </View>
@@ -1993,6 +2077,7 @@ export default function ReaderScreen() {
               active={sessionReadingLevel === reading_levels.standard}
               onPress={() => rerunGeminiWithLevel(reading_levels.standard)}
               darkMode={darkMode}
+              disabled={tabsDisabled}
             />
 
             <DetailLevelTab
@@ -2002,6 +2087,7 @@ export default function ReaderScreen() {
               active={sessionReadingLevel === reading_levels.simple}
               onPress={() => rerunGeminiWithLevel(reading_levels.simple)}
               darkMode={darkMode}
+              disabled={tabsDisabled}
             />
 
             <DetailLevelTab
@@ -2011,6 +2097,7 @@ export default function ReaderScreen() {
               active={sessionReadingLevel === reading_levels.super_simple}
               onPress={() => rerunGeminiWithLevel(reading_levels.super_simple)}
               darkMode={darkMode}
+              disabled={tabsDisabled}
             />
           </View>
         )}
@@ -2034,21 +2121,21 @@ export default function ReaderScreen() {
                 <Pressable
                   style={[
                     readerStyles.ttsBtn,
-                    (ttsLoading || isLoading || !getSpeechText()) && readerStyles.ttsBtnDisabled,
+                    ttsPlayDisabled && readerStyles.ttsBtnDisabled,
                     darkMode && readerDarkStyles.ttsBtn,
-                    (ttsLoading || isLoading || !getSpeechText()) && darkMode && readerDarkStyles.ttsBtnDisabled,
+                    ttsPlayDisabled && darkMode && readerDarkStyles.ttsBtnDisabled,
                   ]}
                   onPress={() => {
                     closeDefinitionModal();
                     speechCurrentTab();
                   }}
-                  disabled={ttsLoading || isLoading || !getSpeechText()}
+                  disabled={ttsPlayDisabled}
                   hitSlop={10}
                 >
                   <Ionicons
-                    name={ttsLoading ? "time-outline" : (ttsIsPlaying ? "volume-high-outline" : "play-circle-outline")}
+                    name={ttsIsGenerating || ttsIsStopping ? "time-outline" : (ttsIsPlaying ? "volume-high-outline" : "play-circle-outline")}
                     size={28}
-                    color={(ttsLoading || isLoading || !getSpeechText()) ? P.iconDisabled : P.icon}
+                    color={ttsPlayDisabled ? P.iconDisabled : P.icon}
                   />
                 </Pressable>
 
@@ -2056,22 +2143,22 @@ export default function ReaderScreen() {
                   style={[
                     readerStyles.ttsBtn,
                     readerStyles.ttsStopBtn,
-                    (!ttsIsPlaying && !ttsLoading) && readerStyles.ttsBtnDisabled,
+                    (!ttsIsPlaying && !ttsIsGenerating) && readerStyles.ttsBtnDisabled,
                     darkMode && readerDarkStyles.ttsBtn,
                     darkMode && readerDarkStyles.ttsStopBtn,
-                    (!ttsIsPlaying && !ttsLoading) && darkMode && readerDarkStyles.ttsBtnDisabled,
+                    (!ttsIsPlaying && !ttsIsGenerating) && darkMode && readerDarkStyles.ttsBtnDisabled,
                   ]}
                   onPress={() => {
                     closeDefinitionModal();
                     stopAndCleanSound();
                   }}
-                  disabled={!ttsIsPlaying && !ttsLoading}
+                  disabled={ttsStopDisabled}
                   hitSlop={10}
                 >
                   <Ionicons
                     name="stop-circle-outline"
                     size={28}
-                    color={(!ttsIsPlaying && !ttsLoading) ? P.iconDisabled : P.icon}
+                    color={ttsStopDisabled ? P.iconDisabled : P.icon}
                   />
                 </Pressable>
               </View>
@@ -2358,15 +2445,21 @@ function TopTab({
   label,
   active,
   onPress,
+  disabled = false
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      style={[readerStyles.topTab, active ? readerStyles.topTabActive : readerStyles.topTabInactive]}
+      disabled={disabled}
+      style={[
+        readerStyles.topTab, 
+        active ? readerStyles.topTabActive : readerStyles.topTabInactive,
+        disabled && {opacity: 0.5}]}
       hitSlop={8}
     >
       <AppText style={[readerStyles.topTabText, active ? readerStyles.topTabTextActive : readerStyles.topTabTextInactive]}>
@@ -2382,7 +2475,8 @@ function DetailLevelTab({
   icon,
   active,
   onPress,
-  darkMode
+  darkMode,
+  disabled = false
 }: {
   label: string;
   hint: string;
@@ -2390,14 +2484,17 @@ function DetailLevelTab({
   active: boolean;
   onPress: () => void;
   darkMode: boolean;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       style={[
         readerStyles.levelTab,
         active ? readerStyles.levelTabActive : readerStyles.levelTabInactive,
-        darkMode && (active ? readerDarkStyles.levelTabActive : readerDarkStyles.levelTabInactive)
+        darkMode && (active ? readerDarkStyles.levelTabActive : readerDarkStyles.levelTabInactive),
+        disabled && {opacity: 0.5}
       ]}
       hitSlop={8}
     >

@@ -2,12 +2,12 @@ import { useTheme } from "@/app/context/ThemeContext";
 import storage from '@/app/storage';
 import AppText from "@/components/TextSize";
 import { styles } from "@/constants/styles";
-import { FontAwesome, Ionicons } from "@expo/vector-icons";
+import { FontAwesome } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -285,7 +285,7 @@ async function ocrImageUri(params: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       image_base64: base64,
-      mode: params.mode,
+      mode: params.mode
     }),
   });
 
@@ -297,7 +297,7 @@ async function ocrImageUri(params: {
   const json = await res.json();
   return {
     text: (json.text ?? "").trim(),
-    language: (json.language ?? "unknown").trim() || "unknown",
+    language: (json.language ?? "unknown").trim() || "unknown"
   };
 }
 
@@ -379,8 +379,10 @@ export default function DashboardScreen() {
       btnBg: isDark ? "#000000" : "rgba(255,255,255,0.96)",
       btnText: isDark ? DM_TEXT : "#222",
 
+      taskBullet: isDark ? "#E5E7EB" : "#1B1B1B",
+
       // checkbox in tasks list
-      taskIcon: isDark ? DM_TEXT : "#FFFFFF",
+      taskIcon: isDark ? DM_TEXT : "#1B1B1B",
 
       // loading indicator and scrollbar
       indicator: isDark ? DM_TEXT : "#000000",
@@ -397,8 +399,6 @@ export default function DashboardScreen() {
   const [recentDocs, setRecentDocs] = useState<DocumentListItem[]>([]);
   const [tasks, setTasks] = useState<TodoItem[]>([]);
   const [lastScanSummary, setLastScanSummary] = useState<string>("");
-
-  const [pendingUploadType, setPendingUploadType] = useState<"images" | "pdf" | null>(null);
 
   const continueReadingDoc = useMemo(() => recentDocs?.[0] ?? null, [recentDocs]);
 
@@ -421,6 +421,10 @@ export default function DashboardScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      setIsUploadingImage(false);
+      setIsUploadingPdf(false);
+      setUploadChoiceVisible(false);
+
       loadDash();
     }, [loadDash])
   );
@@ -452,11 +456,11 @@ export default function DashboardScreen() {
   const handleUploadPress = () => {
     if (isUploadingImage || isUploadingPdf) return;
     setUploadChoiceVisible(true);
-  };
+  }
 
   const handlePickImages = async () => {
     try {
-      if (isUploadingImage) return;
+      if (isUploadingImage || isUploadingPdf) return;
 
       setIsUploadingImage(true);
 
@@ -474,16 +478,18 @@ export default function DashboardScreen() {
         );
         return;
       }
-      const saveSetting = await fetchSaveSetting();
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         allowsMultipleSelection: true,
         quality: 1,
         selectionLimit: 0,
         orderedSelection: true
-      });
+      })
+
+      setUploadChoiceVisible(false);
+      console.log("Image picker result:", result);
 
       if (result.canceled) return;
 
@@ -507,7 +513,7 @@ export default function DashboardScreen() {
           uri,
           page_num: i + 1,
           ocr_text: ocr.text,
-          language: ocr.language,
+          language: ocr.language
         });
       }
 
@@ -515,15 +521,15 @@ export default function DashboardScreen() {
       throw new Error("No valid images were selected");
     }
 
-      let docId: string | undefined = undefined;
-      if (saveSetting.scan_doc_save) {
-        docId = await uploadDocument({ imageUri: pagesWithOcr[0].uri, mode, sourceAssetId: null, pages: pagesWithOcr });
-      }
+    let docId: string | undefined = undefined;
+    docId = await uploadDocument({ imageUri: pagesWithOcr[0].uri, mode, sourceAssetId: null, pages: pagesWithOcr });
 
-      router.push({
-        pathname: "/camera/reader",
-        params: docId ? { docId, mode } : { imageUri: pagesWithOcr[0].uri, mode }
-      });
+    setIsUploadingImage(false);
+
+    router.push({
+      pathname: "/camera/reader",
+      params: docId ? { docId, mode } : { imageUri: pagesWithOcr[0].uri, mode }
+    });
     } catch (e: any) {
       console.error(e);
       Alert.alert("Upload failed", e?.message ?? "Could not upload image(s)");
@@ -578,26 +584,7 @@ export default function DashboardScreen() {
     }
   };
 
-  useEffect(() => {
-    if (uploadChoiceVisible) return;
-    if (!pendingUploadType) return;
-
-    const run = async () => {
-      const selectedType = pendingUploadType;
-      setPendingUploadType(null);
-
-      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
-      await new Promise((resolve) => setTimeout(resolve, 300));
-
-      if (selectedType === "images") {
-        await handlePickImages();
-      } else if (selectedType === "pdf") {
-        await handlePickPdf();
-      }
-    };
-
-    run();
-  }, [uploadChoiceVisible, pendingUploadType]);
+  
 
   const continueReadingLabel = useMemo(() => {
     if (!continueReadingDoc) return "No documents yet";
@@ -690,31 +677,23 @@ export default function DashboardScreen() {
                 <View style={[styles.dashShortcutCardInnerOuter, 
                   C.isDark && { backgroundColor: C.scanBtnBg }]}
                 >
-                  <View style={[styles.dashShortcutCard, { backgroundColor: C.shortcutCardBg }]}>
+                  <Pressable style={[styles.dashShortcutCard, { backgroundColor: C.shortcutCardBg }]}
+                    onPress={() => router.replace("/(tabs)/todo-list")}
+                  >
                     <AppText style={[styles.dashShortcutTitle, { color: C.text }]}>Urgent Tasks</AppText>
 
                     <View style={styles.dashBulletGroup}>
                       {loadingDash ? (
                         <ActivityIndicator color={C.indicator}/>
                       ) : tasks.length ? (
-                        tasks.slice(0, 2).map((t) => {
-                          const checked = t.completed === true;
-                          return (
-                            <View
-                              key={t.id}
-                              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-                            >
-                              <Ionicons
-                                name={checked ? "checkbox-outline" : "square-outline"}
-                                size={18}
-                                color={C.taskIcon}
-                              />
-                              <AppText style={[styles.dashBullet, { color: C.text }]}>
-                                {t.action_item}
-                              </AppText>
-                            </View>
-                          );
-                        })
+                        tasks.map((t, index) => (
+                          <View key={t.id ?? `${t.action_item}-${index}`} style={styles.dashTaskRow}>
+                            <AppText style={[styles.dashTaskBullet, { color: C.taskBullet }]}>•</AppText>
+                            <AppText style={[styles.dashBullet, styles.dashTaskText, { color: C.text }]}>
+                              {t.action_item}
+                            </AppText>
+                          </View>
+                        ))
                       ) : (
                         <AppText style={[styles.dashBullet, { color: C.text }]}>
                           No urgent tasks yet. Add tasks in your to-do list and we will show the top ones here.
@@ -722,13 +701,11 @@ export default function DashboardScreen() {
                       )}
                     </View>
 
-                    <Pressable style={[styles.dashViewAllBtn, { backgroundColor: C.btnBg }]} 
-                      onPress={() => router.replace("/(tabs)/todo-list")}
-                    >
+                    <View style={[styles.dashViewAllBtn, { backgroundColor: C.btnBg }]}>
                       <AppText style={[styles.dashViewAllText, { color: C.btnText }]}>View All</AppText>
                       <AppText style={[styles.dashViewAllArrow, { color: C.btnText }]}>›</AppText>
-                    </Pressable>
-                  </View>
+                    </View>
+                  </Pressable>
                 </View>
               </View>
 
@@ -828,10 +805,7 @@ export default function DashboardScreen() {
                 marginBottom: 12,
                 opacity: isUploadingImage ? 0.6 : 1,
               }}
-              onPress={() => {
-                setPendingUploadType("images");
-                setUploadChoiceVisible(false);
-              }}
+              onPress={handlePickImages}
             >
               <AppText style={{ color: C.scanIcon, fontWeight: "800", fontSize: 16 }}>
                 Upload Image(s)

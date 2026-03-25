@@ -247,6 +247,18 @@ export const styles = StyleSheet.create({
   },
   dashBulletGroup: { gap: 6, marginBottom: 10, flexGrow: 1, alignSelf: "stretch" },
   dashBullet: { color: "#1F1F1F", fontSize: 12, fontWeight: "600", textAlign: "left" },
+  dashTaskRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "stretch",
+    gap: 6
+  },
+  dashTaskBullet: {
+    fontSize: 14,
+    fontWeight: "900",
+    lineHeight: 18
+  },
+  dashTaskText: { flex: 1 },
 
   dashViewAllBtn: {
     marginTop: 12,
@@ -260,7 +272,7 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#00000014",
     width: "100%",
-    justifyContent: "center",
+    justifyContent: "center"
   },
   dashViewAllText: { color: "#222", fontWeight: "900", marginRight: 8 },
   dashViewAllArrow: { color: "#222", fontSize: 18, fontWeight: "900" },

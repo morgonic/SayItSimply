@@ -1,13 +1,13 @@
 import { useTheme } from "@/app/context/ThemeContext";
 import storage from "@/app/storage";
+import AppText from "@/components/TextSize";
 import { styles } from "@/constants/styles";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect } from "@react-navigation/native";
-import { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import { ActivityIndicator, Pressable, ScrollView, View, Alert, Modal, TextInput, Switch, Platform } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import AppText from "@/components/TextSize";
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, Switch, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 // action item data structure matching db
 type ActionItem = {
@@ -65,6 +65,14 @@ export default function toDoListScreen() {
 
       icon: isDark ? "#E5E7EB" : "black",
       iconChecked: isDark ? "#E9C6A6" : "black",
+
+      // modal
+      modalOverlay: isDark ? "rgba(0,0,0,0.45)" : "rgba(0,0,0,0.45)",
+      modalCardBg: isDark ? "#2B2B2B" : "#FFFFFF",
+      modalInputBg: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.10)",
+      modalPlaceholder: isDark ? "rgba(229,231,235,0.50)" : "rgba(0,0,0,0.40)",
+      modalSecondaryBg: isDark ? "#111111" : "#E5E7EB",
+      modalDatePickerBg: isDark ? "#2B2B2B" : "#FFFFFF",
 
       // empty states
       emptyCardBg: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.065)",
@@ -978,7 +986,7 @@ export default function toDoListScreen() {
           onPress={closeEditModal}
           style={{
             flex: 1,
-            backgroundColor: 'rgba(0,0,0,0.5)',
+            backgroundColor: C.modalOverlay,
             justifyContent: 'center',
             alignItems: 'center',
             padding: 18
@@ -989,18 +997,18 @@ export default function toDoListScreen() {
             style={{
               width: '100%',
               maxWidth: 420,
-              backgroundColor: 'white',
+              backgroundColor: C.modalCardBg,
               borderRadius: 24,
               padding: 16
             }}
           >
-            <AppText style={{fontSize: 18, fontWeight: '800'}}>
+            <AppText style={{fontSize: 18, fontWeight: '800', color: C.title}}>
               Edit Item
             </AppText>
 
             <View style={{height: 12}}/>
 
-            <AppText style={{fontSize: 16, fontWeight: '700'}}>
+            <AppText style={{fontSize: 16, fontWeight: '700', color: C.title}}>
               Task
             </AppText>
 
@@ -1008,22 +1016,23 @@ export default function toDoListScreen() {
               value={editText}
               onChangeText={setEditText}
               placeholder="Action Item"
-              placeholderTextColor='rgba(0,0,0,0.4)'
+              placeholderTextColor={C.text}
               style={{
                 marginTop: 8,
-                backgroundColor: 'rgba(0,0,0,0.1)',
+                backgroundColor: C.modalInputBg,
                 borderRadius: 12,
                 paddingHorizontal: 12,
                 paddingVertical: 10,
-                color: 'black',
+                color: C.text,
                 fontWeight: '700'
               }}
             />
 
             <View style={{height: 12}}/>
 
-            <AppText style={{fontSize: 16, fontWeight: '700'}}>
-              Deadline <AppText style={{fontWeight: '600', color: 'rgba(0,0,0,0.8)'}}>(optional)</AppText>
+            <AppText style={{fontSize: 16, fontWeight: '700', color: C.title}}>
+              Deadline{" "}
+              <AppText style={{fontWeight: '600', color: C.subtitle}}>(optional)</AppText>
             </AppText>
 
             <View style={{
@@ -1036,13 +1045,13 @@ export default function toDoListScreen() {
                 onPress={() => setShowDatePicker(true)}
                 style={{
                   flex: 1,
-                  backgroundColor: 'rgba(0,0,0,0.1)',
+                  backgroundColor: C.modalInputBg,
                   borderRadius: 12,
                   paddingHorizontal: 12,
                   paddingVertical: 12
                 }}
               >
-                <AppText style={{fontWeight: '700', color: 'black'}}>
+                <AppText style={{fontWeight: '700', color: C.text}}>
                   {editDeadlineDate ? formatDateToYdm(editDeadlineDate) : "No deadline"}
                 </AppText>
               </Pressable>
@@ -1053,10 +1062,10 @@ export default function toDoListScreen() {
                   paddingHorizontal: 12,
                   paddingVertical: 12,
                   borderRadius: 12,
-                  backgroundColor: 'rgba(0,0,0,0.1)'
+                  backgroundColor: C.modalSecondaryBg
                 }}
               >
-                <AppText style={{fontWeight: '800', color: 'black'}}>
+                <AppText style={{fontWeight: '800', color: C.text}}>
                   Clear
                 </AppText>
               </Pressable>
@@ -1076,7 +1085,7 @@ export default function toDoListScreen() {
                   }
                   setEditDeadlineDate(selected);
                 }}
-                style={{alignSelf: 'center', justifyContent: 'center', marginTop: 12, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 24}}
+                style={{alignSelf: 'center', justifyContent: 'center', marginTop: 12, backgroundColor: C.modalDatePickerBg, borderRadius: 24}}
               />
             )}
             
@@ -1085,7 +1094,7 @@ export default function toDoListScreen() {
               flexDirection: 'row', 
               alignItems: 'center'
             }}>
-              <AppText style={{fontSize: 16, fontWeight: '700', marginRight: 12}}>
+              <AppText style={{fontSize: 16, fontWeight: '700', marginRight: 12, color: C.title}}>
                 Completed
               </AppText>
               <Switch 
@@ -1155,7 +1164,7 @@ export default function toDoListScreen() {
           onPress={closeNewModal}
           style={{
             flex: 1,
-            backgroundColor: 'rgba(0,0,0,0.5)',
+            backgroundColor: C.modalOverlay,
             justifyContent: 'center',
             alignItems: 'center',
             padding: 18
@@ -1166,18 +1175,18 @@ export default function toDoListScreen() {
             style={{
               width: '100%',
               maxWidth: 420,
-              backgroundColor: 'white',
+              backgroundColor: C.modalCardBg,
               borderRadius: 24,
               padding: 12
             }}
           >
-            <AppText style={{ fontSize: 18, fontWeight: '800', color: 'black'}}>
+            <AppText style={{ fontSize: 18, fontWeight: '800', color: C.title}}>
               New To-Do Item
             </AppText>
 
             <View style={{height: 12}}/>
 
-            <AppText style={{fontSize: 16, fontWeight: '700', color: 'black'}}>
+            <AppText style={{fontSize: 16, fontWeight: '700', color: C.title}}>
               Task
             </AppText>
 
@@ -1185,22 +1194,23 @@ export default function toDoListScreen() {
               value={newText}
               onChangeText={setNewText}
               placeholder='Action Item'
-              placeholderTextColor='rgba(0,0,0,0.5)'
+              placeholderTextColor={C.text}
               style={{
                 marginTop: 12,
-                backgroundColor: 'rgba(0,0,0,0.1)',
+                backgroundColor: C.modalInputBg,
                 borderRadius: 12,
                 paddingHorizontal: 12,
                 paddingVertical: 12,
-                color: 'black',
+                color: C.text,
                 fontWeight: '700'
               }}
             />
 
             <View style={{height: 12}}/>
 
-            <AppText style={{fontSize: 16, fontWeight: '700'}}>
-              Deadline <AppText style={{fontWeight: '600', color: 'rgba(0,0,0,0.8)'}}>(optional)</AppText>
+            <AppText style={{fontSize: 16, fontWeight: '700', color: C.title}}>
+              Deadline{" "}
+              <AppText style={{fontWeight: '600', color: C.subtitle}}>(optional)</AppText>
             </AppText>
 
             <View
@@ -1215,13 +1225,13 @@ export default function toDoListScreen() {
                 onPress={() => setShowNewDatePicker(true)}
                 style={{
                   flex: 1,
-                  backgroundColor: 'rgba(0,0,0,0.1)',
+                  backgroundColor: C.modalInputBg,
                   borderRadius: 12,
                   paddingHorizontal: 12,
                   paddingVertical: 12
                 }}
               >
-                <AppText style={{fontWeight: '700', color: 'black'}}>
+                <AppText style={{fontWeight: '700', color: C.text}}>
                   {newDeadlineDate ? formatDateToYdm(newDeadlineDate) : "No deadline"}
                 </AppText>
               </Pressable>
@@ -1232,10 +1242,10 @@ export default function toDoListScreen() {
                   paddingHorizontal: 12,
                   paddingVertical: 12,
                   borderRadius: 12,
-                  backgroundColor: 'rgba(0,0,0,0.1)'
+                  backgroundColor: C.modalSecondaryBg
                 }}
               >
-                <AppText style={{fontWeight: '800', color: 'black'}}>
+                <AppText style={{fontWeight: '800', color: C.text}}>
                   Clear
                 </AppText>
               </Pressable>
@@ -1257,7 +1267,7 @@ export default function toDoListScreen() {
 
                   setNewDeadlineDate(selected);
                 }}
-                style={{alignSelf: 'center', justifyContent: 'center', marginTop: 12, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 24}}
+                style={{alignSelf: 'center', justifyContent: 'center', marginTop: 12, backgroundColor: C.modalDatePickerBg, borderRadius: 24}}
               />
             )}
 
@@ -1276,7 +1286,7 @@ export default function toDoListScreen() {
                   paddingHorizontal: 12,
                   paddingVertical: 12,
                   borderRadius: 12,
-                  backgroundColor: C.bg,
+                  backgroundColor: '#8C311C',
                   opacity: savingNew ? 0.6 : 1
                 }}
               >
@@ -1292,7 +1302,7 @@ export default function toDoListScreen() {
                   paddingHorizontal: 12,
                   paddingVertical: 12,
                   borderRadius: 12,
-                  backgroundColor: C.bg,
+                  backgroundColor: '#9DB17C',
                   opacity: savingNew ? 0.6 : 1,
                   minWidth: 90,
                   alignItems: 'center'
@@ -1301,7 +1311,7 @@ export default function toDoListScreen() {
                 {savingNew ? (
                   <ActivityIndicator color='black'/>
                 ) : (
-                  <AppText style={{fontSize: 14, fontWeight: '700', color: 'white'}}>
+                  <AppText style={{fontSize: 14, fontWeight: '700', color: 'black'}}>
                     Add
                   </AppText>
                 )}

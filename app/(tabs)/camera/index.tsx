@@ -4,8 +4,8 @@ import { cameraStyles } from '@/constants/styles';
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as MediaLibrary from "expo-media-library";
-import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Dimensions, Image, Linking, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -214,6 +214,8 @@ export default function CameraScreen() {
    const [capturedPages, setCapturedPages] = useState<ScannedPage[]>([]);
    const [isFinishingDoc, setIsFinishingDoc] = useState(false);
 
+   const [profilePicUri, setProfilePicUri] = useState<string | null>(null);
+
    useEffect(() => {
     (async () => {
       if (!permission) return;
@@ -222,6 +224,25 @@ export default function CameraScreen() {
       }
     })();
    }, [permission, requestPermission]);
+
+   useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      const loadProfilePic = async () => {
+        const profilePic = await storage.getItem("profile_photo");
+        if (isActive) {
+          setProfilePicUri(profilePic ?? null);
+        }
+      };
+
+      loadProfilePic();
+
+      return () => {
+        isActive = false;
+      };
+    }, [])
+   );
 
    const handleTakePic = async () => {
     try {
@@ -358,7 +379,15 @@ export default function CameraScreen() {
             <AppText style={cameraStyles.headerTitle}>SayItSimply</AppText>
 
             <Pressable style={cameraStyles.avatarBtn} onPress={() => router.push('/(tabs)/profile')}>
-              <View style={cameraStyles.avatarPlaceholder} />
+              {profilePicUri ? (
+                <Image
+                    source={{ uri: profilePicUri }}
+                    style={cameraStyles.avatar}
+                    resizeMode="cover"
+                  />
+              ) : (
+                <View style={cameraStyles.avatarPlaceholder} />
+              )}
             </Pressable>
           </View>
 

@@ -506,7 +506,7 @@ export const readerStyles = StyleSheet.create({
   badgeText: {
     color: "white",
     fontWeight: "800",
-    fontSize: 14,
+    fontSize: 12.5,
     textAlign: "center",
     marginBottom: 24,
     lineHeight: 14,

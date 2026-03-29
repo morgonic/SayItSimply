@@ -50,12 +50,12 @@ function Row({
         profileStyles.row,
         { backgroundColor: cardBg, borderColor },
         pressed && !disabled && {backgroundColor: pressedBg },
-        disabled && profileStyles.rowDisabled,
+        disabled && profileStyles.rowDisabled
       ]}
       android_ripple={disabled ? undefined : { color: pressedBg }}
     >
       <View style={profileStyles.rowLeft}>
-        <AppText style={[profileStyles.rowLabel, disabled && profileStyles.rowLabelDisabled]}>
+        <AppText style={[profileStyles.rowLabel, { color: disabled ? "#9CA3AF" : textColor }, disabled && profileStyles.rowLabelDisabled]}>
           {label}
         </AppText>
       </View>
@@ -66,7 +66,7 @@ function Row({
           <Ionicons
             name={rightIcon}
             size={18}
-            color={disabled ? "#9CA3AF" : "#111827"}
+            color={disabled ? "#9CA3AF" : iconColor}
           />
         ) : null}
       </View>
@@ -235,6 +235,7 @@ type GeminiResponse = {
       inputBg: isDark ? "#0F1B33" : "#FFFFFF",
       inputText: isDark ? "#E5E7EB" : "#111827",
       placeholder: isDark ? "#94A3B8" : "#9CA3AF",
+      logoutBg: isDark ? "#6B8FD6" : "#1F7A88"
     };
   }, [darkMode]);
 
@@ -791,9 +792,14 @@ type GeminiResponse = {
           onPress={onLogout}
           style={({ pressed }) => [
             profileStyles.logoutButton,
+            {
+              backgroundColor: C.logoutBg,
+              borderColor: C.isDark ? "rgba(255,255,255,0.10)" : "transparent",
+              borderWidth: C.isDark ? 1 : 0
+            },
             pressed && profileStyles.logoutButtonPressed,
           ]}
-          android_ripple={{ color: "rgba(255,255,255,0.18)" }}
+          android_ripple={{ color: C.isDark ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.18)" }}
         >
           <AppText style={[profileStyles.logoutText, { color: C.text }]}>Log Out</AppText>
         </Pressable>

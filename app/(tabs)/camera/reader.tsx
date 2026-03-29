@@ -1683,10 +1683,7 @@ export default function ReaderScreen() {
     setLangSearch("");
     setUserLang(newCode2);
 
-    const ok = await patchUserLang(newCode2);
-    if (!ok) {
-      console.warn("Failed to update user language in db");
-    }
+    // do not change user's preferred language just because they translated into a certain language once
     await rerunGeminiWithNewLang(newCode2);
   }
 

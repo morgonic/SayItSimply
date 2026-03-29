@@ -322,6 +322,10 @@ export default function ReaderScreen() {
   const [geminiLoading, setGeminiLoading] = useState(false);
   const [geminiError, setGeminiError] = useState<string | null>(null);
   const [geminiData, setGeminiData] = useState<GeminiResponse | null>(null);
+  // mutable reader screen text display states to be derived from geminiresponse
+  const [overview, setOveriew] = useState("");
+  const [easyRead, setEasyRead] = useState("");
+  const [translate, setTranslate] = useState("");
 
   const effectiveMode = useMemo(() => {
     return savedDocMode || mode || geminiData?.mode || "Document";
@@ -1316,6 +1320,11 @@ export default function ReaderScreen() {
         setGeminiError(null);
         setGeminiData(null);
 
+        setEasyRead("");
+        setOveriew("");
+        setTranslate("");
+
+
         let sourceText = "";
         let sourceLang = "unknown";
         let resolvedMode = typeof mode === "string" ? mode: "Document";
@@ -1454,6 +1463,9 @@ export default function ReaderScreen() {
 
         if (!cancelled) {
           setGeminiData(geminiJson)
+          setOveriew(geminiJson.summary)
+          setEasyRead(geminiJson.simplification)
+          setTranslate(geminiJson.translation ?? "")
         }
       }
       catch (e: any) {
@@ -1616,6 +1628,9 @@ export default function ReaderScreen() {
       setSessionReadingLevel(newLevel);
       setSimplifyMoreCount(0);
       setGeminiData(json);
+      setEasyRead(json.simplification ?? "");
+      setOveriew(json.summary);
+      setTranslate(json.translation ?? "");
       setSimplifyMoreText(json.simplification ?? null);
       setSimplifiedReadingLevel(newLevel);
       setSimplifiedMost(newLevel === 1);

@@ -446,7 +446,10 @@ export default function ReaderScreen() {
       return (simplifyMoreText ?? geminiData?.simplification ?? "").trim();
     }
     if (tab === "Translate") {
-      const translated = (geminiData?.translation ?? "").trim();
+      if (translateLoading) {
+        return "";
+      }
+      const translated = ((translate || geminiData?.translation) ?? "").trim();
       if (translated) return translated;
 
       const userLanguage = (userLang ?? "not set").toUpperCase();
@@ -664,11 +667,13 @@ export default function ReaderScreen() {
 
   // overall loading state
   const isLoading = savedDocLoading || ocrLoading || geminiLoading;
+  // translate tab loading state
+  const [translateLoading, setTranslateLoading] = useState(false);
   // whether speech text exists
   const currentSpeechText = getSpeechText().trim();
   const hasSpeechText = currentSpeechText.length > 0;
   // disabled TTS play button when loading, generating, stopping, or there's no text to play
-  const ttsPlayDisabled = isLoading || ttsBusy || !hasSpeechText;
+  const ttsPlayDisabled = isLoading || translateLoading || ttsBusy || !hasSpeechText;
   // disable stop button when idle
   const ttsStopDisabled = !(ttsIsGenerating || ttsIsPlaying || ttsIsStopping);
   // state to disable tabs during loading or TTS busy
@@ -931,6 +936,8 @@ export default function ReaderScreen() {
     setDefinitionModal({ isVisible: false, word: "", definition: "" })
     setSessionReadingLevel(null);
     setOcrLanguage("unknown");
+    setTranslateLoading(false);
+    setUserLang(null);
 
     setSavedDocLoading(false);
     setSavedDocPages([]);
@@ -987,22 +994,23 @@ export default function ReaderScreen() {
     }
   }
 
-  //re-process gemini flow to refresh translation -- no OCR re-process
+  // only fetch translation for this
   async function rerunGeminiWithNewLang(targetLang2: string) {
-    if (ocrLoading || geminiLoading) return;
+    if (ocrLoading || geminiLoading || translateLoading) return;
     if (!effectiveOcrText) return;
 
     const code2 = (targetLang2 ?? "").trim().toUpperCase();
     if (!/^[A-Z]{2}$/.test(code2)) return;
 
-    setGeminiLoading(true);
+    setTranslateLoading(true);
+    setTranslate("");
     setGeminiError(null);
 
     try {
       const token = await storage.getItem("access_token");
       const tokenType = (await storage.getItem("token_type")) ?? "bearer";
 
-      const response = await fetch(`${api_url}/gemini`, {
+      const response = await fetch(`${api_url}/translate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1010,30 +1018,27 @@ export default function ReaderScreen() {
         },
         body: JSON.stringify({
           text: effectiveOcrText,
-          mode: effectiveMode ?? "Document",
-          target_language: code2,
-          ...(sessionReadingLevel !== null ? { reading_level: sessionReadingLevel } : {})
+          target_lang: code2
         })
       });
 
       if (!response.ok) {
         const text = await response.text();
-        throw new Error(text || `Gemini response failed (HTTP ${response.status})`);
+        throw new Error(text || `Translation failed (HTTP ${response.status})`);
       }
-      const json: GeminiResponse = await response.json();
+      const json = await response.json();
 
-      setGeminiData((prev) => {
-        if (!prev) return json;
-        return {
-          ...prev,
-          ...json,
-          translation: (json.translation ?? prev.translation) ?? null
-        };
-      });
+      setTranslate(json.translation ?? "");
+      setGeminiData((prev) => 
+        prev ? {
+          ...prev, 
+          translation: json.translation ?? null
+        } : prev
+      );
     } catch (e: any) {
       setGeminiError(e?.message ?? "Request failed");
     } finally {
-      setGeminiLoading(false);
+      setTranslateLoading(false);
     }
   }
 
@@ -1406,6 +1411,19 @@ export default function ReaderScreen() {
         const token = await storage.getItem("access_token");
         const tokenType = (await storage.getItem("token_type")) ?? "bearer";
 
+        // refetch user saved lang, new scans must use DB value, not last selected lang
+        const userResponse = await fetch(`${api_url}/users/me`, {
+          headers: {Authorization: `${tokenType} ${token}`}
+        });
+
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          const dbLang = (userData.language ?? null) as string | null;
+          if (!cancelled) {
+            setUserLang(dbLang);
+          }
+        }
+
         // Gemini
 
         setGeminiLoading(true);
@@ -1538,10 +1556,14 @@ export default function ReaderScreen() {
         // simplified explanation for easy read tab
         return highlightedSimplified;
       case "Translate":
+        if (translateLoading) {
+          return "";
+        }
         const userLanguage = (userLang ?? "not set").toUpperCase();
         const ocrLang = (ocrLanguage ?? "unknown").toUpperCase();
         // translation for translate tab, tell user when no translation was provided and advise of user's saved language and ocr text language
-        return geminiData.translation ?? `No translation available.\n\nYour language is set to ${langCodeToName(userLanguage)} and the text is written in ${langCodeToName(ocrLang)}.`;
+        return geminiData.translation 
+          ?? `No translation available.\n\nYour language is set to ${langCodeToName(userLanguage)} and the text is written in ${langCodeToName(ocrLang)}.`;
       default:
         return "";
     }
@@ -1780,7 +1802,7 @@ export default function ReaderScreen() {
               </View>
 
               {/* Loading state + activity indicator */}
-              {(ocrLoading || geminiLoading) && (
+              {(ocrLoading || geminiLoading || translateLoading) && (
                 <View style={{
                   flexDirection: 'row',
                   alignItems: 'center',
@@ -1802,8 +1824,11 @@ export default function ReaderScreen() {
                     color: P.bodyText
                   }}
                   >
-                    {ocrLoading ? "Reading your text..."
-                      : "Rewriting your text..."}
+                    {ocrLoading 
+                      ? "Reading your text..."
+                      : translateLoading
+                        ? "Translating your text..."
+                        : "Rewriting your text..."}
                   </AppText>
                 </View>
               )}

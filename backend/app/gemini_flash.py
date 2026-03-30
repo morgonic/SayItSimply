@@ -31,6 +31,39 @@ def compute_reading_level(reading_level: int, challenge_mode: bool, increase: in
     # cap it at max_level=9, return minimum between computed level and max level
     return min(level, max_level)
 
+# returns translation from input text and target language
+async def get_translation(
+        input_text: str,
+        target_lang: str
+) -> str | None:
+    
+    system_instructions = (
+        "You are a translation tool.\n"
+        "Translate the input_text into the language matching the provided target_lang code.\n"
+        "Return ONLY the translated text as a plain string. Translate word-for-word."
+    )
+
+    prompt = (
+        f"target_lang: {target_lang}\n\n"
+        "<input_text>\n"
+        f"{input_text}\n"
+        "</input_text>\n\n"
+        "Translation:"
+    ).strip()
+
+    def call_gemini() -> str:
+        response = gemini_client().models.generate_content(
+            model="gemini-2.5-flash",
+            config=types.GenerateContentConfig(
+                system_instruction=system_instructions,
+                temperature=0.2
+            ),
+            contents=prompt
+        )
+        return (response.text or "").strip()
+    
+    return await run_in_threadpool(call_gemini)
+
 # returns text response from gemini endpoint
 async def get_gemini_response(
         input_text: str, 

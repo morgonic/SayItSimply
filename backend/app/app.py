@@ -36,7 +36,7 @@ from app.users import auth_backend, current_active_user, fastapi_users, get_user
 from dotenv import load_dotenv
 load_dotenv()
 
-from app.gemini_flash import get_gemini_response
+from app.gemini_flash import get_gemini_response, get_translation
 from app.calibration import router as calibration_router
 from app.detectlang import detect_language
 from app.documents import router as documents_router
@@ -533,9 +533,38 @@ async def change_email(
 class ReadingLevelPatch(BaseModel):
     reading_level: int
 
+class TranslateRequest(BaseModel):
+    text: str
+    target_lang: str
+    mode: str = 'Document'
+
+# gemini endpoint for translate only
+@app.post("/translate", tags=["gemini"])
+async def translate_text(
+    request: TranslateRequest
+):
+    text = (request.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=500, detail="Text is required to translate.")
+    
+    target_lang = (request.target_lang or "").strip().upper()
+    if not target_lang or len(target_lang) != 2:
+        raise HTTPException(status_code=400, detail="Valid 2-letter language code required.")
+    
+    translation = await get_translation(
+        input_text=text,
+        target_lang=target_lang
+    )
+
+    return {"translation": translation}
+    
 # gemini endpoint for main structured output
 @app.post("/gemini")
-async def gemini(request: GeminiRequest, user: User = Depends(current_active_user), session: AsyncSession = Depends(get_async_session)):
+async def gemini(
+    request: GeminiRequest, 
+    user: User = Depends(current_active_user), 
+    session: AsyncSession = Depends(get_async_session)
+):
 
     # check if text is valid, error if not
     text = (request.text or "").strip()

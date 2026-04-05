@@ -1,5 +1,6 @@
+import { useTheme } from "@/app/context/ThemeContext";
 import React, { useEffect, useMemo, useState } from "react";
-import { Modal, View, Text, Pressable, ScrollView } from "react-native";
+import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 
 // custom action item type matching gemini response schema
 type ActionItem = {
@@ -22,6 +23,42 @@ export default function ActionItemModal({
     actionItems,
     onAddItems
 }: Props) {
+    const { darkMode } = useTheme();
+
+    // dark mode tracking
+    const C = useMemo(() => {
+        const isDark = !!darkMode;
+        return {
+        overlay: "rgba(0,0,0,0.5)",
+        modalBg: isDark ? "#2B2B2B" : "#FFFFFF",
+        modalBorder: isDark ? "rgba(255,255,255,0.14)" : "#000000",
+
+        title: isDark ? "#E5E7EB" : "#000000",
+        subtitle: isDark ? "rgba(229,231,235,0.75)" : "#000000",
+
+        listBg: isDark ? "#0F172A" : "#F8F4F9",
+        listBorder: isDark ? "rgba(255,255,255,0.14)" : "#000000",
+
+        checkboxBorder: isDark ? "#E5E7EB" : "#000000",
+        checkboxBgChecked: isDark ? "rgba(255,255,255,0.12)" : "#EAEAEA",
+        checkmark: isDark ? "#E5E7EB" : "#000000",
+
+        itemText: isDark ? "#E5E7EB" : "#000000",
+        deadlineText: isDark ? "rgba(229,231,235,0.65)" : "gray",
+        emptyText: isDark ? "#E5E7EB" : "#000000",
+
+        cancelBg: "#8C311C",
+        cancelText: "#FFFFFF",
+
+        addBgEnabled: "#9DB17C",
+        addBgDisabled: isDark ? "rgba(255,255,255,0.18)" : "#B9B9B9",
+        addTextEnabled: "#FFFFFF",
+        addTextDisabled: isDark ? "rgba(229,231,235,0.55)" : "#FFFFFF",
+
+        scrollIndicator: isDark ? "white" as const : "black" as const,
+        };
+    }, [darkMode]);
+
     // state to track selected items
     const [selectedItem, setSelectedItem] = useState<Set<number>>(new Set());
     // reset selected items when modal is opened or action items change
@@ -78,7 +115,7 @@ export default function ActionItemModal({
                 onPress={onClose}
                 style={{
                     flex: 1,
-                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    backgroundColor: C.overlay,
                     justifyContent: 'center',
                     padding: 24
                 }}
@@ -86,16 +123,16 @@ export default function ActionItemModal({
                 <Pressable
                     onPress={() => { }}
                     style={{
-                        backgroundColor: '#ECC8AF',
+                        backgroundColor: C.modalBg,
                         borderRadius: 16,
                         padding: 18,
                         borderWidth: 2,
-                        borderColor: '#000000',
+                        borderColor: C.modalBorder,
                         maxHeight: '50%'
                     }}
                 >
                     <Text style={{
-                        color: 'black',
+                        color: C.title,
                         fontSize: 20,
                         fontWeight: '800',
                         textAlign: 'center'
@@ -103,7 +140,7 @@ export default function ActionItemModal({
                         Action Items
                     </Text>
                     <Text style={{ 
-                        color: 'black', 
+                        color: C.subtitle, 
                         fontSize: 14,
                         fontWeight: '600',
                         marginTop: 12, 
@@ -115,12 +152,12 @@ export default function ActionItemModal({
 
                     <ScrollView
                         style={{
-                            backgroundColor: '#F8F4F9',
-                            borderColor: '#000000',
+                            backgroundColor: C.listBg,
+                            borderColor: C.listBorder,
                             borderWidth: 1,
                             borderRadius: 12,
                         }}
-                        indicatorStyle="black"
+                        indicatorStyle={C.scrollIndicator}
                     >
                         {/*display list of action items from to_do in user table db*/}
                         <View style={{
@@ -148,17 +185,17 @@ export default function ActionItemModal({
                                                     height: 28,
                                                     borderRadius: 6,
                                                     borderWidth: 2,
-                                                    borderColor: 'black',
+                                                    borderColor: C.checkboxBorder,
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    backgroundColor: checked ? '#EAEAEA' : 'transparent',
+                                                    backgroundColor: checked ? C.checkboxBgChecked : 'transparent',
                                                     marginTop: 2
                                                 }}
                                             >
                                                 {checked ? (
                                                     <Text
                                                         style={{
-                                                            color: 'black',
+                                                            color: C.checkmark,
                                                             fontSize: 18,
                                                             fontWeight: '900',
                                                             lineHeight: 18
@@ -170,14 +207,14 @@ export default function ActionItemModal({
                                             </View>
 
                                             {/*action item and deadline*/}
-                                            <Text style={{ color: 'black', fontSize: 16, flex: 1 }}>
-                                                {item.action_item} <Text style={{ color: 'gray', fontSize: 14}}>{item.deadline ? `by ${item.deadline}` : null}</Text>
+                                            <Text style={{ color: C.itemText, fontSize: 16, flex: 1 }}>
+                                                {item.action_item} <Text style={{ color: C.deadlineText, fontSize: 14}}>{item.deadline ? `by ${item.deadline}` : null}</Text>
                                             </Text>
                                         </Pressable>
                                     );
                                 })
                             ) : (
-                                <Text style={{ color: 'black', marginTop: 8 }}>
+                                <Text style={{ color: C.emptyText, marginTop: 8 }}>
                                     No action items found.
                                 </Text>
                             )}

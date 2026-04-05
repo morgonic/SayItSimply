@@ -8,7 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import ISO6391 from "iso-639-1";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -16,6 +16,7 @@ import {
   Alert,
   Dimensions,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Pressable,
@@ -216,6 +217,8 @@ function CalibrateReadingLvl(current: number) {
 export default function ReaderScreen() {
   const { darkMode } = useTheme();
 
+  const router = useRouter();
+
   const P = darkMode ? readerPalette.dark : readerPalette.light;
 
   const ctaIcon = darkMode ? "#0B1220" : "white";
@@ -240,6 +243,8 @@ export default function ReaderScreen() {
     mode?: string;
     docId?: string;
   }>();
+
+  const [profilePicUri, setProfilePicUri] = useState<string | null>(null);
 
   const imageUri = Array.isArray(params.imageUri) ? params.imageUri[0] : params.imageUri;
   const mode = Array.isArray(params.mode) ? params.mode[0] : params.mode;
@@ -413,6 +418,26 @@ export default function ReaderScreen() {
       setTtsStatus('idle');
     }
   }
+
+  //profile pic
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+
+      const loadProfilePic = async () => {
+        const profilePic = await storage.getItem("profile_photo");
+        if (isActive) {
+          setProfilePicUri(profilePic ?? null);
+        }
+      };
+
+      loadProfilePic();
+
+      return () => {
+        isActive = false;
+      };
+    }, [])
+  );
 
   // fetch TTS from backend
   useFocusEffect(
@@ -1701,14 +1726,18 @@ export default function ReaderScreen() {
       <View style={[readerStyles.container, darkMode && readerDarkStyles.container]}>
         {/* Header */}
         <View style={readerStyles.header}>
-          <Pressable style={readerStyles.headerIconBtn} onPress={() => { }}>
+          <Pressable style={readerStyles.headerIconBtn} onPress={() => router.push('/(tabs)/profile/settings')}>
             <AppText style={readerStyles.headerIcon}>☰</AppText>
           </Pressable>
 
           <AppText style={readerStyles.headerTitle}>SayItSimply</AppText>
 
-          <Pressable style={readerStyles.avatarBtn} onPress={() => { }}>
-            <View style={readerStyles.avatarPlaceholder} />
+          <Pressable style={readerStyles.avatarBtn} onPress={() => router.push('/(tabs)/profile')}>
+            {profilePicUri ? (
+              <Image source={{ uri: profilePicUri }} style={readerStyles.avatarPlaceholder}/>
+            ) : (
+              <View style={readerStyles.avatarPlaceholder}/>
+            )}
           </Pressable>
         </View>
 

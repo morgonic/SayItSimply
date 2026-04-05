@@ -251,12 +251,17 @@ export default function SettingsScreen() {
 
   const updateSetting = async <K extends keyof UserSettings>(key: K, next: UserSettings[K]) => {
     const prev = settings[key];
+    const prevDarkMode = darkMode;
 
     setSettings((cur) => ({ ...cur, [key]: next }));
     setSaving((cur) => ({ ...cur, [String(key)]: true }));
 
     if (key === "text_size") {
       await setTextSize(next as TextSizeValues);
+    }
+
+    if (key === "dark_mode") {
+      setDarkMode(Boolean(next));
     }
 
     try {
@@ -268,12 +273,23 @@ export default function SettingsScreen() {
       if (key === "text_size") {
         await setTextSize(prev as TextSizeValues);
       }
+
+      if (key === "dark_mode") {
+        setDarkMode(prev as boolean);
+      }
     } finally {
       setSaving((cur) => ({ ...cur, [String(key)]: false }));
     }
   };
 
   const { darkMode, setDarkMode } = useTheme();
+
+  useEffect(() => {
+    setSettings((cur) => {
+      if (cur.dark_mode === darkMode) return cur;
+      return { ...cur, dark_mode: darkMode };
+    });
+  }, [darkMode]);
 
   const C = useMemo(() => {
     const isDark = !!darkMode;
@@ -509,7 +525,6 @@ export default function SettingsScreen() {
                 value={settings.dark_mode}
                 onChange={(next) => {
                   updateSetting("dark_mode", next);
-                  setDarkMode(next);
                 }}
                 disabled={isSaving("dark_mode")}
               />

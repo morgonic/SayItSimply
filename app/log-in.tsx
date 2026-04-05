@@ -1,3 +1,4 @@
+import { useTheme } from "@/app/context/ThemeContext";
 import { getFaceIdCapability, getSavedFaceIdCredentials, promptFaceIdAuth } from "@/app/face_id";
 import storage from "@/app/storage";
 import AppText from "@/components/TextSize";
@@ -41,6 +42,7 @@ async function faceIdLogin(params: { deviceId: string; faceIdToken: string }) {
 }
 
 export default function LogInScreen() {
+  const { refreshTheme } = useTheme();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -91,13 +93,15 @@ export default function LogInScreen() {
 
     if (!response.ok) {
       await storage.deleteItem("access_token");
+      await storage.deleteItem("token_type");
       router.replace('/log-in');
       return;
     }
 
     const user = await response.json();
-
     const onboarded = (user.onboarding_done === true);
+
+    await refreshTheme();
 
     router.replace(onboarded ? '/(tabs)' : '/onboarding');
   }
@@ -122,10 +126,6 @@ export default function LogInScreen() {
       }
 
       const json = await response.json();
-
-      await storage.setItem("access_token", json.access_token);
-      await storage.setItem("token_type", json.token_type ?? "bearer");
-
       await routeAfterLogin(json.access_token);
     }
     catch (e: any) {
@@ -164,9 +164,6 @@ export default function LogInScreen() {
         faceIdToken: saved.faceIdToken
       });
 
-      await storage.setItem("access_token", data.access_token);
-      await storage.setItem("token_type", data.token_type ?? "bearer");
-
       await routeAfterLogin(data.access_token);
     } catch (e: any) {
       Alert.alert("Sign In Failed", e?.message ?? "Could not sign in with Face ID.");
@@ -204,10 +201,6 @@ export default function LogInScreen() {
       if (!access_token) {
         throw new Error("Google login succeeded but no access token was returned.");
       }
-
-      // persist token and type for future calls
-      await storage.setItem("access_token", access_token);
-      await storage.setItem("token_type", token_type);
 
       // navigate to main app or onboarding
       await routeAfterLogin(access_token);

@@ -1,6 +1,5 @@
 import storage from "@/app/storage";
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useMemo, useState } from "react";
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
 
@@ -9,6 +8,7 @@ type ThemeContextValue = {
   loadingTheme: boolean;
   refreshTheme: () => Promise<void>;
   setDarkMode: (next: boolean) => void;
+  resetTheme: () => void;
 };
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -29,29 +29,38 @@ async function fetchDarkModeFlag(): Promise<boolean | null> {
     const data = await res.json().catch(() => null);
     if (!data) return null;
 
-    return Boolean(data.dark_mode);
+    return typeof data.dark_mode === "boolean" ? data.dark_mode : false;
 }
 
 export function AppThemeProvider({ children }: { children: React.ReactNode }) {
-    const deviceScheme = useColorScheme();
-    const [darkMode, setDarkModeState] = useState(deviceScheme === "dark");
-    const [loadingTheme, setLoadingTheme] = useState(true);
+    const [darkMode, setDarkModeState] = useState(false);
+    const [loadingTheme, setLoadingTheme] = useState(false);
 
     const refreshTheme = async () => {
+        setLoadingTheme(true);
         try {
-        const flag = await fetchDarkModeFlag();
-        if (flag !== null) setDarkModeState(flag);
+            const flag = await fetchDarkModeFlag();
+            if (flag === null) {
+                setDarkModeState(false);
+                return;
+            }
+            setDarkModeState(flag);
+        } catch (e) {
+            console.warn("Unable to refresh theme:", e);
+            setDarkModeState(false);            
         } finally {
-        setLoadingTheme(false);
+            setLoadingTheme(false);
         }
     };
-    const setDarkMode = (next: boolean) => setDarkModeState(next);
 
-    useEffect(() => {
-        refreshTheme();
-    }, []);
+    const setDarkMode = (next: boolean) => setDarkModeState(!!next);
 
-    const value = useMemo(() => ({ darkMode, loadingTheme, refreshTheme, setDarkMode }), [darkMode, loadingTheme]);
+    const resetTheme = () => {
+        setDarkModeState(false);
+        setLoadingTheme(false);
+    };
+
+    const value = useMemo(() => ({ darkMode, loadingTheme, refreshTheme, setDarkMode, resetTheme }), [darkMode, loadingTheme]);
 
     return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }

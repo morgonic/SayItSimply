@@ -8,7 +8,7 @@ import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const api_url = process.env.EXPO_PUBLIC_API_URL;
@@ -400,6 +400,8 @@ export default function DashboardScreen() {
   const [tasks, setTasks] = useState<TodoItem[]>([]);
   const [lastScanSummary, setLastScanSummary] = useState<string>("");
 
+  const [profilePicUri, setProfilePicUri] = useState<string | null>(null);
+
   const continueReadingDoc = useMemo(() => recentDocs?.[0] ?? null, [recentDocs]);
 
   const loadDash = useCallback(async () => {
@@ -421,11 +423,26 @@ export default function DashboardScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      setIsUploadingImage(false);
-      setIsUploadingPdf(false);
-      setUploadChoiceVisible(false);
+      let isActive = true;
 
-      loadDash();
+      const loadScreenData = async () => {
+        setIsUploadingImage(false);
+        setIsUploadingPdf(false);
+        setUploadChoiceVisible(false);
+
+        const profilePic = await storage.getItem("profile_photo");
+        if (isActive) {
+          setProfilePicUri(profilePic ?? null);
+        }
+
+        await loadDash();
+      };
+
+      loadScreenData();
+
+      return () => {
+        isActive = false;
+      };
     }, [loadDash])
   );
 
@@ -603,7 +620,11 @@ export default function DashboardScreen() {
           <AppText style={styles.dashHeaderTitle}>SayItSimply</AppText>
 
           <Pressable style={styles.dashAvatarBtn} onPress={() => router.push('/(tabs)/profile')}>
-            <View style={styles.dashAvatarPlaceholder} />
+              {profilePicUri ? (
+                <Image source={{ uri: profilePicUri }} style={styles.dashAvatarPlaceholder} />
+              ) : (
+                <View style={styles.dashAvatarPlaceholder} />
+              )}
           </Pressable>
         </View>
 

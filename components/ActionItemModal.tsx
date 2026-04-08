@@ -1,6 +1,8 @@
 import { useTheme } from "@/app/context/ThemeContext";
 import React, { useEffect, useMemo, useState } from "react";
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
+import AppText from "./TextSize";
+import { readerDarkStyles, readerStyles } from "@/constants/styles";
 
 // custom action item type matching gemini response schema
 type ActionItem = {
@@ -131,15 +133,15 @@ export default function ActionItemModal({
                         maxHeight: '50%'
                     }}
                 >
-                    <Text style={{
+                    <AppText style={{
                         color: C.title,
                         fontSize: 20,
                         fontWeight: '800',
                         textAlign: 'center'
                     }}>
                         Action Items
-                    </Text>
-                    <Text style={{ 
+                    </AppText>
+                    <AppText style={{ 
                         color: C.subtitle, 
                         fontSize: 14,
                         fontWeight: '600',
@@ -148,7 +150,7 @@ export default function ActionItemModal({
                         textAlign: 'center'
                     }}>
                         Check an item's box to add it to your To-Do List.
-                    </Text>
+                    </AppText>
 
                     <ScrollView
                         style={{
@@ -193,7 +195,7 @@ export default function ActionItemModal({
                                                 }}
                                             >
                                                 {checked ? (
-                                                    <Text
+                                                    <AppText
                                                         style={{
                                                             color: C.checkmark,
                                                             fontSize: 18,
@@ -202,21 +204,21 @@ export default function ActionItemModal({
                                                         }}
                                                     >
                                                         ✓
-                                                    </Text>
+                                                    </AppText>
                                                 ) : null}
                                             </View>
 
                                             {/*action item and deadline*/}
-                                            <Text style={{ color: C.itemText, fontSize: 16, flex: 1 }}>
-                                                {item.action_item} <Text style={{ color: C.deadlineText, fontSize: 14}}>{item.deadline ? `by ${item.deadline}` : null}</Text>
-                                            </Text>
+                                            <AppText style={{ color: C.itemText, fontSize: 16, flex: 1 }}>
+                                                {item.action_item} <AppText style={{ color: C.deadlineText, fontSize: 14}}>{item.deadline ? `by ${item.deadline}` : null}</AppText>
+                                            </AppText>
                                         </Pressable>
                                     );
                                 })
                             ) : (
-                                <Text style={{ color: C.emptyText, marginTop: 8 }}>
+                                <AppText style={{ color: C.emptyText, marginTop: 8 }}>
                                     No action items found.
-                                </Text>
+                                </AppText>
                             )}
                         </View>
                     </ScrollView>
@@ -226,6 +228,7 @@ export default function ActionItemModal({
                             flexDirection: 'row',
                             justifyContent: 'space-between',
                             marginTop: 18,
+                            marginBottom: 12,
                             gap: 12
                         }}
                     >
@@ -239,9 +242,9 @@ export default function ActionItemModal({
                                 alignItems: 'center'
                             }}
                         >
-                            <Text style={{ color: 'white', fontWeight: '700' }}>
+                            <AppText style={{ color: 'white', fontWeight: '700' }}>
                                 Cancel
-                            </Text>
+                            </AppText>
                         </Pressable>
 
                         <Pressable
@@ -257,11 +260,14 @@ export default function ActionItemModal({
                                 alignItems: 'center'
                             }}
                         >
-                            <Text style={{ color: 'white', fontWeight: '700' }}>
+                            <AppText style={{ color: 'white', fontWeight: '700' }}>
                                 Add Items
-                            </Text>
+                            </AppText>
                         </Pressable>
                     </View>
+                    <AppText style={[readerStyles.langPickerBtnText, darkMode && readerDarkStyles.langPickerBtnText]}>
+                        Action items are generated by AI. Duplicate items may appear if the same document is scanned multiple times. Added items can be edited or deleted in the To-Do List.
+                    </AppText>
                 </Pressable>
             </Pressable>
         </Modal>

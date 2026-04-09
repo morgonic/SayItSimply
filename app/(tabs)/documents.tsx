@@ -17,6 +17,7 @@ type DocItem = {
   thumb_b64?: string | null;
   thumb_mime?: string | null;
   page_count?: number;
+  detected_mode?: string | null;
 };
 
 function formatDate(iso: string) {
@@ -88,7 +89,9 @@ export default function DocumentsScreen() {
   const openDoc = (item: DocItem) => {
     router.push({
       pathname: "/(tabs)/camera/reader",
-      params: { docId: item.id, mode: item.mode },
+      // prefer detected mode over user-set mode for reader display
+      // trying to avoid displaying auto-detect
+      params: { docId: item.id, mode: item.detected_mode || item.mode },
     });
   };
 
@@ -200,7 +203,7 @@ export default function DocumentsScreen() {
           </View>
           {/* text */}
           <View style={localStyles.textCol}>
-            <AppText style={localStyles.title}>{item.mode}</AppText>
+            <AppText style={localStyles.title}>{item.detected_mode || item.mode}</AppText>
             <AppText style={localStyles.subtitle}>{formatDate(item.timestamp)}
               {item.page_count && item.page_count > 1 ? `- ${item.page_count} pages`: ""}
             </AppText>

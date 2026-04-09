@@ -14,7 +14,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 from app.db import Document, User, get_async_session
-from app.schemas import DocumentDetail, DocumentListItem, DocumentUpdate, DocumentDelete, DocumentPreviewUpdate, DocumentPage
+from app.schemas import DocumentDetail, DocumentListItem, DocumentUpdate, DocumentDelete, DocumentPreviewUpdate, DocumentPage, DocumentGeminiUpdate
 from app.users import current_active_user
 from app.detectlang import detect_language
 
@@ -172,7 +172,9 @@ def _build_document_detail(d: Document) -> DocumentDetail:
         preview_text=getattr(d, "preview_text", None),
         page_count=getattr(d, "page_count", 1) or 1,
         combined_ocr_text=getattr(d, "combined_ocr_text", None),
-        pages=_pages(d)
+        pages=_pages(d),
+        gemini_output=getattr(d, 'gemini_output', None),
+        detected_mode=getattr(d, 'detected_mode', None)
     )
 
 @router.get("", response_model=list[DocumentListItem])
@@ -214,7 +216,8 @@ async def list_documents(
                 thumb_b64=thumb_b64,
                 thumb_mime=thumb_mime,
                 preview_text=getattr(d, "preview_text", None),
-                page_count=getattr(d, "page_count", 1) or 1
+                page_count=getattr(d, "page_count", 1) or 1,
+                detected_mode=getattr(d, 'detected_mode', None)
             )
         )
     return items
@@ -515,6 +518,42 @@ async def update_document_preview(
     await session.refresh(d)
 
     return _build_document_detail(d)
+
+# endpoint for updating documents using gemini output
+# allows updates to preview text, detected mode (when auto-detect), and stores full gemini output
+# this way gemini structured output can be saved and displayed later without re-prompting
+@router.patch("/{doc_id}/gemini", response_model=DocumentDetail)
+async def update_document_gemini(
+    doc_id: uuid.UUID,
+    payload: DocumentGeminiUpdate,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session)
+):
+    # fetch document using doc id and user id
+    response = await session.execute(
+        select(Document).where(Document.id == doc_id, Document.user_id == user.id)
+    )
+    # get first document from response
+    doc = response.scalars().first()
+    # no document, return 404 not found
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # update doc fields with payload data
+    doc.gemini_output = payload.gemini_output
+    # only update detected mode if present in payload, clamped to 50 chars
+    if payload.detected_mode:
+        doc.detected_mode = payload.detected_mode.strip()[:50] or None
+    # only update preview text if present in payload, clamped to 250 chars
+    if payload.preview_text:
+        doc.preview_text = payload.preview_text.strip()[:250] or None
+    
+    # save document
+    session.add(doc)
+    await session.commit()
+    await session.refresh(doc)
+    # return updated document details
+    return _build_document_detail(doc)
     
 @router.delete("/{doc_id}", response_model=DocumentDelete)
 async def delete_document(

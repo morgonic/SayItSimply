@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from fastapi import Depends
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID, SQLAlchemyUserDatabase, SQLAlchemyBaseOAuthAccountTableUUID
-from sqlalchemy import Boolean, Column, DateTime, Integer, JSON, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, Integer, JSON, ForeignKey, String, UniqueConstraint, text, inspect
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.ext.mutable import MutableList
 from sqlalchemy.orm import DeclarativeBase, Mapped, relationship, mapped_column
@@ -95,6 +95,8 @@ class Document(Base):
     page_count: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     combined_ocr_text: Mapped[str | None] = mapped_column(String, nullable=True, default=None)
     pages: Mapped[list[dict]] = mapped_column(MutableList.as_mutable(JSON), default=list, server_default="[]")
+    gemini_output: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
+    detected_mode: Mapped[str | None] = mapped_column(String(50), nullable=True, default=None)
     user: Mapped["User"] = relationship("User", back_populates="documents")
 
 # Define the User model
@@ -139,6 +141,29 @@ async_session_maker = async_sessionmaker(engine, expire_on_commit=False)
 async def create_db_and_tables():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+# Add Gemini columns to documents table if they don't exist
+async def add_gemini_columns():
+    async with engine.begin() as conn:
+        # check if columns already exist
+        existing_columns = await conn.run_sync(
+            # use PRAGMA table_info to get column names
+            lambda sync_conn: [
+                row[1] for row in sync_conn.execute(
+                    text("PRAGMA table_info(documents)")
+                ).fetchall()
+            ]
+        )
+        # add gemini_output column if it doesn't exist
+        if "gemini_output" not in existing_columns:
+            await conn.execute(
+                text("ALTER TABLE documents ADD COLUMN gemini_output JSON")
+            )
+        # add detected_mode column if it doesn't exist
+        if "detected_mode" not in existing_columns:
+            await conn.execute(
+                text("ALTER TABLE documents ADD COLUMN detected_mode String(50)")
+            )
 
 # Define async session dependency
 async def get_async_session() -> AsyncGenerator[AsyncSession, None]:

@@ -26,7 +26,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import User, UserSettings, OAuthAccount, create_db_and_tables, engine, FaceIdLoginToken, get_async_session
+from app.db import User, UserSettings, OAuthAccount, add_gemini_columns, create_db_and_tables, engine, FaceIdLoginToken, get_async_session
 from app.schemas import (
     ActionItem, AddToDoRequest, PatchItemRequest, UserCreate, UserRead, UserUpdate, GeminiRequest, OCRRequest, OCRResponse, 
     SettingsRead, SettingsUpdate,FaceIdRegisterReq, FaceIdRegisterRes, FaceIdLoginReq, FaceIdDisableReq
@@ -51,6 +51,7 @@ print("MOBILE_REDIRECT_URL", os.getenv("MOBILE_REDIRECT_URL"))
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await create_db_and_tables()
+    await add_gemini_columns()
     try:
         yield
     finally:

@@ -147,6 +147,7 @@ class DocumentListItem(BaseModel):
     thumb_mime: Optional[str] = None
     preview_text: Optional[str] = None
     page_count: int = 1
+    detected_mode: Optional[str] = None
     
 class DocumentDetail(BaseModel):
     id: uuid.UUID
@@ -160,6 +161,13 @@ class DocumentDetail(BaseModel):
     page_count: int = 1
     combined_ocr_text: Optional[str] = None
     pages: List[DocumentPage] = Field(default_factory=list)
+    gemini_output: Optional[dict] = None
+    detected_mode: Optional[str] = None
+
+class DocumentGeminiUpdate(BaseModel):
+    gemini_output: dict
+    detected_mode: Optional[str] = None
+    preview_text: Optional[str] = None
     
 class DocumentUpdate(BaseModel):
     mode: str = Field(description="A label for the source of the text")

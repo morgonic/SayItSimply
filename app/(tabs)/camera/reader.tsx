@@ -104,6 +104,8 @@ type DocDetail = {
   page_count?: number;
   combined_ocr_text?: string | null;
   pages?: DocPage[];
+  gemini_output?: GeminiResponse | null;
+  detected_mode?: string | null;
 }
 
 const calibScanCountKey = "calib_scan_count";
@@ -200,6 +202,44 @@ async function updatePreview(docId: string, previewText: string) {
     }
   } catch (e) {
     console.warn("Failed to update preview text:", e);
+  }
+}
+
+// function for saving gemini output to backend docs
+async function saveGeminiOutput(
+  docId: string,
+  geminiData: GeminiResponse,
+  previewText: string
+) {
+  // getting token and token type for auth header
+  const token = await storage.getItem('access_token');
+  const tokenType = (await storage.getItem('token_type')) ?? 'bearer';
+  // return if no token or api url for auth/endpoint
+  if (!token || !api_url) {
+    return;
+  }
+  // fetch PATCH request to update document with gemini output, detected mode, preview text
+  try {
+    const response = await fetch(`${api_url}/documents/${docId}/gemini`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `${tokenType} ${token}`
+      },
+      body: JSON.stringify({
+        gemini_output: geminiData,
+        detected_mode: geminiData.mode ?? null,
+        preview_text: previewText || null
+      })
+    });
+    // bad response, log warning with status code
+    if (!response.ok) {
+      console.warn('Failed to save Gemini output:', response.status);
+    }
+  }
+  // catch and log errors
+  catch (e) {
+    console.error('Failed to saved Gemini output:', e);
   }
 }
 
@@ -333,7 +373,11 @@ export default function ReaderScreen() {
   const [translate, setTranslate] = useState("");
 
   const effectiveMode = useMemo(() => {
-    return savedDocMode || mode || geminiData?.mode || "Document";
+    const possibleModes = [savedDocMode, mode, geminiData?.mode];
+    // do not return auto-detect ever, only return valid modes
+    return possibleModes.find(
+      (_mode) => _mode && _mode.trim() && _mode.trim().toLowerCase() !== "auto-detect"
+    ) ?? "Document";
   }, [savedDocMode, mode, geminiData?.mode]);
 
   //gemini TTS states
@@ -465,10 +509,10 @@ export default function ReaderScreen() {
 
     if (tab === "Overview") {
       if (showOriginal) return effectiveOcrText;
-      return (geminiData?.summary ?? "").trim();
+      return overview.trim() || (geminiData?.summary ?? "").trim();
     }
     if (tab === "Easy Read") {
-      return (simplifyMoreText ?? geminiData?.simplification ?? "").trim();
+      return (simplifyMoreText ?? easyRead ?? geminiData?.simplification ?? "").trim();
     }
     if (tab === "Translate") {
       if (translateLoading) {
@@ -488,12 +532,12 @@ export default function ReaderScreen() {
 
     if (tab === "Overview") {
       if (showOriginal) return "";
-      return (geminiData?.summary ?? "").trim();
+      return overview.trim() || (geminiData?.summary ?? "").trim();
     }
 
     if (tab === "Easy Read") {
       return (simplifyMoreText === null
-        ? (geminiData?.simplification ?? "")
+        ? (easyRead ?? geminiData?.simplification ?? "")
         : (simplifyMoreText ?? "")
       ).trim();
     }
@@ -1292,31 +1336,33 @@ export default function ReaderScreen() {
     checkIncrAndCalib();
   }, [imageUri, docId]);
 
+  // TEMPORARILY DISABLED TUNE RESPONSES CALIBRATION
   useEffect(() => {
     async function checkPrompt() {
-      if (!imageUri && !docId) return;
-      if (!effectiveOcrText) return;
-      if (calibVis) return;
+      return;
+      // if (!imageUri && !docId) return;
+      // if (!effectiveOcrText) return;
+      // if (calibVis) return;
 
-      const dbState = await dbGetCalibState();
-      if (dbState) {
-        const calibFreq = dbState.calib_freq || 0;
-        const scanCount = dbState.scan_count || 0;
+      // const dbState = await dbGetCalibState();
+      // if (dbState) {
+      //   const calibFreq = dbState.calib_freq || 0;
+      //   const scanCount = dbState.scan_count || 0;
 
-        if (calibFreq > 0 && scanCount >= calibFreq) {
-          const currLevel = sessionReadingLevel ?? dbState.reading_level ?? geminiData?.reading_level ?? reading_levels.standard;
-          await openCalibModal(currLevel);
-        }
-        return;
-      }
+      //   if (calibFreq > 0 && scanCount >= calibFreq) {
+      //     const currLevel = sessionReadingLevel ?? dbState.reading_level ?? geminiData?.reading_level ?? reading_levels.standard;
+      //     await openCalibModal(currLevel);
+      //   }
+      //   return;
+      // }
 
-      const scanCount = await getInt(calibScanCountKey, 0);
-      const calibFreq = await getInt(calibFreqKey, 0);
-      if (calibFreq > 0 && scanCount >= calibFreq) {
-        const reading_level = await getReadingLvl();
-        const currLevel = sessionReadingLevel ?? reading_level ?? geminiData?.reading_level ?? reading_levels.standard;
-        await openCalibModal(currLevel);
-      }
+      // const scanCount = await getInt(calibScanCountKey, 0);
+      // const calibFreq = await getInt(calibFreqKey, 0);
+      // if (calibFreq > 0 && scanCount >= calibFreq) {
+      //   const reading_level = await getReadingLvl();
+      //   const currLevel = sessionReadingLevel ?? reading_level ?? geminiData?.reading_level ?? reading_levels.standard;
+      //   await openCalibModal(currLevel);
+      // }
     }
 
     checkPrompt();
@@ -1382,6 +1428,32 @@ export default function ReaderScreen() {
               setSavedDocMode(saved.mode ?? null);
               setOcrText(sourceText);
               setOcrLanguage(sourceLang || "unknown");
+            }
+
+            // if gemini output exists, use it to populate UI
+            // so users can see previous results without waiting for response again
+            if (saved.gemini_output && !cancelled) {
+              // normalize action items just in case
+              const cached: GeminiResponse = {
+                ...saved.gemini_output,
+                action_items: normalizeActionItems(saved.gemini_output.action_items)
+              };
+              // only update session reading level if currently null
+              // otherwise keep existing session reaidng level
+              setSessionReadingLevel((prev) =>
+                prev === null ? (cached.reading_level ?? null) : prev
+              );
+              // update states with cached gemini output
+              setSimplifyMoreText(cached.simplification);
+              setSimplifiedReadingLevel(cached.reading_level ?? null);
+              setSimplifiedMost(cached.reading_level === 1);
+              setGeminiData(cached);
+              setOveriew(cached.summary);
+              setEasyRead(cached.simplification);
+              setTranslate(cached.translation ?? "");
+              setSavedDocLoading(false);
+              setOcrLoading(false);
+              return;
             }
           }
           setSavedDocLoading(false);
@@ -1509,6 +1581,15 @@ export default function ReaderScreen() {
           setOveriew(geminiJson.summary)
           setEasyRead(geminiJson.simplification)
           setTranslate(geminiJson.translation ?? "")
+
+          // save gemini output to db if docId exists
+          if (docId) {
+            // use simplification or summary for preview
+            const previewForSave = clampToTwoSentences(
+              geminiJson.simplification || geminiJson.summary || ""
+            );
+            saveGeminiOutput(docId, geminiJson, previewForSave);
+          }
         }
       }
       catch (e: any) {
@@ -1575,8 +1656,8 @@ export default function ReaderScreen() {
     // otherwise show content based on selected tab
     switch (tab) {
       case "Overview":
-        // for now, format action items with summary as numbered list, n/a if no items
-        return geminiData.summary;
+        // display overview/summary for overview tab
+        return overview || geminiData.summary || "";
       case "Easy Read":
         // simplified explanation for easy read tab
         return highlightedSimplified;
@@ -1586,14 +1667,15 @@ export default function ReaderScreen() {
         }
         const userLanguage = (userLang ?? "not set").toUpperCase();
         const ocrLang = (ocrLanguage ?? "unknown").toUpperCase();
-        // translation for translate tab, tell user when no translation was provided and advise of user's saved language and ocr text language
-        return geminiData.translation 
+        // translation for translate tab
+        return translate
+          // tell user when no translation was provided and advise of user's saved language and ocr text language
           ?? `No translation available.\n\nYour language is set to ${langCodeToName(userLanguage)} and the text is written in ${langCodeToName(ocrLang)}.`;
       default:
         return "";
     }
   }, [tab, ocrLoading, ocrError, effectiveOcrText, highlightedSimplified, userLang, ocrLanguage,
-    geminiLoading, geminiError, geminiData, showOriginal, simplifyMoreText]);
+    geminiLoading, geminiError, geminiData, showOriginal, simplifyMoreText, overview, translate]);
 
   // function for updating user's reading level on backend
   async function patchReadingLevel(newReadingLevel: number) {

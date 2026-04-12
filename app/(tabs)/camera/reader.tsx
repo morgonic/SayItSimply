@@ -381,15 +381,17 @@ export default function ReaderScreen() {
   }, [savedDocMode, mode, geminiData?.mode]);
 
   //gemini TTS states
-  type TtsStatus = 'idle' | 'generating' | 'playing' | 'stopping';
+  type TtsStatus = 'idle' | 'generating' | 'playing' | 'paused' |'stopping';
   const [ttsStatus, setTtsStatus] = useState<TtsStatus>('idle');
   const [ttsRateSlider, setTtsRateSlider] = useState<number>(0.0);
   const [ttsRate, setTtsRate] = useState<number>(1.0);
   const [ttsPitch, setTtsPitch] = useState<number>(0.0);
   const ttsIsGenerating = ttsStatus === 'generating';
   const ttsIsPlaying = ttsStatus === 'playing';
+  const ttsIsPaused = ttsStatus === 'paused';
   const ttsIsStopping = ttsStatus === 'stopping';
-  const ttsBusy = ttsIsGenerating || ttsIsPlaying || ttsIsStopping;
+  const ttsAudioActive = ttsIsPlaying || ttsIsPaused;
+  const ttsBusy = ttsIsGenerating || ttsIsPlaying || ttsIsPaused || ttsIsStopping;
 
   const loadTtsSettings = useCallback(async () => {
     try {
@@ -497,12 +499,14 @@ export default function ReaderScreen() {
     }, [loadHighlightSetting])
   );
 
-  //clean sound
-  useEffect(() => {
-    return () => {
-      stopAndCleanSound();
-    };
-  }, []);
+  //stop sound when user navigates away from reader screen
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        void stopAndCleanSound();
+      };
+    }, [])
+  );
 
   function getSpeechText(): string {
     if (ocrLoading || geminiLoading) return "";
@@ -585,14 +589,39 @@ export default function ReaderScreen() {
   }
 
   async function speechCurrentTab() {
+    // return if TTS status is already generating or stopping
+    if (ttsIsGenerating || ttsIsStopping) return;
+    
+    // if playing, pause audio and keep position
+    if (ttsIsPlaying && soundRef.current) {
+      try {
+        await soundRef.current.pauseAsync();
+        setTtsStatus('paused');
+      } catch (e: any) {
+        console.warn("TTS pause failed:", e?.message ?? e);
+        Alert.alert("TTS Error", e?.message ?? "Failed to pause audio.");
+      }
+      return;
+    }
+
+    // if paused, resume from position
+    if (ttsIsPaused && soundRef.current) {
+      try {
+        await soundRef.current.playAsync();
+        setTtsStatus('playing');
+      } catch (e: any) {
+        console.warn("TTS resume failed:", e?.message ?? e);
+        Alert.alert("TTS Error", e?.message ?? "Failed to resume audio.");
+      }
+      return;
+    }
+
     const textToSpeech = getSpeechText();
     if (!textToSpeech) {
       Alert.alert("Nothing to read", "There is not any text available to play yet.");
       return;
     }
-    // return if TTS status is already generating or stopping
-    if (ttsBusy) return;
-    
+
     const abortController = new AbortController();
     ttsAbortRef.current = abortController;
 
@@ -655,6 +684,11 @@ export default function ReaderScreen() {
 
         if (status.didJustFinish) {
           void stopAndCleanSound();
+          return;
+        }
+        
+        if (status.isPlaying) {
+          setTtsStatus('playing');
         }
       });
 
@@ -742,9 +776,9 @@ export default function ReaderScreen() {
   const currentSpeechText = getSpeechText().trim();
   const hasSpeechText = currentSpeechText.length > 0;
   // disabled TTS play button when loading, generating, stopping, or there's no text to play
-  const ttsPlayDisabled = isLoading || translateLoading || ttsBusy || !hasSpeechText;
+  const ttsPlayDisabled = isLoading || translateLoading || ttsIsGenerating || ttsIsStopping || (!hasSpeechText && !ttsIsPaused);
   // disable stop button when idle
-  const ttsStopDisabled = !(ttsIsGenerating || ttsIsPlaying || ttsIsStopping);
+  const ttsStopDisabled = !(ttsIsGenerating || ttsIsPlaying || ttsIsPaused || ttsIsStopping);
   // state to disable tabs during loading or TTS busy
   const tabsDisabled = isLoading || ttsBusy;
 
@@ -2038,150 +2072,174 @@ export default function ReaderScreen() {
 
               {/* Bottom CTA and TTS */}
               {tab !== "Translate" && (
-                <View style={readerStyles.ctaRow}>
-                  <Pressable
-                    style={[
-                      readerStyles.ctaBtn,
-                      darkMode && readerDarkStyles.ctaBtn,
-                      (ocrLoading || geminiLoading || !effectiveOcrText || simplifiedMost) &&
-                      (darkMode ? readerDarkStyles.ctaBtnDisabled : { opacity: 0.5 }), { flex: 1 }
-                    ]}
-                    onPress={async () => {
-                      if (tab === "Overview") {
-                        setShowOriginal(!showOriginal);
-                        return;
-                      }
-                      
-                      if (tab === "Easy Read") {
-                        if (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1) {
+                <View>
+                  <View style={readerStyles.ctaRow}>
+                    <Pressable
+                      style={[
+                        readerStyles.ctaBtn,
+                        darkMode && readerDarkStyles.ctaBtn,
+                        (ocrLoading || geminiLoading || !effectiveOcrText || simplifiedMost) &&
+                        (darkMode ? readerDarkStyles.ctaBtnDisabled : { opacity: 0.5 }), { flex: 1 }
+                      ]}
+                      onPress={async () => {
+                        if (tab === "Overview") {
+                          setShowOriginal(!showOriginal);
                           return;
                         }
-                        if (ocrLoading || geminiLoading || !effectiveOcrText) {
-                          return;
-                        }
-                        if (!api_url) {
-                          return;
-                        }
-
-                        setGeminiLoading(true);
-                        setGeminiError(null);
-
-                        try {
-                          const token = await storage.getItem("access_token");
-                          const tokenType = (await storage.getItem("token_type")) ?? "bearer";
-
-                          const nextSimplifyStep = simplifyMoreCount + 1;
-                          setSimplifyMoreCount(nextSimplifyStep);
-
-                          const simplifyMoreBy = 2 * nextSimplifyStep;
-
-
-                          const response = await fetch(`${api_url}/gemini`, {
-                            method: 'POST',
-                            headers: {
-                              "Content-Type": "application/json",
-                              ...(token ? { Authorization: `${tokenType} ${token}` } : {})
-                            },
-                            body: JSON.stringify({
-                              text: effectiveOcrText,
-                              mode: effectiveMode ?? "Document",
-                              simplify_more_by: simplifyMoreBy,
-                              ...(sessionReadingLevel !== null ? { reading_level: sessionReadingLevel } : {})
-                            })
-                          });
-
-                          if (!response.ok) {
-                            const text = await response.text();
-                            throw new Error(text || `Gemini response failed (HTTP ${response.status})`);
+                        
+                        if (tab === "Easy Read") {
+                          if (simplifiedMost || simplifiedReadingLevel === 1 || sessionReadingLevel === 1) {
+                            return;
+                          }
+                          if (ocrLoading || geminiLoading || !effectiveOcrText) {
+                            return;
+                          }
+                          if (!api_url) {
+                            return;
                           }
 
-                          const json: GeminiResponse = await response.json();
+                          setGeminiLoading(true);
+                          setGeminiError(null);
 
-                          setSimplifyMoreText(json.simplification);
-                          setSimplifiedReadingLevel(json.reading_level ?? null);
-                          setSimplifiedMost(json.reading_level === 1);
-                          if (json.reading_level != null) {
-                            await patchReadingLevel(json.reading_level);
-                          }
-                          if (docId) {
-                            const text_preview = clampToTwoSentences(json.simplification || json.summary || "");
-                            if (text_preview) {
-                              await updatePreview(docId, text_preview);
+                          try {
+                            const token = await storage.getItem("access_token");
+                            const tokenType = (await storage.getItem("token_type")) ?? "bearer";
+
+                            const nextSimplifyStep = simplifyMoreCount + 1;
+                            setSimplifyMoreCount(nextSimplifyStep);
+
+                            const simplifyMoreBy = 2 * nextSimplifyStep;
+
+
+                            const response = await fetch(`${api_url}/gemini`, {
+                              method: 'POST',
+                              headers: {
+                                "Content-Type": "application/json",
+                                ...(token ? { Authorization: `${tokenType} ${token}` } : {})
+                              },
+                              body: JSON.stringify({
+                                text: effectiveOcrText,
+                                mode: effectiveMode ?? "Document",
+                                simplify_more_by: simplifyMoreBy,
+                                ...(sessionReadingLevel !== null ? { reading_level: sessionReadingLevel } : {})
+                              })
+                            });
+
+                            if (!response.ok) {
+                              const text = await response.text();
+                              throw new Error(text || `Gemini response failed (HTTP ${response.status})`);
+                            }
+
+                            const json: GeminiResponse = await response.json();
+
+                            setSimplifyMoreText(json.simplification);
+                            setSimplifiedReadingLevel(json.reading_level ?? null);
+                            setSimplifiedMost(json.reading_level === 1);
+                            if (json.reading_level != null) {
+                              await patchReadingLevel(json.reading_level);
+                            }
+                            if (docId) {
+                              const text_preview = clampToTwoSentences(json.simplification || json.summary || "");
+                              if (text_preview) {
+                                await updatePreview(docId, text_preview);
+                              }
                             }
                           }
+                          catch (e: any) {
+                            setGeminiError(e?.message ?? "Request failed");
+                          }
+                          finally {
+                            setGeminiLoading(false);
+                            setDefinitionModal({ isVisible: false, word: "", definition: "" })
+                          }
                         }
-                        catch (e: any) {
-                          setGeminiError(e?.message ?? "Request failed");
-                        }
-                        finally {
-                          setGeminiLoading(false);
-                          setDefinitionModal({ isVisible: false, word: "", definition: "" })
-                        }
-                      }
-                    }}
-                    disabled={
-                      tabsDisabled || 
-                      !effectiveOcrText || 
-                      (tab === "Easy Read" && 
-                        (simplifiedMost || 
-                          simplifiedReadingLevel === 1 || 
-                          sessionReadingLevel === 1
+                      }}
+                      disabled={
+                        tabsDisabled || 
+                        !effectiveOcrText || 
+                        (tab === "Easy Read" && 
+                          (simplifiedMost || 
+                            simplifiedReadingLevel === 1 || 
+                            sessionReadingLevel === 1
+                          )
                         )
-                      )
-                    }>
-                    <AppText style={[readerStyles.ctaText, darkMode && readerDarkStyles.ctaText]}>
-                      {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
-                        : (tab === "Overview" && !showOriginal) ? "See Original Text"
-                          : (tab === "Overview" && showOriginal) ? "See Simplified Text"
-                            : (tab != "Overview") ? "Simplify More"
-                              : "Simplify More"}
-                    </AppText>
-                  </Pressable>
-                  <View style={readerStyles.ttsRow}>
-                    <Pressable
-                      style={[
-                        readerStyles.ttsBtn,
-                        ttsPlayDisabled && readerStyles.ttsBtnDisabled,
-                        darkMode && readerDarkStyles.ttsBtn,
-                        ttsPlayDisabled && darkMode && readerDarkStyles.ttsBtnDisabled,
-                      ]}
-                      onPress={() => {
-                        closeDefinitionModal();
-                        speechCurrentTab();
-                      }}
-                      disabled={ttsPlayDisabled}
-                      hitSlop={10}
-                    >
-                      <Ionicons
-                        name={ttsIsGenerating || ttsIsStopping ? "time-outline" : (ttsIsPlaying ? "volume-high-outline" : "play-circle-outline")}
-                        size={28}
-                        color={ttsPlayDisabled ? P.iconDisabled : ctaIcon}
-                      />
+                      }>
+                      <AppText style={[readerStyles.ctaText, darkMode && readerDarkStyles.ctaText]}>
+                        {tab === "Easy Read" && simplifiedMost ? "Already Simplest"
+                          : (tab === "Overview" && !showOriginal) ? "See Original Text"
+                            : (tab === "Overview" && showOriginal) ? "See Simplified Text"
+                              : (tab != "Overview") ? "Simplify More"
+                                : "Simplify More"}
+                      </AppText>
                     </Pressable>
+                    <View style={readerStyles.ttsRow}>
+                      <Pressable
+                        style={[
+                          readerStyles.ttsBtn,
+                          ttsPlayDisabled && !ttsIsGenerating && readerStyles.ttsBtnDisabled,
+                          darkMode && readerDarkStyles.ttsBtn,
+                          ttsPlayDisabled && !ttsIsGenerating &&darkMode && readerDarkStyles.ttsBtnDisabled,
+                        ]}
+                        onPress={() => {
+                          closeDefinitionModal();
+                          speechCurrentTab();
+                        }}
+                        disabled={ttsPlayDisabled}
+                        hitSlop={10}
+                      >
+                        {ttsIsGenerating ? (
+                          <ActivityIndicator
+                            size="small"
+                            color={ctaIcon}
+                          />
+                        ) : (
+                          <Ionicons
+                            name={ttsIsPlaying ? "pause-circle-outline" : "play-circle-outline"}
+                            size={28}
+                            color={ttsPlayDisabled ? P.iconDisabled : ctaIcon}
+                          />
+                        )}
+                      </Pressable>
 
-                    <Pressable
-                      style={[
-                        readerStyles.ttsBtn,
-                        readerStyles.ttsStopBtn,
-                        ttsStopDisabled && readerStyles.ttsBtnDisabled,
-                        darkMode && readerDarkStyles.ttsBtn,
-                        darkMode && readerDarkStyles.ttsStopBtn,
-                        ttsStopDisabled && darkMode && readerDarkStyles.ttsBtnDisabled,
-                      ]}
-                      onPress={() => {
-                        closeDefinitionModal();
-                        stopAndCleanSound();
-                      }}
-                      disabled={ttsStopDisabled}
-                      hitSlop={10}
-                    >
-                      <Ionicons
-                        name="stop-circle-outline"
-                        size={28}
-                        color={ttsStopDisabled ? P.iconDisabled : ctaIcon}
-                      />
-                    </Pressable>
+                      <Pressable
+                        style={[
+                          readerStyles.ttsBtn,
+                          readerStyles.ttsStopBtn,
+                          ttsStopDisabled && readerStyles.ttsBtnDisabled,
+                          darkMode && readerDarkStyles.ttsBtn,
+                          darkMode && readerDarkStyles.ttsStopBtn,
+                          ttsStopDisabled && darkMode && readerDarkStyles.ttsBtnDisabled,
+                        ]}
+                        onPress={() => {
+                          closeDefinitionModal();
+                          stopAndCleanSound();
+                        }}
+                        disabled={ttsStopDisabled}
+                        hitSlop={10}
+                      >
+                        <Ionicons
+                          name="stop-circle-outline"
+                          size={28}
+                          color={ttsStopDisabled ? P.iconDisabled : ctaIcon}
+                        />
+                      </Pressable>
+                    </View>
                   </View>
+
+                  {ttsIsGenerating && (
+                    <AppText
+                      style={{
+                        marginTop: 6,
+                        textAlign: "center",
+                        fontSize: 13,
+                        lineHeight: 18,
+                        color: P.bodyText,
+                        maxWidth: 450
+                      }}
+                    >
+                      Generating audio; Will auto-play when done
+                    </AppText>
+                  )}
                 </View>
               )}
             </View>
@@ -2276,9 +2334,9 @@ export default function ReaderScreen() {
                 <Pressable
                   style={[
                     readerStyles.ttsBtn,
-                    ttsPlayDisabled && readerStyles.ttsBtnDisabled,
+                    ttsPlayDisabled && !ttsIsGenerating && readerStyles.ttsBtnDisabled,
                     darkMode && readerDarkStyles.ttsBtn,
-                    ttsPlayDisabled && darkMode && readerDarkStyles.ttsBtnDisabled,
+                    ttsPlayDisabled && !!ttsIsGenerating && darkMode && readerDarkStyles.ttsBtnDisabled
                   ]}
                   onPress={() => {
                     closeDefinitionModal();
@@ -2287,11 +2345,18 @@ export default function ReaderScreen() {
                   disabled={ttsPlayDisabled}
                   hitSlop={10}
                 >
-                  <Ionicons
-                    name={ttsIsGenerating || ttsIsStopping ? "time-outline" : (ttsIsPlaying ? "volume-high-outline" : "play-circle-outline")}
-                    size={28}
-                    color={ttsPlayDisabled ? P.iconDisabled : P.icon}
-                  />
+                  {ttsIsGenerating ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={ttsPlayDisabled ? P.iconDisabled : P.icon}
+                    />
+                  ) : (
+                    <Ionicons
+                      name={ttsIsPlaying ? "pause-circle-outline" : "play-circle-outline"}
+                      size={28}
+                      color={ttsPlayDisabled ? P.iconDisabled : P.icon}
+                    />
+                  )}
                 </Pressable>
 
                 <Pressable
@@ -2301,7 +2366,7 @@ export default function ReaderScreen() {
                     (!ttsIsPlaying && !ttsIsGenerating) && readerStyles.ttsBtnDisabled,
                     darkMode && readerDarkStyles.ttsBtn,
                     darkMode && readerDarkStyles.ttsStopBtn,
-                    (!ttsIsPlaying && !ttsIsGenerating) && darkMode && readerDarkStyles.ttsBtnDisabled,
+                    (!ttsIsPlaying && !ttsIsGenerating) && darkMode && readerDarkStyles.ttsBtnDisabled
                   ]}
                   onPress={() => {
                     closeDefinitionModal();
@@ -2317,6 +2382,21 @@ export default function ReaderScreen() {
                   />
                 </Pressable>
               </View>
+
+              {ttsIsGenerating && (
+                <AppText
+                  style={{
+                    marginTop: 6,
+                    textAlign: "center",
+                    fontSize: 13,
+                    lineHeight: 18,
+                    color: P.bodyText,
+                    maxWidth: 450,
+                  }}
+                >
+                  Generating audio; Will auto-play when done
+                </AppText>
+              )}
             </View>
           </View>
         )}

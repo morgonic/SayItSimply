@@ -136,13 +136,13 @@ export const styles = StyleSheet.create({
   },
   dashBookmark: {
     position: "absolute",
-    right: 18,
-    top: -6,
-    width: 18,
-    height: 26,
+    right: 26,
+    top: -8,
+    width: 28,
+    height: 40,
     backgroundColor: "#8C311C",
-    borderTopLeftRadius: 6,
-    borderTopRightRadius: 6,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
     zIndex: 2,
     elevation: 2
   },
@@ -155,9 +155,9 @@ export const styles = StyleSheet.create({
     marginRight: 'auto',
     width: 0,
     height: 0,
-    borderLeftWidth: 9,
-    borderRightWidth: 9,
-    borderBottomWidth: 8,
+    borderLeftWidth: 14,
+    borderRightWidth: 14,
+    borderBottomWidth: 12,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     borderBottomColor: '#fffffff2'
@@ -206,26 +206,18 @@ export const styles = StyleSheet.create({
   dashShortcutCardOuter: {
     flex: 1,
     borderRadius: 14,
-    //borderWidth: 3,
     backgroundColor: "rgba(233,198,166,0.9)",
     padding: 6,
     marginLeft: 0,
     marginRight: 0,
-    minHeight: 240,
-    //width: 150,
-    justifyContent: 'center',
-    alignItems: 'center'
+    minHeight: 240
   },
   dashShortcutCardInnerOuter: {
     flex: 1,
     borderRadius: 14,
-    //borderWidth: 3,
     backgroundColor: "#277A8C",
     padding: 6,
-    //height: 180,
-    //width: 140,
-    justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'stretch'
   },
   dashShortcutCard: {
     flex: 1,
@@ -233,10 +225,7 @@ export const styles = StyleSheet.create({
     borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 14,
-    //height: 170,
-    //width: 130,
-    justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'stretch'
   },
   dashShortcutTitle: {
     color: "#1B1B1B",

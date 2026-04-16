@@ -59,6 +59,7 @@ type DocumentListItem = {
   created_at?: string | null;
   thumb_url?: string | null;
   preview_text?: string | null;
+  detected_mode?: string | null;
 };
 
 type TodoItem = {
@@ -208,7 +209,8 @@ async function fetchRecentDocs(limit = 5): Promise<DocumentListItem[]> {
       mode: x.mode ?? null,
       created_at: x.created_at ?? x.createdAt ?? x.timestamp ?? null,
       thumb_url: x.thumb_url ?? x.thumbUrl ?? null,
-      preview_text: x.preview_text ?? x.previewText ?? null
+      preview_text: x.preview_text ?? x.previewText ?? null,
+      detected_mode: x.detected_mode ?? x.detectedMode ?? null
     }))
     .sort((a, b) => {
       const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
@@ -250,11 +252,11 @@ async function fetchTodoItems(limit = 2): Promise<TodoItem[]> {
 
 function docLabel(doc: DocumentListItem | null): string {
   if (!doc) return "";
-  const mode = (doc.mode || "Scan").toString().trim() || "Scan";
+  const mode = (doc.detected_mode || doc.mode || "Scan").toString().trim() || "Scan";
   const rel = timelineFormat(doc.created_at);
   const fallback = fallbackTimelineFormat(doc.created_at);
   const when = rel || fallback;
-  return when ? `${mode} (${when})` : mode;
+  return when ? `${mode} \n(${when})` : mode;
 }
 
 async function ocrImageUri(params: {
@@ -403,13 +405,14 @@ export default function DashboardScreen() {
   const [profilePicUri, setProfilePicUri] = useState<string | null>(null);
 
   const continueReadingDoc = useMemo(() => recentDocs?.[0] ?? null, [recentDocs]);
+  const shortcutPreviewCount = 3;
 
   const loadDash = useCallback(async () => {
     setLoadingDash(true);
     try {
       const [docs, tasks] = await Promise.all([
-        fetchRecentDocs(5),
-        fetchTodoItems(5),
+        fetchRecentDocs(shortcutPreviewCount),
+        fetchTodoItems(shortcutPreviewCount),
       ]);
       setRecentDocs(docs);
       setTasks(tasks);
@@ -601,25 +604,42 @@ export default function DashboardScreen() {
     }
   };
 
-  
+  // route to documents screen
+  const handleOpenDocs = () => {
+    router.push('/(tabs)/documents');
+  }
+  // route to to-do list screen
+  const handleOpenTodo = () => {
+    router.push('/(tabs)/todo-list');
+  }
+  // route to settings screen
+  const handleOpenSettings = () => {
+    router.push('/(tabs)/profile/settings');
+  }
+  // route to profile screen
+  const handleOpenProfile = () => {
+    router.push('/(tabs)/profile');
+  }
 
   const continueReadingLabel = useMemo(() => {
     if (!continueReadingDoc) return "No documents yet";
     return docLabel(continueReadingDoc);
   }, [continueReadingDoc]);
 
+  
+
   return (
     <SafeAreaView style={[styles.dashSafe, { backgroundColor: C.bg }]}>
       <View style={[styles.dashContainer, { backgroundColor: C.bg }]}>
         {/* Header */}
         <View style={styles.dashHeader}>
-          <Pressable style={styles.dashHeaderIconBtn} onPress={() => router.push('/(tabs)/profile/settings')}>
+          <Pressable style={styles.dashHeaderIconBtn} onPress={handleOpenSettings}>
             <AppText style={styles.dashHeaderIcon}>☰</AppText>
           </Pressable>
 
           <AppText style={styles.dashHeaderTitle}>SayItSimply</AppText>
 
-          <Pressable style={styles.dashAvatarBtn} onPress={() => router.push('/(tabs)/profile')}>
+          <Pressable style={styles.dashAvatarBtn} onPress={handleOpenProfile}>
               {profilePicUri ? (
                 <Image source={{ uri: profilePicUri }} style={styles.dashAvatarPlaceholder} />
               ) : (
@@ -670,12 +690,14 @@ export default function DashboardScreen() {
                       : "Capture or upload a picture and we will show a quick preview here!"}
                   </AppText>
                 )}
-                <Pressable style={[styles.dashContinueBtn, { backgroundColor: C.btnBg }]}
+                <Pressable style={[styles.dashContinueBtn, { backgroundColor: C.btnBg, marginTop: 16 }]}
                   onPress={() => {
                     if (!continueReadingDoc?.id) return;
                     router.replace({
                       pathname: "/(tabs)/camera/reader",
-                      params: { docId: continueReadingDoc.id, mode: continueReadingDoc.mode ?? "Document"}
+                      params: { 
+                        docId: continueReadingDoc.id, 
+                        mode: continueReadingDoc.detected_mode ?? continueReadingDoc.mode ?? "Document"}
                     });
                   }}
                 >
@@ -699,18 +721,27 @@ export default function DashboardScreen() {
                   C.isDark && { backgroundColor: C.scanBtnBg }]}
                 >
                   <Pressable style={[styles.dashShortcutCard, { backgroundColor: C.shortcutCardBg }]}
-                    onPress={() => router.replace("/(tabs)/todo-list")}
+                    onPress={handleOpenTodo}
                   >
                     <AppText style={[styles.dashShortcutTitle, { color: C.text }]}>Urgent Tasks</AppText>
 
-                    <View style={styles.dashBulletGroup}>
+                    <View style={[styles.dashBulletGroup, {
+                      minHeight: 110,
+                      maxHeight: 110,
+                      overflow: 'hidden',
+                      justifyContent: 'flex-start'
+                    }]}>
                       {loadingDash ? (
                         <ActivityIndicator color={C.indicator}/>
                       ) : tasks.length ? (
-                        tasks.map((t, index) => (
+                        tasks.slice(0, shortcutPreviewCount).map((t, index) => (
                           <View key={t.id ?? `${t.action_item}-${index}`} style={styles.dashTaskRow}>
                             <AppText style={[styles.dashTaskBullet, { color: C.taskBullet }]}>•</AppText>
-                            <AppText style={[styles.dashBullet, styles.dashTaskText, { color: C.text }]}>
+                            <AppText 
+                              numberOfLines={2}
+                              ellipsizeMode='tail'
+                              style={[styles.dashBullet, styles.dashTaskText, { color: C.text }]}
+                            >
                               {t.action_item}
                             </AppText>
                           </View>
@@ -737,17 +768,34 @@ export default function DashboardScreen() {
                 <View style={[styles.dashShortcutCardInnerOuter, 
                   C.isDark && { backgroundColor: C.scanBtnBg }]}
                 >
-                  <View style={[styles.dashShortcutCard, { backgroundColor: C.shortcutCardBg }]}>
+                  <Pressable 
+                    style={[styles.dashShortcutCard, { backgroundColor: C.shortcutCardBg }]}
+                    onPress={handleOpenDocs}
+                  >
                     <AppText style={[styles.dashShortcutTitle, { color: C.text }]}>Recent Scans</AppText>
 
-                    <View style={styles.dashBulletGroup}>
+                    <View style={[
+                      styles.dashBulletGroup, {
+                        minHeight: 110,
+                        maxHeight: 110,
+                        overflow: 'hidden',
+                        justifyContent: 'flex-start'
+                      }]}>
                       {loadingDash ? (
                         <ActivityIndicator color={C.indicator}/>
                       ) : recentDocs.length ? (
-                        recentDocs.slice(0, 5).map((d) => (
-                          <AppText key={d.id} style={[styles.dashBullet, { color: C.text }]}>
-                            • {docLabel(d)}
-                          </AppText>
+                        recentDocs.slice(0, shortcutPreviewCount).map((d) => (
+                          <View key={d.id} style={styles.dashTaskRow}>
+                            <AppText style={[styles.dashTaskBullet, {color: C.taskBullet}]}>•</AppText>
+                            <AppText 
+                              key={d.id} 
+                              style={[styles.dashBullet, { color: C.text }]}
+                              numberOfLines={2}
+                              ellipsizeMode='tail'
+                            >
+                              {docLabel(d)}
+                            </AppText>
+                          </View>
                         ))
                       ) : (
                         <AppText style={[styles.dashBullet, { color: C.text }]}>
@@ -757,12 +805,12 @@ export default function DashboardScreen() {
                     </View>
 
                     <Pressable style={[styles.dashViewAllBtn, { backgroundColor: C.btnBg }]} 
-                      onPress={() => router.push("/(tabs)/documents")}
+                      onPress={handleOpenDocs}
                     >
                       <AppText style={[styles.dashViewAllText, { color: C.btnText }]}>View All</AppText>
                       <AppText style={[styles.dashViewAllArrow, { color: C.btnText }]}>›</AppText>
                     </Pressable>
-                  </View>
+                  </Pressable>
                 </View>
               </View>
             </View>

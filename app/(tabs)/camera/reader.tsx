@@ -1491,13 +1491,13 @@ export default function ReaderScreen() {
             sourceText = (saved.combined_ocr_text ?? "").trim() || joinedPages;
             sourceLang =
               (savedPages.find((p) => (p.language ?? "").trim())?.language ?? "unknown");
-            resolvedMode = saved.mode || resolvedMode;
+            resolvedMode = saved.detected_mode || saved.mode || resolvedMode;
 
             if (!cancelled) {
               setSavedDocPages(savedPages);
               setSavedDocPageCount(Math.max(saved.page_count ?? savedPages.length ?? 1, 1));
               setSavedDocCombinedText(sourceText);
-              setSavedDocMode(saved.mode ?? null);
+              setSavedDocMode(saved.detected_mode ?? saved.mode ?? null);
               setOcrText(sourceText);
               setOcrLanguage(sourceLang || "unknown");
             }

@@ -372,6 +372,18 @@ export default function ReaderScreen() {
   const [easyRead, setEasyRead] = useState("");
   const [translate, setTranslate] = useState("");
 
+  // loading messages to cycle through during gemini request
+  const loadingMessages = useMemo(() => [
+    "Rewriting your text...",
+    "Do not close the app...",
+    "Please be patient...",
+    "Making your text simpler...",
+    "Almost there...",
+    "Still working on it...",
+  ], []);
+  // state for tracking which loading message to show by index
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+
   const effectiveMode = useMemo(() => {
     const possibleModes = [savedDocMode, mode, geminiData?.mode];
     // do not return auto-detect ever, only return valid modes
@@ -782,15 +794,41 @@ export default function ReaderScreen() {
   // state to disable tabs during loading or TTS busy
   const tabsDisabled = isLoading || ttsBusy;
 
-  console.log("DISABLED CHECK", {
-    tab,
-    ttsStatus,
-    isLoading,
-    ttsBusy,
-    hasSpeechText,
-    ttsPlayDisabled,
-    currentSpeechTextLength: currentSpeechText.length
-  })
+  // cycle through loading messages during gemini request using timed interval
+  useEffect(() => {
+    // only cycle when gemini is loading but not ocr or translation
+    const isRewriting = geminiLoading && !ocrLoading && !translateLoading;
+    // reset to first message and do not start interval if not rewriting (gemini)
+    if (!isRewriting) {
+      setLoadingMessageIndex(0);
+      return;
+    }
+    // start interval to cycle messages every 3 seconds
+    const interval = setInterval(() => {
+      // cycle to next message index, back to start at end of array
+      setLoadingMessageIndex((prev) => (prev + 1) % loadingMessages.length);
+    }, 3000); // message changes every 3 seconds (3000 ms)
+    // clear interval on cleanup, prevent multiple intervals running
+    return () => clearInterval(interval);
+  }, [geminiLoading, ocrLoading, translateLoading, loadingMessages.length])
+
+  // conditionally render loading messages based on request being processed
+  const loadingMessage = useMemo(() => {
+    // show OCR loading message when OCR request in progress
+    if (ocrLoading) {
+      return "Reading your text...";
+    }
+    // show translation loading message when translation request in progress
+    if (translateLoading) {
+      return "Translating your text...";
+    }
+    // cycle through gemini loading messages when gemini request in progress
+    if (geminiLoading) {
+      return loadingMessages[loadingMessageIndex];
+    }
+    // return empty string when not loading
+    return "";
+  }, [ocrLoading, translateLoading, geminiLoading, loadingMessages, loadingMessageIndex]); // update when loading states or messages change
 
   const badgeLang = useMemo(() => {
     if (tab === "Translate") return (userLang ?? "EN").toUpperCase();
@@ -1946,32 +1984,38 @@ export default function ReaderScreen() {
               {/* Loading state + activity indicator */}
               {(ocrLoading || geminiLoading || translateLoading) && (
                 <View style={{
-                  flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 10,
                   marginBottom: 10,
-                  marginTop: 48
+                  marginTop: 48,
+                  minHeight: 110,
+                  paddingHorizontal: 20
                 }}
                 >
-                  <ActivityIndicator
-                    size={28}
-                    color={P.indicator}
-                  />
-                  <AppText style={{
-                    fontWeight: '600',
-                    fontSize: 24,
-                    textAlign: 'center',
+                  <View style={{height: 64, justifyContent: 'center', alignItems: 'center'}}>
+                    <ActivityIndicator
+                      size='large'
+                      color={P.indicator}
+                    />
+                  </View>
+                  
+                  <View style={{
+                    marginTop: 12,
+                    minHeight: 56,
                     justifyContent: 'center',
-                    color: P.bodyText
-                  }}
-                  >
-                    {ocrLoading 
-                      ? "Reading your text..."
-                      : translateLoading
-                        ? "Translating your text..."
-                        : "Rewriting your text..."}
-                  </AppText>
+                    alignItems: 'center'
+                  }}>
+                    <AppText style={{
+                      fontWeight: '600',
+                      fontSize: 24,
+                      textAlign: 'center',
+                      color: P.bodyText
+                    }}
+                    >
+                      {loadingMessage}
+                    </AppText>
+                  </View>
                 </View>
               )}
 

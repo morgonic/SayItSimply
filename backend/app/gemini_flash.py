@@ -92,7 +92,10 @@ async def get_gemini_response(
         "</role>\n\n"
         
         "<constraints>\n"
-        "- Verbosity: Low [if 1 <= base_reading_level_grade <= 3] or Medium [if 4 <= base_reading_level_grade <= 6] or High [if 7 <= base_reading_level_grade <= 9]\n"
+        "- Verbosity: "
+        "Low [if 1 <= base_reading_level_grade <= 3] or "
+        "Medium [if 4 <= base_reading_level_grade <= 6] or "
+        "High [if 7 <= base_reading_level_grade <= 9]\n"
         "- Tone: Neutral\n"
         "- Tone guidance:\n"
         "  * Write in the same tone as the original document, just simpler. Never use a conversational tone.\n"

@@ -2016,6 +2016,12 @@ export default function ReaderScreen() {
                       {loadingMessage}
                     </AppText>
                   </View>
+
+                  <View style={{height: 128, justifyContent: 'center', alignItems: 'center'}}>
+                    <AppText style={[darkMode ? readerDarkStyles.bodyText : readerStyles.bodyText, {opacity: 0.7, fontWeight: '700'}]}>
+                      The longer the text you scanned, the more time it may take to process. Thank you for your patience! For shorter loading times, try scanning a smaller section of text.
+                    </AppText>
+                  </View>
                 </View>
               )}
 

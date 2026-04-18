@@ -62,6 +62,12 @@ type ActionItem = {
   completed: boolean;
 }
 
+// structure of complex_words and simple_words from geminiresponse
+type WordDefinition = {
+  word: string;
+  definition: string;
+}
+
 // structured gemini output
 type GeminiResponse = {
   summary: string;
@@ -70,10 +76,8 @@ type GeminiResponse = {
   translation?: string | null;
   mode: string;
   reading_level?: number;
-  complex_words?: string[]; // OCR text
-  complex_definitions?: string[]; // OCR text
-  simple_words?: string[]; // Simplified text
-  simple_definitions?: string[]; // Simplified text
+  complex_words?: WordDefinition[]; // OCR text
+  simple_words?: WordDefinition[]; // Simplified text
 }
 
 // complex word/definitions modal states: visibility, word, definition
@@ -901,63 +905,43 @@ export default function ReaderScreen() {
 
   // lookup table to get word definitions
   const definitionMap = useMemo(() => {
-    // words being defined
-    const words = geminiData?.complex_words ?? [];
-    // definitions of words
-    const definitions = geminiData?.complex_definitions ?? [];
+    // words and definitions as items
+    const items = geminiData?.complex_words ?? [];
     // create map to link words and definitions
     const map = new Map<string, string>();
 
-    // keep shortest length between words and definitions arrays
-    const minLength = Math.min(words.length, definitions.length);
+    for (const item of items) {
+      const word = (item?.word ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "").trim();
+      const definition = (item?.definition ?? "").trim();
 
-    // iterate through both arrays
-    for (let i = 0; i < minLength; i++) {
-      // normalize word
-      const word = (words[i] ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "").trim();
-      // trim definition string
-      const definition = (definitions[i] ?? "").trim();
-
-      // store if word and definition are both valid
       if (word && definition) {
-        map.set(word, definition);
+        map.set(word, definition)
       }
     }
 
-    // log array lengths
-    console.log(`Complex words: ${words.length}\nComplex definitions: ${definitions.length}`)
+    console.log(`Complex words: ${items.length}`);
     return map;
-  }, [geminiData?.complex_words, geminiData?.complex_definitions]); // rebuild table when word and definitions change
+  }, [geminiData?.complex_words]); // rebuild table when word and definitions change
 
   // lookup table to get word definitions for easy read tab
   const simpleDefinitionMap = useMemo(() => {
-    // words being defined
-    const words = geminiData?.simple_words ?? [];
-    // definitions of words
-    const definitions = geminiData?.simple_definitions ?? [];
+    // words and definitions as items
+    const items = geminiData?.simple_words ?? [];
     // create map to link words and definitions
     const map = new Map<string, string>();
 
-    // keep shortest length between words and definitions arrays
-    const minLength = Math.min(words.length, definitions.length);
+    for (const item of items) {
+      const word = (item?.word ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "").trim();
+      const definition = (item?.definition ?? "").trim();
 
-    // iterate through both arrays
-    for (let i = 0; i < minLength; i++) {
-      // normalize word
-      const word = (words[i] ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "").trim();
-      // trim definition string
-      const definition = (definitions[i] ?? "").trim();
-
-      // store if word and definition are both valid
       if (word && definition) {
-        map.set(word, definition);
+        map.set(word, definition)
       }
     }
 
-    // log array lengths
-    console.log(`Simplified complex words: ${words.length}\nSimplified complex definitions: ${definitions.length}`)
+    console.log(`Simple words: ${items.length}`);
     return map;
-  }, [geminiData?.simple_words, geminiData?.simple_definitions]); // rebuild table when words and definitions change
+  }, [geminiData?.simple_words]); // rebuild table when word and definitions change
 
   // close the definition modal by changing visibility but keep word/definition in state
   function closeDefinitionModal() {
@@ -995,7 +979,7 @@ export default function ReaderScreen() {
     // ocr text is always string
     const text = effectiveOcrText ?? "";
     // normalize complex words to lowercase for case insensitive checking
-    const words = (geminiData?.complex_words ?? []).map(w => w.toLowerCase());
+    const words = (geminiData?.complex_words ?? []).map((item) => item.word.toLowerCase());
 
     // split ocr into tokens with whitespace kept for formatting
     return text.split(/(\s+)/).map((part, i) => {
@@ -1030,7 +1014,7 @@ export default function ReaderScreen() {
     // easy read tab text, always string
     const text = (simplifyMoreText === null ? geminiData?.simplification : simplifyMoreText) ?? "";
     // normalize complex words to lowercase
-    const words = (geminiData?.simple_words ?? []).map(w => w.toLowerCase());
+    const words = (geminiData?.simple_words ?? []).map((item) => item.word.toLowerCase());
 
     //split easy read text into tokens, keep whitespace tokens
     return text.split(/(\s+)/).map((part, i) => {
@@ -1617,20 +1601,6 @@ export default function ReaderScreen() {
           action_items: normalizeActionItems(raw.action_items)
         };
 
-        console.log("\n---[ORIGINAL TEXT] COMPLEX WORDS/DEFS---\n")
-        if (geminiJson.complex_words && geminiJson.complex_definitions) {
-          for (const i in geminiJson.complex_words) {
-            console.log(`${geminiJson.complex_words[i]}: ${geminiJson.complex_definitions[i]}`)
-          }
-        }
-        console.log("\n---[SIMPLIFIED TEXT] COMPLEX WORDS/DEFS---\n")
-        if (geminiJson.simple_words && geminiJson.simple_definitions) {
-          for (const i in geminiJson.simple_words) {
-            console.log(`${geminiJson.simple_words[i]}: ${geminiJson.simple_definitions[i]}`)
-          }
-        }
-
-
         // only set sessionreadinglevel if not null
         setSessionReadingLevel((prev) => prev === null ? (geminiJson.reading_level ?? null) : prev);
 
@@ -2017,8 +1987,8 @@ export default function ReaderScreen() {
                     </AppText>
                   </View>
 
-                  <View style={{height: 128, justifyContent: 'center', alignItems: 'center'}}>
-                    <AppText style={[darkMode ? readerDarkStyles.bodyText : readerStyles.bodyText, {opacity: 0.7, fontWeight: '700'}]}>
+                  <View style={{height: 160, justifyContent: 'center', alignItems: 'center'}}>
+                    <AppText style={[darkMode ? readerDarkStyles.bodyText : readerStyles.bodyText, {opacity: 0.7, fontWeight: '700', fontSize: 16.67}]}>
                       The longer the text you scanned, the more time it may take to process. Thank you for your patience! For shorter loading times, try scanning a smaller section of text.
                     </AppText>
                   </View>
@@ -2045,7 +2015,7 @@ export default function ReaderScreen() {
                       <View>
                         {displayPages.map((page) => {
                           const pageText = (page.ocr_text ?? "").trim();
-                          const words = (geminiData?.complex_words ?? []).map(w => w.toLowerCase());
+                          const words = (geminiData?.complex_words ?? []).map((item) => item.word.toLowerCase());
 
                           const highlightedPage = pageText.split(/(\s+)/).map((part, i) => {
                             if (!part.trim()) {

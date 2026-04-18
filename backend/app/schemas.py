@@ -68,6 +68,11 @@ class GeminiRequest(BaseModel):
     )
     reading_level: Optional[int] = None
 
+# structure of complex words/definitions
+class WordDefinition(BaseModel):
+    word: str
+    definition: str
+
 # response model for /gemini endpoint
 class GeminiResponse(BaseModel):
     summary: str = Field(description="A concise, plain-language summary of exactly what is written in the text.")
@@ -76,10 +81,8 @@ class GeminiResponse(BaseModel):
     translation: Optional[str] = Field(default=None, description="A translation of the original text into the user's preferred language.")
     mode: str = Field(description="The detected document type (one word).")
     reading_level: int = Field(description="The grade level used for simplification. Clamped to minimum 1.")
-    complex_words: Optional[List[str]] = Field(default=None, description="A list of words extracted from the input_text that are above the user's preferred reading level.")
-    complex_definitions: Optional[List[str]] = Field(default=None, description="A list of short plain-language definitions for each of the complex_words extracted from the input_text.")
-    simple_words: Optional[List[str]] = Field(default=None, description="A list of words extracted from the simplification that are above the user's preferred reading level.")
-    simple_definitions: Optional[List[str]] = Field(default=None, description="A list of short plain-language definitions for each of the simple_words extracted from the simplification.")
+    complex_words: List[WordDefinition] = Field(default_factory=list, description="A list of words and their definitions extracted from the input_text that are more complex than the user's preferred reading level.")
+    simple_words: List[WordDefinition] = Field(default_factory=list, description="A list of words and their definitions extracted from the simplification that are more complex than the user's preferred reading level.")
     
 # calibration schemas
 class CalibStateRes(BaseModel):

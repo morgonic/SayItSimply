@@ -62,6 +62,12 @@ type ActionItem = {
   completed: boolean;
 }
 
+// structure of complex_words and simple_words from geminiresponse
+type WordDefinition = {
+  word: string;
+  definition: string;
+}
+
 // structured gemini output
 type GeminiResponse = {
   summary: string;
@@ -70,10 +76,8 @@ type GeminiResponse = {
   translation?: string | null;
   mode: string;
   reading_level?: number;
-  complex_words?: string[]; // OCR text
-  complex_definitions?: string[]; // OCR text
-  simple_words?: string[]; // Simplified text
-  simple_definitions?: string[]; // Simplified text
+  complex_words?: WordDefinition[]; // OCR text
+  simple_words?: WordDefinition[]; // Simplified text
 }
 
 // complex word/definitions modal states: visibility, word, definition
@@ -371,6 +375,18 @@ export default function ReaderScreen() {
   const [overview, setOveriew] = useState("");
   const [easyRead, setEasyRead] = useState("");
   const [translate, setTranslate] = useState("");
+
+  // loading messages to cycle through during gemini request
+  const loadingMessages = useMemo(() => [
+    "Rewriting your text...",
+    "Do not close the app...",
+    "Please be patient...",
+    "Making your text simpler...",
+    "Almost there...",
+    "Still working on it...",
+  ], []);
+  // state for tracking which loading message to show by index
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
 
   const effectiveMode = useMemo(() => {
     const possibleModes = [savedDocMode, mode, geminiData?.mode];
@@ -782,15 +798,41 @@ export default function ReaderScreen() {
   // state to disable tabs during loading or TTS busy
   const tabsDisabled = isLoading || ttsBusy;
 
-  console.log("DISABLED CHECK", {
-    tab,
-    ttsStatus,
-    isLoading,
-    ttsBusy,
-    hasSpeechText,
-    ttsPlayDisabled,
-    currentSpeechTextLength: currentSpeechText.length
-  })
+  // cycle through loading messages during gemini request using timed interval
+  useEffect(() => {
+    // only cycle when gemini is loading but not ocr or translation
+    const isRewriting = geminiLoading && !ocrLoading && !translateLoading;
+    // reset to first message and do not start interval if not rewriting (gemini)
+    if (!isRewriting) {
+      setLoadingMessageIndex(0);
+      return;
+    }
+    // start interval to cycle messages every 3 seconds
+    const interval = setInterval(() => {
+      // cycle to next message index, back to start at end of array
+      setLoadingMessageIndex((prev) => (prev + 1) % loadingMessages.length);
+    }, 3000); // message changes every 3 seconds (3000 ms)
+    // clear interval on cleanup, prevent multiple intervals running
+    return () => clearInterval(interval);
+  }, [geminiLoading, ocrLoading, translateLoading, loadingMessages.length])
+
+  // conditionally render loading messages based on request being processed
+  const loadingMessage = useMemo(() => {
+    // show OCR loading message when OCR request in progress
+    if (ocrLoading) {
+      return "Reading your text...";
+    }
+    // show translation loading message when translation request in progress
+    if (translateLoading) {
+      return "Translating your text...";
+    }
+    // cycle through gemini loading messages when gemini request in progress
+    if (geminiLoading) {
+      return loadingMessages[loadingMessageIndex];
+    }
+    // return empty string when not loading
+    return "";
+  }, [ocrLoading, translateLoading, geminiLoading, loadingMessages, loadingMessageIndex]); // update when loading states or messages change
 
   const badgeLang = useMemo(() => {
     if (tab === "Translate") return (userLang ?? "EN").toUpperCase();
@@ -863,63 +905,43 @@ export default function ReaderScreen() {
 
   // lookup table to get word definitions
   const definitionMap = useMemo(() => {
-    // words being defined
-    const words = geminiData?.complex_words ?? [];
-    // definitions of words
-    const definitions = geminiData?.complex_definitions ?? [];
+    // words and definitions as items
+    const items = geminiData?.complex_words ?? [];
     // create map to link words and definitions
     const map = new Map<string, string>();
 
-    // keep shortest length between words and definitions arrays
-    const minLength = Math.min(words.length, definitions.length);
+    for (const item of items) {
+      const word = (item?.word ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "").trim();
+      const definition = (item?.definition ?? "").trim();
 
-    // iterate through both arrays
-    for (let i = 0; i < minLength; i++) {
-      // normalize word
-      const word = (words[i] ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "").trim();
-      // trim definition string
-      const definition = (definitions[i] ?? "").trim();
-
-      // store if word and definition are both valid
       if (word && definition) {
-        map.set(word, definition);
+        map.set(word, definition)
       }
     }
 
-    // log array lengths
-    console.log(`Complex words: ${words.length}\nComplex definitions: ${definitions.length}`)
+    console.log(`Complex words: ${items.length}`);
     return map;
-  }, [geminiData?.complex_words, geminiData?.complex_definitions]); // rebuild table when word and definitions change
+  }, [geminiData?.complex_words]); // rebuild table when word and definitions change
 
   // lookup table to get word definitions for easy read tab
   const simpleDefinitionMap = useMemo(() => {
-    // words being defined
-    const words = geminiData?.simple_words ?? [];
-    // definitions of words
-    const definitions = geminiData?.simple_definitions ?? [];
+    // words and definitions as items
+    const items = geminiData?.simple_words ?? [];
     // create map to link words and definitions
     const map = new Map<string, string>();
 
-    // keep shortest length between words and definitions arrays
-    const minLength = Math.min(words.length, definitions.length);
+    for (const item of items) {
+      const word = (item?.word ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "").trim();
+      const definition = (item?.definition ?? "").trim();
 
-    // iterate through both arrays
-    for (let i = 0; i < minLength; i++) {
-      // normalize word
-      const word = (words[i] ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "").trim();
-      // trim definition string
-      const definition = (definitions[i] ?? "").trim();
-
-      // store if word and definition are both valid
       if (word && definition) {
-        map.set(word, definition);
+        map.set(word, definition)
       }
     }
 
-    // log array lengths
-    console.log(`Simplified complex words: ${words.length}\nSimplified complex definitions: ${definitions.length}`)
+    console.log(`Simple words: ${items.length}`);
     return map;
-  }, [geminiData?.simple_words, geminiData?.simple_definitions]); // rebuild table when words and definitions change
+  }, [geminiData?.simple_words]); // rebuild table when word and definitions change
 
   // close the definition modal by changing visibility but keep word/definition in state
   function closeDefinitionModal() {
@@ -957,7 +979,7 @@ export default function ReaderScreen() {
     // ocr text is always string
     const text = effectiveOcrText ?? "";
     // normalize complex words to lowercase for case insensitive checking
-    const words = (geminiData?.complex_words ?? []).map(w => w.toLowerCase());
+    const words = (geminiData?.complex_words ?? []).map((item) => item.word.toLowerCase());
 
     // split ocr into tokens with whitespace kept for formatting
     return text.split(/(\s+)/).map((part, i) => {
@@ -992,7 +1014,7 @@ export default function ReaderScreen() {
     // easy read tab text, always string
     const text = (simplifyMoreText === null ? geminiData?.simplification : simplifyMoreText) ?? "";
     // normalize complex words to lowercase
-    const words = (geminiData?.simple_words ?? []).map(w => w.toLowerCase());
+    const words = (geminiData?.simple_words ?? []).map((item) => item.word.toLowerCase());
 
     //split easy read text into tokens, keep whitespace tokens
     return text.split(/(\s+)/).map((part, i) => {
@@ -1453,13 +1475,13 @@ export default function ReaderScreen() {
             sourceText = (saved.combined_ocr_text ?? "").trim() || joinedPages;
             sourceLang =
               (savedPages.find((p) => (p.language ?? "").trim())?.language ?? "unknown");
-            resolvedMode = saved.mode || resolvedMode;
+            resolvedMode = saved.detected_mode || saved.mode || resolvedMode;
 
             if (!cancelled) {
               setSavedDocPages(savedPages);
               setSavedDocPageCount(Math.max(saved.page_count ?? savedPages.length ?? 1, 1));
               setSavedDocCombinedText(sourceText);
-              setSavedDocMode(saved.mode ?? null);
+              setSavedDocMode(saved.detected_mode ?? saved.mode ?? null);
               setOcrText(sourceText);
               setOcrLanguage(sourceLang || "unknown");
             }
@@ -1578,20 +1600,6 @@ export default function ReaderScreen() {
           ...raw,
           action_items: normalizeActionItems(raw.action_items)
         };
-
-        console.log("\n---[ORIGINAL TEXT] COMPLEX WORDS/DEFS---\n")
-        if (geminiJson.complex_words && geminiJson.complex_definitions) {
-          for (const i in geminiJson.complex_words) {
-            console.log(`${geminiJson.complex_words[i]}: ${geminiJson.complex_definitions[i]}`)
-          }
-        }
-        console.log("\n---[SIMPLIFIED TEXT] COMPLEX WORDS/DEFS---\n")
-        if (geminiJson.simple_words && geminiJson.simple_definitions) {
-          for (const i in geminiJson.simple_words) {
-            console.log(`${geminiJson.simple_words[i]}: ${geminiJson.simple_definitions[i]}`)
-          }
-        }
-
 
         // only set sessionreadinglevel if not null
         setSessionReadingLevel((prev) => prev === null ? (geminiJson.reading_level ?? null) : prev);
@@ -1946,32 +1954,44 @@ export default function ReaderScreen() {
               {/* Loading state + activity indicator */}
               {(ocrLoading || geminiLoading || translateLoading) && (
                 <View style={{
-                  flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 10,
                   marginBottom: 10,
-                  marginTop: 48
+                  marginTop: 48,
+                  minHeight: 110,
+                  paddingHorizontal: 20
                 }}
                 >
-                  <ActivityIndicator
-                    size={28}
-                    color={P.indicator}
-                  />
-                  <AppText style={{
-                    fontWeight: '600',
-                    fontSize: 24,
-                    textAlign: 'center',
+                  <View style={{height: 64, justifyContent: 'center', alignItems: 'center'}}>
+                    <ActivityIndicator
+                      size='large'
+                      color={P.indicator}
+                    />
+                  </View>
+                  
+                  <View style={{
+                    marginTop: 12,
+                    minHeight: 56,
                     justifyContent: 'center',
-                    color: P.bodyText
-                  }}
-                  >
-                    {ocrLoading 
-                      ? "Reading your text..."
-                      : translateLoading
-                        ? "Translating your text..."
-                        : "Rewriting your text..."}
-                  </AppText>
+                    alignItems: 'center'
+                  }}>
+                    <AppText style={{
+                      fontWeight: '600',
+                      fontSize: 24,
+                      textAlign: 'center',
+                      color: P.bodyText
+                    }}
+                    >
+                      {loadingMessage}
+                    </AppText>
+                  </View>
+
+                  <View style={{height: 160, justifyContent: 'center', alignItems: 'center'}}>
+                    <AppText style={[darkMode ? readerDarkStyles.bodyText : readerStyles.bodyText, {opacity: 0.7, fontWeight: '700', fontSize: 16.67}]}>
+                      The longer the text you scanned, the more time it may take to process. Thank you for your patience! For shorter loading times, try scanning a smaller section of text.
+                    </AppText>
+                  </View>
                 </View>
               )}
 
@@ -1995,7 +2015,7 @@ export default function ReaderScreen() {
                       <View>
                         {displayPages.map((page) => {
                           const pageText = (page.ocr_text ?? "").trim();
-                          const words = (geminiData?.complex_words ?? []).map(w => w.toLowerCase());
+                          const words = (geminiData?.complex_words ?? []).map((item) => item.word.toLowerCase());
 
                           const highlightedPage = pageText.split(/(\s+)/).map((part, i) => {
                             if (!part.trim()) {

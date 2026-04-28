@@ -203,7 +203,7 @@ export default function DocumentsScreen() {
           </View>
           {/* text */}
           <View style={localStyles.textCol}>
-            <AppText style={localStyles.title}>{item.detected_mode || item.mode}</AppText>
+            <AppText style={localStyles.title}>{(item.mode === 'Auto-detect') ? item.detected_mode : item.mode}</AppText>
             <AppText style={localStyles.subtitle}>{formatDate(item.timestamp)}
               {item.page_count && item.page_count > 1 ? `- ${item.page_count} pages`: ""}
             </AppText>
